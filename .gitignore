@@ -1,0 +1,25 @@
+# ── Tài liệu gốc từ khách hàng / dự án (nặng hoặc chứa thông tin nhạy cảm) — KHÔNG commit ──
+# SRS_LAOADS.docx ~67MB; file Quản lý dự án chứa URL ticket VSA + chuỗi giống mật khẩu.
+/*.docx
+/*.xlsx
+~$*
+
+# ── Env / secret ──
+.env
+.env.*
+!.env.example
+# chỉ chứa VITE_API_MODE=mock — cần cho `npm run dev:mock`
+!laoads-web/.env.mock
+*.local.ps1
+.env.local.ps1
+
+# ── Build / IDE ──
+node_modules/
+dist/
+target/
+logs/
+*.log
+.idea/
+.vscode/
+*.iml
+.DS_Store

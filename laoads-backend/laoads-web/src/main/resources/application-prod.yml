@@ -1,0 +1,100 @@
+# Prod: KHÔNG có default host/mật khẩu — StartupValidator chặn start nếu thiếu env.
+spring:
+  datasource:
+    url: ${LAOADS_DB_URL:${BOC_DB_URL:}}
+    username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:}}
+    password: ${LAOADS_DB_PASSWORD:${BOC_DB_PASSWORD:}}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      pool-name: laoads-hikari
+      maximum-pool-size: 30
+      minimum-idle: 10
+      idle-timeout: 600000            # 10 min — đóng connection idle
+      leak-detection-threshold: 60000 # 1 min — warn nếu connection không return
+      validation-timeout: 5000
+      # A+++ runtime resilience: short timeout + recycle + force validate
+      max-lifetime: 600000
+      connection-timeout: 5000
+      connection-test-query: "SELECT 1 FROM DUAL"
+      data-source-properties:
+        oracle.jdbc.ReadTimeout: 30000
+        oracle.net.CONNECT_TIMEOUT: 5000
+  jpa:
+    open-in-view: false
+    # ddl-auto: none đã set ở application.yml (A+A+: không validate lúc start)
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.OracleLegacyDialect
+        default_schema: ${LAOADS_DB_SCHEMA:BOC}
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    table: LADS_FLYWAY_HISTORY
+    schemas: ${LAOADS_DB_SCHEMA:BOC}
+    locations: classpath:db/migration
+    clean-disabled: true
+
+# Read-only pool — phải config riêng vì có 2 DataSource bean explicit
+laoads:
+  read-only-datasource:
+    jdbc-url: ${LAOADS_DB_URL:${BOC_DB_URL:}}
+    username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:}}
+    password: ${LAOADS_DB_PASSWORD:${BOC_DB_PASSWORD:}}
+    driver-class-name: oracle.jdbc.OracleDriver
+    pool-name: laoads-readonly-hikari
+    maximum-pool-size: 8
+    minimum-idle: 2
+    idle-timeout: 600000
+    initialization-fail-timeout: -1
+    keepalive-time: 30000
+    # A+++ runtime resilience
+    max-lifetime: 600000
+    connection-timeout: 5000
+    connection-test-query: "SELECT 1 FROM DUAL"
+    data-source-properties:
+      oracle.net.CONNECT_TIMEOUT: 5000
+      oracle.jdbc.ReadTimeout: 30000
+    read-only: true
+    auto-commit: false
+  cors:
+    allowed-origins: ${LAOADS_CORS_ALLOWED_ORIGINS:}
+    allow-credentials: true
+  jwt:
+    # PHẢI set LAOADS_JWT_SECRET (≥ 32 byte) — không có default ở prod.
+    secret: ${LAOADS_JWT_SECRET:}
+
+server:
+  port: ${SERVER_PORT:8080}
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+    accept-count: 100
+    max-connections: 8192
+    connection-timeout: 30s
+  shutdown: graceful
+
+# Actuator restrict — KHÔNG expose caches/env/configprops (leak data/secrets)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.unitel.laoads: INFO
+    org.hibernate.SQL: WARN
+    org.springframework.security: WARN

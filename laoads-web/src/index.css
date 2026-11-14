@@ -1,0 +1,208 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens LaoAds — màu thương hiệu lấy từ logo Unitel (#F85000).
+ * - brand-500 (#F85000): điểm nhấn, logo, focus ring, chỉ báo active.
+ * - brand-600 (#D24400): nền nút primary — đạt WCAG AA 4.58:1 với chữ trắng (brand-500 chỉ 3.4:1).
+ * Series biểu đồ: bảng màu đã validate (dataviz validator) trên nền card #fff / #17181c.
+ */
+:root {
+  --brand-50: #fff5ee;
+  --brand-100: #ffe8d9;
+  --brand-200: #ffcdb0;
+  --brand-300: #ffa877;
+  --brand-400: #ff7b3a;
+  --brand-500: #f85000;
+  --brand-600: #d24400;
+  --brand-700: #a93800;
+  --brand-800: #842d05;
+  --brand-900: #6b2608;
+
+  --background: #f6f6f8;
+  --foreground: #14161b;
+  --card: #ffffff;
+  --card-foreground: #14161b;
+  --popover: #ffffff;
+  --popover-foreground: #14161b;
+  --primary: var(--brand-600);
+  --primary-foreground: #ffffff;
+  --secondary: #f1f2f5;
+  --secondary-foreground: #1f2229;
+  --muted: #f1f2f5;
+  --muted-foreground: #646977;
+  --accent: #fff1e8;
+  --accent-foreground: #a93800;
+  --destructive: #d03b3b;
+  --destructive-foreground: #ffffff;
+  --border: #e6e7eb;
+  --input: #dcdee3;
+  --ring: color-mix(in oklab, var(--brand-500) 55%, transparent);
+  --link: var(--brand-600);
+
+  --success: #0b6b2e;
+  --success-soft: #e7f6ec;
+  --warning: #8a5a00;
+  --warning-soft: #fff4dc;
+  --info: #1c5cab;
+  --info-soft: #eaf2fd;
+  --danger: #b42828;
+  --danger-soft: #fdecec;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #3a3e48;
+  --sidebar-border: #eceef1;
+  --sidebar-active: #fff1e8;
+  --sidebar-active-foreground: #b13b00;
+
+  /* chart chrome + series (cố định theo kênh: 1=SMS 2=Email 3=WhatsApp 4=USSD) */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-brand: #f85000;
+  --chart-grid: #ececef;
+  --chart-axis: #8b8f99;
+
+  --radius: 0.75rem;
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.04);
+  --shadow-pop: 0 12px 32px -8px rgb(16 24 40 / 0.18), 0 2px 6px rgb(16 24 40 / 0.06);
+}
+
+.dark {
+  --background: #0f1013;
+  --foreground: #ecedef;
+  --card: #17181c;
+  --card-foreground: #ecedef;
+  --popover: #1b1c21;
+  --popover-foreground: #ecedef;
+  --primary: var(--brand-600);
+  --primary-foreground: #ffffff;
+  --secondary: #23252b;
+  --secondary-foreground: #e4e5e8;
+  --muted: #1f2126;
+  --muted-foreground: #a0a4ae;
+  --accent: #2a1d15;
+  --accent-foreground: #ff9a63;
+  --destructive: #e05252;
+  --border: #2a2c33;
+  --input: #34373e;
+  --link: #ff8a4c;
+
+  --success: #4ccb7a;
+  --success-soft: #12291b;
+  --warning: #f2b740;
+  --warning-soft: #2b2312;
+  --info: #6aa6ee;
+  --info-soft: #14233a;
+  --danger: #f07a7a;
+  --danger-soft: #2f1717;
+
+  --sidebar: #131418;
+  --sidebar-foreground: #c9ccd3;
+  --sidebar-border: #24262c;
+  --sidebar-active: #2a1d15;
+  --sidebar-active-foreground: #ff9a63;
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-brand: #ff6a1f;
+  --chart-grid: #26282e;
+  --chart-axis: #8b8f99;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 12px 32px -8px rgb(0 0 0 / 0.6);
+}
+
+@theme inline {
+  --font-sans: 'Inter Variable', 'Noto Sans Lao Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-link: var(--link);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-active-foreground: var(--sidebar-active-foreground);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  ::selection {
+    background: var(--brand-200);
+    color: var(--brand-900);
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;
+  }
+  .bg-brand-gradient {
+    background-image: linear-gradient(135deg, #ff8a3d 0%, #f85000 45%, #c43e00 100%);
+  }
+}

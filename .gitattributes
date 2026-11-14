@@ -1,0 +1,10 @@
+# Chuẩn hoá xuống dòng: repo lưu LF; script chạy trong container Linux luôn LF khi checkout trên Windows.
+* text=auto
+*.sh text eol=lf
+mvnw text eol=lf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.jar binary
+*.woff2 binary

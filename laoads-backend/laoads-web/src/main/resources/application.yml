@@ -1,0 +1,109 @@
+# Cấu hình chung — override bởi application-{profile}.yml
+# LƯU Ý YAML: mỗi file chỉ có MỘT key gốc `laoads:` (BOC từng crash DuplicateKeyException vì 2 key `boc:`).
+spring:
+  application:
+    name: laoads-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  jackson:
+    # KHÔNG dùng default-property-inclusion: non_null — contract yêu cầu field null vẫn có mặt (vd fullName: null)
+    serialization:
+      write-dates-as-timestamps: false
+    generator:
+      write-bigdecimal-as-plain: true
+    # OffsetDateTime trả ISO-8601 offset giờ Lào, vd 2026-11-15T09:30:00+07:00
+    time-zone: Asia/Vientiane
+  # i18n message: resolve theo Accept-Language (vi/en/lo), fallback messages.properties (vi)
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
+    use-code-as-default-message: false
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+  # ============== A+A+ + A+++ (copy BOC): BE start được dù DB down + auto reconnect runtime ==============
+  datasource:
+    hikari:
+      # A+A+: Pool start dù connection chưa mở được
+      initialization-fail-timeout: -1
+      keepalive-time: 30000
+      validation-timeout: 5000
+      # A+++: Runtime resilience khi DB tạm mất kết nối rồi khôi phục
+      max-lifetime: 600000              # 10 phút — recycle connection tránh stale (vd firewall NAT timeout)
+      connection-timeout: 5000          # 5s — fail fast cho user thay vì chờ 30s
+      connection-test-query: "SELECT 1 FROM DUAL"   # Oracle force validate trước getConnection
+      data-source-properties:
+        oracle.net.CONNECT_TIMEOUT: 5000           # 5s open socket — fail fast khi network broken
+        oracle.jdbc.ReadTimeout: 30000             # 30s read response
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Migration là source of truth — không validate schema lúc start (cần DB)
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+        batch_versioned_data: true
+  data:
+    jpa:
+      repositories:
+        # Defer repository init → JPA không block startup khi DB down
+        bootstrap-mode: lazy
+  flyway:
+    # Schema dùng chung với BOC + 1107 bảng legacy — TUYỆT ĐỐI không cho flyway clean
+    clean-disabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api
+  error:
+    include-message: never
+    include-binding-errors: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus, caches
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+laoads:
+  # JWT — secret PHẢI set qua env LAOADS_JWT_SECRET (≥ 32 byte) ở uat/prod; dev có default trong application-dev.yml
+  jwt:
+    secret: ${LAOADS_JWT_SECRET:}
+    access-ttl: PT30M
+    refresh-ttl: P7D
+    issuer: laoads-unitel
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+    allowed-methods: [GET, POST, PUT, DELETE, PATCH, OPTIONS]
+    allowed-headers: ["*"]
+    allow-credentials: true
+  # SSO VSA (CAS 2.0) — tắt mặc định
+  vsa:
+    enabled: ${LAOADS_VSA_ENABLED:false}
+    cas-url: ${LAOADS_VSA_CAS_URL:}
+    service-url: ${LAOADS_VSA_SERVICE_URL:}
+    connect-timeout: PT5S
+    read-timeout: PT10S
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  show-actuator: false
+  packages-to-scan: com.unitel.laoads.api

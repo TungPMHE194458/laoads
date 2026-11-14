@@ -1,0 +1,79 @@
+spring:
+  datasource:
+    url: ${LAOADS_DB_URL:${BOC_DB_URL:jdbc:oracle:thin:@//10.120.138.131:1521/stl_ptdl}}
+    username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:BOC}}
+    password: ${LAOADS_DB_PASSWORD:${BOC_DB_PASSWORD:}}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      pool-name: laoads-hikari
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 600000
+      leak-detection-threshold: 60000
+      # A+++ override: max-lifetime 10p, connection-timeout 5s, test-query, oracle props
+      max-lifetime: 600000
+      connection-timeout: 5000
+      connection-test-query: "SELECT 1 FROM DUAL"
+      data-source-properties:
+        oracle.net.CONNECT_TIMEOUT: 5000
+        oracle.jdbc.ReadTimeout: 30000
+  jpa:
+    open-in-view: false
+    # ddl-auto: none đã set ở application.yml (A+A+: không validate lúc start)
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.OracleLegacyDialect
+        default_schema: ${LAOADS_DB_SCHEMA:BOC}
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    table: LADS_FLYWAY_HISTORY
+    schemas: ${LAOADS_DB_SCHEMA:BOC}
+    locations: classpath:db/migration
+    clean-disabled: true
+
+laoads:
+  read-only-datasource:
+    jdbc-url: ${LAOADS_DB_URL:${BOC_DB_URL:jdbc:oracle:thin:@//10.120.138.131:1521/stl_ptdl}}
+    username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:BOC}}
+    password: ${LAOADS_DB_PASSWORD:${BOC_DB_PASSWORD:}}
+    driver-class-name: oracle.jdbc.OracleDriver
+    pool-name: laoads-readonly-hikari
+    maximum-pool-size: 6
+    minimum-idle: 2
+    initialization-fail-timeout: -1
+    keepalive-time: 30000
+    # A+++ runtime resilience
+    max-lifetime: 600000
+    connection-timeout: 5000
+    connection-test-query: "SELECT 1 FROM DUAL"
+    data-source-properties:
+      oracle.net.CONNECT_TIMEOUT: 5000
+      oracle.jdbc.ReadTimeout: 30000
+    read-only: true
+    auto-commit: false
+  cors:
+    allowed-origins: ${LAOADS_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  jwt:
+    secret: ${LAOADS_JWT_SECRET:}
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus, caches
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    root: INFO
+    com.unitel.laoads: INFO
