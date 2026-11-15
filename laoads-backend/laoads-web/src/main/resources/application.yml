@@ -22,8 +22,9 @@ spring:
   servlet:
     multipart:
       enabled: true
-      max-file-size: 10MB
-      max-request-size: 10MB
+      # khớp nginx client_max_body_size 25m (import tệp KH / danh sách chuyển đổi)
+      max-file-size: 25MB
+      max-request-size: 25MB
   # ============== A+A+ + A+++ (copy BOC): BE start được dù DB down + auto reconnect runtime ==============
   datasource:
     hikari:
@@ -38,6 +39,11 @@ spring:
       data-source-properties:
         oracle.net.CONNECT_TIMEOUT: 5000           # 5s open socket — fail fast khi network broken
         oracle.jdbc.ReadTimeout: 30000             # 30s read response
+  # Job engine (build tệp KH, chạy lượt, gửi tin, tổng hợp) + DatabaseBootstrap chạy song song
+  task:
+    scheduling:
+      pool:
+        size: 4
   jpa:
     open-in-view: false
     hibernate:
@@ -90,6 +96,16 @@ laoads:
     allowed-methods: [GET, POST, PUT, DELETE, PATCH, OPTIONS]
     allowed-headers: ["*"]
     allow-credentials: true
+  # Engine thực thi chiến dịch. gateway/conversion = simulated: gửi tin & đo chuyển đổi GIẢ LẬP (chưa có kết nối thật).
+  engine:
+    enabled: ${LAOADS_ENGINE_ENABLED:true}
+    gateway: ${LAOADS_ENGINE_GATEWAY:simulated}
+    conversion: ${LAOADS_ENGINE_CONVERSION:simulated}
+    simulation:
+      engagement: ${LAOADS_ENGINE_SIMULATE_ENGAGEMENT:true}
+    dispatch-batch: 500
+    # Gốc URL công khai để dựng link tracking /api/v1/t/{token}
+    public-base-url: ${LAOADS_PUBLIC_BASE_URL:http://localhost:5173}
   # SSO VSA (CAS 2.0) — tắt mặc định
   vsa:
     enabled: ${LAOADS_VSA_ENABLED:false}

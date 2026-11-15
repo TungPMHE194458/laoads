@@ -36,6 +36,9 @@ public class SecurityConfig {
             "/v1/auth/refresh",
             "/v1/auth/logout",
             "/v1/auth/vsa/**",
+            // link tracking cho người nhận tin + API sự kiện (xác thực bằng X-Api-Key của workspace)
+            "/v1/t/**",
+            "/v1/events",
             "/actuator/health",
             "/actuator/health/**",
             "/actuator/info",

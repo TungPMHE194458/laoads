@@ -59,7 +59,13 @@ class RepositoryQueryValidationTest {
             WorkspaceMemberRepository.class,
             RolePermissionRepository.class,
             PriceQuoteRepository.class,
-            AuditLogRepository.class
+            AuditLogRepository.class,
+            com.unitel.laoads.domain.settings.SenderNumberRepository.class,
+            com.unitel.laoads.domain.settings.AppSettingRepository.class,
+            com.unitel.laoads.domain.segment.SegmentRepository.class,
+            com.unitel.laoads.domain.campaign.CampaignRepository.class,
+            com.unitel.laoads.domain.campaign.CampaignHistoryRepository.class,
+            com.unitel.laoads.domain.campaign.CampaignGroupRepository.class
     })
     void repositoryQueriesAreValid(Class<?> repositoryInterface) {
         EntityManager em = SharedEntityManagerCreator.createSharedEntityManager(emf);

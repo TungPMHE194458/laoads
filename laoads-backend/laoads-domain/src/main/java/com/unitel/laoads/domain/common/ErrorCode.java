@@ -44,7 +44,19 @@ public enum ErrorCode {
     VSA_USER_NOT_PROVISIONED(403),
 
     // ===== Bảng giá (contract §7) =====
-    PRICE_QUOTE_NOT_DRAFT(409);
+    PRICE_QUOTE_NOT_DRAFT(409),
+
+    // ===== Đợt 2–3: cấu hình gửi tin, tệp KH, chiến dịch, API sự kiện =====
+    SENDER_CODE_DUPLICATE(409),
+    GROUP_NAME_DUPLICATE(409),
+    GROUP_IN_USE(409),
+    SEGMENT_NAME_DUPLICATE(409),
+    SEGMENT_NOT_READY(409),
+    SEGMENT_IN_USE(409),
+    CAMPAIGN_LOCKED(409),
+    INVALID_TRANSITION(409),
+    FILE_INVALID(400),
+    API_KEY_INVALID(401);
 
     private final int httpStatus;
 
