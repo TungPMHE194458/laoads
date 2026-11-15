@@ -53,7 +53,11 @@ npm run gen:api        # ../docs/openapi.yaml → src/api/schema.ts
 ```
 There is no test runner in the FE. Verify UI changes by running `dev:mock` and looking at the page.
 
-⚠️ Known bug (2026-11-15, unfixed): `vite build` succeeds, but the bundle crashes on load (`Cannot read properties of null (reading 'useRef')`) in every mode, including `real` (Docker). Vite 8.3.8 / Rolldown 1.2.19 duplicates the CJS `react` module into two chunks. The dev server is unaffected. Check a build with `vite preview` plus a real browser, not just a green build. Don't run two Vite dev servers on the same `node_modules/.vite` cache: that also produces "Invalid hook call".
+⚠️ **Windows drive-letter case.** Terminals often start in `d:\…` (lowercase) while the resolver returns `D:\…`, so Rolldown gets two module ids for one file. The bundle then ships two copies of React or React Router, and the page renders blank (`reading 'useRef'` or `useNavigate() may be used only in the context of a <Router>`). The dev server is unaffected, and so are Linux/Docker builds.
+- `vite.config.ts` pins `root` and the `@` alias to `fs.realpathSync.native(import.meta.dirname)`. Keep it that way.
+- The `laoads:no-duplicate-modules` plugin fails the build if any module lands in two chunks. Don't remove it.
+- A green build is not proof: check `vite preview` in a real browser and look for React Router ErrorBoundary errors, not only uncaught ones.
+- Don't run two Vite dev servers on the same `node_modules/.vite` cache: that also produces "Invalid hook call".
 
 The Vite dev proxy strips the `Origin` header on `/api` (same-origin via proxy) — otherwise the BE's CORS filter 403s whenever Vite auto-increments to a port outside the whitelist (BOC hit this as troubleshooting #3).
 
