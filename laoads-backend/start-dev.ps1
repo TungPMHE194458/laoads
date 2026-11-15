@@ -1,10 +1,8 @@
-# Chạy LaoAds BE profile dev (port 8095, context-path /api).
+# Chạy LaoAds BE profile dev (port 8095, context-path /api) với DB Oracle XE LOCAL (../docker-compose.dev.yml).
 #
-# Secret KHÔNG nằm trong repo. Thứ tự lấy giá trị:
-#   1. Env var đã có sẵn trong shell (LAOADS_DB_PASSWORD, hoặc BOC_DB_PASSWORD dùng chung với BOC)
-#   2. File .env.local.ps1 cạnh script này (gitignored) — copy từ .env.local.ps1.example rồi điền
-#
-# Mặc định kết nối DB Oracle dùng chung với BOC (10.120.138.131/stl_ptdl, user BOC) — xem application-dev.yml.
+# Dev KHÔNG dùng DB dùng chung với BOC: application-dev.yml mặc định localhost:1521/XE (user LAOADS / laoads),
+# không fallback BOC_DB_*, và DevDatabaseGuard chặn start nếu DB không phải localhost.
+# Biến tuỳ chỉnh (JWT, VSA, port…) đặt trong .env.local.ps1 cạnh script này (gitignored) — copy từ .env.local.ps1.example.
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
@@ -14,8 +12,22 @@ if (Test-Path $localEnv) {
     Write-Host "Đã nạp $localEnv"
 }
 
-if (-not $env:LAOADS_DB_PASSWORD -and -not $env:BOC_DB_PASSWORD) {
-    Write-Warning "Chưa có LAOADS_DB_PASSWORD / BOC_DB_PASSWORD — BE vẫn start (A+A+) nhưng không kết nối được DB."
+# Bật container Oracle XE local (idempotent). BE vẫn start được nếu DB chưa lên — tự migrate khi DB sẵn sàng (ping mỗi 30s).
+if (-not $env:LAOADS_DB_URL) {
+    $composeFile = Join-Path $PSScriptRoot "..\docker-compose.dev.yml"
+    if (Get-Command docker -ErrorAction SilentlyContinue) {
+        $ErrorActionPreference = "Continue"
+        docker compose -f $composeFile up -d
+        $dockerOk = $LASTEXITCODE -eq 0
+        $ErrorActionPreference = "Stop"
+        if (-not $dockerOk) {
+            Write-Warning "Không bật được DB local (Docker Desktop đã chạy chưa?). BE vẫn start và thử lại DB mỗi 30s."
+        }
+    } else {
+        Write-Warning "Không thấy lệnh docker — cài Docker Desktop, hoặc tự chạy Oracle local rồi đặt LAOADS_DB_URL."
+    }
+} else {
+    Write-Host "LAOADS_DB_URL đã đặt → không bật docker-compose.dev.yml: $env:LAOADS_DB_URL"
 }
 
 $env:SPRING_PROFILES_ACTIVE = "dev"

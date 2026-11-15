@@ -1,5 +1,6 @@
 # LaoAds — compose cho môi trường triển khai (không dùng cho dev local).
-# Dev: `./mvnw -pl laoads-web -am spring-boot:run` (BE :8095) + `npm run dev` (FE :5173).
+# Dev: `docker compose -f docker-compose.dev.yml up -d` (Oracle XE local) + `./mvnw -pl laoads-web -am spring-boot:run`
+#      (BE :8095) + `npm run dev` (FE :5173). File này KHÔNG chứa DB dev.
 #
 # Server Unitel thường không có internet → build ở máy dev rồi đẩy image (giống BOC):
 #   docker compose build

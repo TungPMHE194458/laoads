@@ -3,11 +3,13 @@ server:
   port: ${SERVER_PORT:8095}
 
 spring:
-  # Dùng chung DB với BOC: LAOADS_* ưu tiên, fallback BOC_* — KHÔNG commit mật khẩu (đặt env / .env.local.ps1)
+  # Dev = Oracle XE LOCAL (docker-compose.dev.yml), độc lập với DB dùng chung BOC.
+  # CỐ Ý không fallback BOC_DB_* (shell chạy BOC dev hay có sẵn các biến đó) và không có host dùng chung làm default.
+  # Trỏ sang DB không phải localhost → DevDatabaseGuard chặn start, trừ khi LAOADS_DEV_ALLOW_REMOTE_DB=true.
   datasource:
-    url: ${LAOADS_DB_URL:${BOC_DB_URL:jdbc:oracle:thin:@//10.120.138.131:1521/stl_ptdl}}
-    username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:BOC}}
-    password: ${LAOADS_DB_PASSWORD:${BOC_DB_PASSWORD:}}
+    url: ${LAOADS_DB_URL:jdbc:oracle:thin:@//localhost:1521/XE}
+    username: ${LAOADS_DB_USERNAME:LAOADS}
+    password: ${LAOADS_DB_PASSWORD:laoads}
     driver-class-name: oracle.jdbc.OracleDriver
     hikari:
       pool-name: laoads-hikari
@@ -21,7 +23,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.community.dialect.OracleLegacyDialect
-        default_schema: ${LAOADS_DB_SCHEMA:BOC}
+        default_schema: ${LAOADS_DB_SCHEMA:LAOADS}
         jdbc:
           time_zone: UTC
         format_sql: true
@@ -29,18 +31,25 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 0
-    baseline-description: "LADS_* fresh start (schema dùng chung với BOC UBOC_* + legacy)"
+    baseline-description: "LADS_* fresh start"
     table: LADS_FLYWAY_HISTORY
-    schemas: ${LAOADS_DB_SCHEMA:BOC}
+    schemas: ${LAOADS_DB_SCHEMA:LAOADS}
     locations: classpath:db/migration
     clean-disabled: true
 
 laoads:
+  dev:
+    # true = cho phép profile dev trỏ DB không phải localhost (vd DB dùng chung) — cẩn thận: dev chạy
+    # DevDataSeeder (tài khoản demo mật khẩu yếu) và flyway.repair() trên DB đó.
+    allow-remote-db: ${LAOADS_DEV_ALLOW_REMOTE_DB:false}
+    # DevMockDataSeeder: nạp mock data (user, workspace, thành viên, bảng giá, nhật ký) vào DB local sau seed gốc.
+    # false = DB chỉ có 4 tài khoản + BSD/BCD của DevDataSeeder.
+    mock-data: ${LAOADS_DEV_MOCK_DATA:true}
   # Read-only pool — truy vấn báo cáo/analytical (copy BOC, đủ A+++ resilience)
   read-only-datasource:
-    jdbc-url: ${LAOADS_DB_URL:${BOC_DB_URL:jdbc:oracle:thin:@//10.120.138.131:1521/stl_ptdl}}
-    username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:BOC}}
-    password: ${LAOADS_DB_PASSWORD:${BOC_DB_PASSWORD:}}
+    jdbc-url: ${LAOADS_DB_URL:jdbc:oracle:thin:@//localhost:1521/XE}
+    username: ${LAOADS_DB_USERNAME:LAOADS}
+    password: ${LAOADS_DB_PASSWORD:laoads}
     driver-class-name: oracle.jdbc.OracleDriver
     pool-name: laoads-readonly-hikari
     maximum-pool-size: 4

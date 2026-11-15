@@ -3,15 +3,15 @@
 #
 # Usage:
 #   ./scripts/export-openapi.sh [PORT] [OUT_FILE]
-# Default: PORT=8095 OUT_FILE=docs/openapi.yaml  (dev chạy 8095, uat/prod 8080)
+# Default: PORT=8095 OUT_FILE=<repo>/docs/openapi.yaml  (dev chạy 8095, uat/prod 8080)
 #
-# Sau khi export, copy sang FE rồi regen type:
-#   cp docs/openapi.yaml ../laoads-web/openapi.yaml
+# Sau khi export, regen type FE (gen:api đọc ../docs/openapi.yaml):
 #   cd ../laoads-web && npm run gen:api
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PORT="${1:-8095}"
-OUT="${2:-docs/openapi.yaml}"
+OUT="${2:-$REPO_ROOT/docs/openapi.yaml}"
 
 mkdir -p "$(dirname "$OUT")"
 

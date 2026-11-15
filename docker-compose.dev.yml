@@ -1,0 +1,38 @@
+# LaoAds — DB Oracle LOCAL cho dev, chạy độc lập, KHÔNG đụng DB dùng chung với BOC (prod/uat).
+#
+#   docker compose -f docker-compose.dev.yml up -d      # start (lần đầu ~1–3 phút để khởi tạo DB)
+#   docker compose -f docker-compose.dev.yml ps         # chờ STATUS = healthy
+#   docker compose -f docker-compose.dev.yml down       # dừng, GIỮ dữ liệu (volume laoads-oracle-data)
+#   docker compose -f docker-compose.dev.yml down -v    # dừng + XOÁ sạch dữ liệu (lần start sau Flyway tạo lại từ V1)
+#
+# Oracle XE 11.2 — cùng dòng 11.2 với DB thật (11.2.0.4) nên bắt được cú pháp không có ở 11g
+# (IDENTITY, BOOLEAN, FETCH FIRST…). Schema LAOADS do APP_USER tạo lúc khởi tạo volume lần đầu.
+# Kết nối: jdbc:oracle:thin:@//localhost:1521/XE · user LAOADS / laoads (khớp default của application-dev.yml).
+# Mật khẩu ở đây chỉ dùng cho container local, cổng chỉ bind 127.0.0.1.
+name: laoads-dev
+
+services:
+  laoads-oracle:
+    image: gvenzl/oracle-xe:11-slim
+    container_name: laoads-oracle-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${LAOADS_DEV_DB_PORT:-1521}:1521"
+    environment:
+      ORACLE_PASSWORD: ${LAOADS_DEV_DB_SYS_PASSWORD:-laoads_sys}
+      APP_USER: LAOADS
+      APP_USER_PASSWORD: ${LAOADS_DEV_DB_PASSWORD:-laoads}
+      TZ: Asia/Vientiane
+    # 11g cần /dev/shm đủ lớn (mặc định Docker chỉ 64MB → ORA-00845)
+    shm_size: 1g
+    volumes:
+      - laoads-oracle-data:/u01/app/oracle/oradata
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+volumes:
+  laoads-oracle-data:

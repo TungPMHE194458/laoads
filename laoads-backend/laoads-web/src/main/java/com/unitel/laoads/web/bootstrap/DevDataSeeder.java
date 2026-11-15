@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -54,6 +55,7 @@ public class DevDataSeeder {
     private final PasswordEncoder encoder;
     private final PlatformTransactionManager txManager;
 
+    @Order(0) // trước DevMockDataSeeder (@Order(10), chỉ dev) — mock data dựa trên 4 tài khoản + BSD/BCD này
     @EventListener(DatabaseReadyEvent.class)
     public void onDatabaseReady() {
         try {
