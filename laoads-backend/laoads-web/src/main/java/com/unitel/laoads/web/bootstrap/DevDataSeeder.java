@@ -32,14 +32,14 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Seed dữ liệu demo — CHỈ profile dev/uat, idempotent (chỉ tạo khi chưa có).
+ * Seed dữ liệu demo — CHỈ profile dev (uat/prod dùng AdminBootstrap), idempotent (chỉ tạo khi chưa có).
  *
  * <p>Khác BOC DemoUserSeeder (CommandLineRunner lúc startup — chạy trước khi Flyway migrate nên lần đầu
  * luôn hỏng): seeder này lắng nghe {@link DatabaseReadyEvent} → chạy đúng sau khi migrate xong, kể cả khi DB
  * lên muộn. Vẫn bọc try/catch (A++) và dùng TransactionTemplate thay @Transactional tự gọi (Sonar S2229/S6809).
  */
 @Component
-@Profile({"dev", "uat"})
+@Profile("dev")
 @RequiredArgsConstructor
 @Slf4j
 public class DevDataSeeder {

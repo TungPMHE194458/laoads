@@ -1,7 +1,9 @@
+# UAT: KHÔNG có default host/user DB (giống prod) — đặt LAOADS_DB_* hoặc BOC_DB_*; StartupValidator chặn start nếu thiếu.
+# Không seed tài khoản demo; Super Admin đầu tiên tạo từ LAOADS_BOOTSTRAP_ADMIN_* (AdminBootstrap).
 spring:
   datasource:
-    url: ${LAOADS_DB_URL:${BOC_DB_URL:jdbc:oracle:thin:@//10.120.138.131:1521/stl_ptdl}}
-    username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:BOC}}
+    url: ${LAOADS_DB_URL:${BOC_DB_URL:}}
+    username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:}}
     password: ${LAOADS_DB_PASSWORD:${BOC_DB_PASSWORD:}}
     driver-class-name: oracle.jdbc.OracleDriver
     hikari:
@@ -36,9 +38,14 @@ spring:
     clean-disabled: true
 
 laoads:
+  # Super Admin đầu tiên (AdminBootstrap) — chỉ tạo khi hệ thống CHƯA có SUPER_ADMIN nào; không ghi đè.
+  bootstrap:
+    admin-username: ${LAOADS_BOOTSTRAP_ADMIN_USERNAME:}
+    admin-password: ${LAOADS_BOOTSTRAP_ADMIN_PASSWORD:}
+    admin-full-name: ${LAOADS_BOOTSTRAP_ADMIN_FULL_NAME:Quản trị hệ thống}
   read-only-datasource:
-    jdbc-url: ${LAOADS_DB_URL:${BOC_DB_URL:jdbc:oracle:thin:@//10.120.138.131:1521/stl_ptdl}}
-    username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:BOC}}
+    jdbc-url: ${LAOADS_DB_URL:${BOC_DB_URL:}}
+    username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:}}
     password: ${LAOADS_DB_PASSWORD:${BOC_DB_PASSWORD:}}
     driver-class-name: oracle.jdbc.OracleDriver
     pool-name: laoads-readonly-hikari

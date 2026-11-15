@@ -39,6 +39,11 @@ spring:
 
 # Read-only pool — phải config riêng vì có 2 DataSource bean explicit
 laoads:
+  # Super Admin đầu tiên (AdminBootstrap) — chỉ tạo khi hệ thống CHƯA có SUPER_ADMIN nào; không ghi đè.
+  bootstrap:
+    admin-username: ${LAOADS_BOOTSTRAP_ADMIN_USERNAME:}
+    admin-password: ${LAOADS_BOOTSTRAP_ADMIN_PASSWORD:}
+    admin-full-name: ${LAOADS_BOOTSTRAP_ADMIN_FULL_NAME:Quản trị hệ thống}
   read-only-datasource:
     jdbc-url: ${LAOADS_DB_URL:${BOC_DB_URL:}}
     username: ${LAOADS_DB_USERNAME:${BOC_DB_USERNAME:}}

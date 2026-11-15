@@ -111,7 +111,8 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
 
 | Env var | Notes |
 |---|---|
-| `LAOADS_DB_URL` / `_USERNAME` / `_PASSWORD` | dev: default local `//localhost:1521/XE`, `LAOADS`/`laoads`, **no** `BOC_DB_*` fallback. uat/prod: fall back to BOC's `BOC_DB_*`, no password default |
+| `LAOADS_DB_URL` / `_USERNAME` / `_PASSWORD` | dev: default local `//localhost:1521/XE`, `LAOADS`/`laoads`, **no** `BOC_DB_*` fallback. uat/prod: fall back to BOC's `BOC_DB_*`, no host/user/password default (`StartupValidator` refuses to start without them) |
+| `LAOADS_BOOTSTRAP_ADMIN_USERNAME` / `_PASSWORD` / `_FULL_NAME` | uat/prod: first SUPER_ADMIN (see `AdminBootstrap`); remove the password from the env after first login |
 | `LAOADS_DB_SCHEMA` | dev default `LAOADS`; uat/prod default `BOC` |
 | `LAOADS_DEV_ALLOW_REMOTE_DB` | dev only; `true` lets dev point at a non-localhost DB (otherwise `DevDatabaseGuard` refuses to start) |
 | `LAOADS_DEV_MOCK_DATA` | dev only, default `true`; `false` skips `DevMockDataSeeder` |
@@ -132,7 +133,8 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
 - Errors: throw `LaoadsException` with an `ErrorCode` (the enum carries the HTTP status; its value is the envelope `statusCode`). A new code needs an `error.<CODE>` key in **all four** `messages.properties` / `_vi` / `_en` / `_lo`; more specific texts use sub-keys (`error.UNAUTHORIZED.badCredentials`, `error.notFound.workspace`). Parameterised messages need `''` for a literal quote.
 - Contract deviations the FE already handles (grouped under "Bổ sung" in `ErrorCode`): extra codes `USER_LOCKED` 403, `DB_UNAVAILABLE` 503, `VSA_UNAVAILABLE` 503, `EXPORT_TOO_LARGE` 400 (returned as a JSON envelope *inside the blob* — `download()` parses it), `METHOD_NOT_ALLOWED` 405; every success is HTTP 200 (creates too); removing a member sets `REVOKED` and re-adding reactivates the same row; usernames are lowercased; workspace codes uppercased; BE minimum password length is 6 (FE asks for 8); paging params are clamped, not rejected.
 - VSA: CAS 2.0 `serviceValidate`; the VSA user must already exist locally (else 403 `VSA_USER_NOT_PROVISIONED`); `service` must start with the configured service-url. FE callback route: `/auth/vsa/callback`.
-- Dev seed (dev/uat only, `DevDataSeeder`, `@Order(0)`): `superadmin/superadmin`, `owner_bsd/owner`, `admin_bsd/admin`, `member_bsd/member`; workspaces `BSD`, `BCD` (BCD has no owner). The FE mock uses the same accounts.
+- uat/prod have **no demo accounts and no default DB host**. `AdminBootstrap` (`@Profile({"uat","prod"})`) creates the first SUPER_ADMIN from `LAOADS_BOOTSTRAP_ADMIN_USERNAME` / `_PASSWORD` (≥ 8 chars), but only while no SUPER_ADMIN exists. It never overwrites an account and never promotes an existing username. Verified end to end against a scratch schema on 2026-11-15.
+- Dev seed (**dev only**, `DevDataSeeder`, `@Order(0)`): `superadmin/superadmin`, `owner_bsd/owner`, `admin_bsd/admin`, `member_bsd/member`; workspaces `BSD`, `BCD` (BCD has no owner). The FE mock uses the same accounts.
 - Dev mock data (**dev only**, `DevMockDataSeeder`, `@Order(10)`, off with `LAOADS_DEV_MOCK_DATA=false`) mirrors `laoads-web/src/mocks/db.ts` in the core tables:
   - 20 users (`tran.minh` and `ngo.linh` LOCKED); new accounts use password `member`.
   - Workspaces `MKT` and `VAS` (VAS is LOCKED).

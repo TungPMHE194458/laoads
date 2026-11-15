@@ -16,6 +16,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     boolean existsByUsername(String username);
 
+    boolean existsBySystemRole(SystemRole systemRole);
+
     @Query("SELECT u FROM AppUser u WHERE LOWER(u.email) = :email ORDER BY u.id")
     List<AppUser> findByEmailLower(@Param("email") String emailLower);
 
