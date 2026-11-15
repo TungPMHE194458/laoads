@@ -1,6 +1,10 @@
 import { HttpResponse } from 'msw'
-import type { Permission } from '@/api/types'
+import { queryClient } from '@/api/queryClient'
+import type { MeResponse, Permission, SystemRole } from '@/api/types'
+import { meKey } from '@/features/auth/api'
 import { members, roles, users } from './db'
+
+type MockUser = (typeof users)[number]
 
 export const ok = <T,>(data: T, status = 200) => HttpResponse.json({ success: true, data, message: null, statusCode: 'OK' }, { status })
 
@@ -23,12 +27,69 @@ export function paged<T>(all: T[], url: URL) {
 export const q = (url: URL, k: string) => url.searchParams.get(k) ?? ''
 export const includes = (hay: string | null | undefined, needle: string) => !needle || (hay ?? '').toLowerCase().includes(needle.toLowerCase())
 
-/** Token mock có dạng `mock-access.<userId>.<ts>`. */
+interface JwtClaims {
+  sub?: string
+  uid?: number
+  sr?: SystemRole
+  exp?: number
+}
+
+/** Đọc payload JWT (base64url) — KHÔNG kiểm chữ ký: BE thật đã xác thực token ở các endpoint core (/me…). */
+function decodeJwt(token: string): JwtClaims | null {
+  const part = token.split('.')[1]
+  if (!part) return null
+  try {
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=')
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+    return JSON.parse(new TextDecoder().decode(bytes)) as JwtClaims
+  } catch {
+    return null
+  }
+}
+
+type Auth = { user: MockUser; realJwt: boolean } | { error: 'UNAUTHORIZED' | 'TOKEN_EXPIRED' }
+
+/**
+ * - mock:   token mock dạng `mock-access.<userId>.<ts>` (do handler core mock cấp).
+ * - hybrid: token là JWT thật do BE cấp (claims sub = username, uid, sr = system role, exp). Map sang user mock
+ *           theo username (seed trùng tài khoản BE); user chỉ có ở BE thật → dựng từ claims.
+ *           Hết hạn → 401 TOKEN_EXPIRED để client refresh qua BE thật (KHÔNG trả UNAUTHORIZED — client sẽ logout).
+ */
+function authOf(request: Request): Auth {
+  const header = request.headers.get('Authorization') ?? ''
+  const mock = header.match(/^Bearer mock-access\.(\d+)\./)
+  if (mock) {
+    const u = users.find((x) => x.id === Number(mock[1]) && x.status === 'ACTIVE')
+    return u ? { user: u, realJwt: false } : { error: 'UNAUTHORIZED' }
+  }
+  const claims = header.startsWith('Bearer ') ? decodeJwt(header.slice(7)) : null
+  if (!claims?.sub) return { error: 'UNAUTHORIZED' }
+  if (claims.exp && claims.exp * 1000 <= Date.now()) return { error: 'TOKEN_EXPIRED' }
+  const known = users.find((x) => x.username === claims.sub)
+  const user: MockUser = known ?? {
+    id: claims.uid ?? 0,
+    username: claims.sub,
+    password: '',
+    fullName: claims.sub,
+    email: null,
+    phone: null,
+    systemRole: claims.sr ?? 'USER',
+    status: 'ACTIVE',
+    lastLoginAt: null,
+    createdAt: new Date().toISOString(),
+  }
+  return { user, realJwt: true }
+}
+
 export function currentUser(request: Request) {
-  const auth = request.headers.get('Authorization') ?? ''
-  const m = auth.match(/^Bearer mock-access\.(\d+)\./)
-  if (!m) return null
-  return users.find((u) => u.id === Number(m[1]) && u.status === 'ACTIVE') ?? null
+  const a = authOf(request)
+  return 'user' in a ? a.user : null
+}
+
+/** hybrid: quyền thật theo /me của BE (FE đã cache trước khi vào trang) — khớp ma trận quyền + thành viên thật. */
+function realPermissions(wsId: number): Permission[] | null {
+  const me = queryClient.getQueryData<MeResponse>(meKey)
+  return me?.workspaces.find((w) => w.id === wsId)?.permissions ?? null
 }
 
 export function workspaceId(request: Request) {
@@ -46,13 +107,19 @@ export function permissionsOf(userId: number, wsId: number): Permission[] {
 
 /** Trả về Response lỗi nếu không đủ quyền, ngược lại null. */
 export function guard(request: Request, perm?: Permission | 'SUPER_ADMIN') {
-  const u = currentUser(request)
-  if (!u) return fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn')
+  const a = authOf(request)
+  if ('error' in a) {
+    return a.error === 'TOKEN_EXPIRED'
+      ? fail(401, 'TOKEN_EXPIRED', 'Phiên truy cập đã hết hạn')
+      : fail(401, 'UNAUTHORIZED', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn')
+  }
+  const u = a.user
   if (perm === 'SUPER_ADMIN') return u.systemRole === 'SUPER_ADMIN' ? null : fail(403, 'FORBIDDEN', 'Bạn không có quyền thực hiện thao tác này')
   if (perm) {
     const ws = workspaceId(request)
     if (!ws) return fail(400, 'WORKSPACE_REQUIRED', 'Thiếu header X-Workspace-Id')
-    if (!permissionsOf(u.id, ws).includes(perm)) return fail(403, 'FORBIDDEN', 'Bạn không có quyền thực hiện thao tác này')
+    const perms = u.systemRole === 'SUPER_ADMIN' ? roles[0].permissions : ((a.realJwt ? realPermissions(ws) : null) ?? permissionsOf(u.id, ws))
+    if (!perms.includes(perm)) return fail(403, 'FORBIDDEN', 'Bạn không có quyền thực hiện thao tác này')
   }
   return null
 }
