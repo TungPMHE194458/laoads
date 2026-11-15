@@ -22,12 +22,14 @@ import {
 } from 'lucide-react'
 import type { ActionGroup, CampaignDetail } from '@/api/types'
 import { useCampaign, useCampaignReport } from '@/features/campaign/api'
+import { useCan } from '@/features/auth/permissions'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ChartCard } from '@/components/common/ChartCard'
 import { CampaignStatusBadge, CHANNEL_META } from '@/components/common/status'
 import { FunnelBars, RateBar, TrendArea } from '@/components/charts/charts'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/button'
+import { ConversionImport } from './ConversionImport'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/misc'
@@ -255,6 +257,7 @@ function GroupBlock({ g }: { g: ActionGroup }) {
 
 function ConfigTab({ c }: { c: CampaignDetail }) {
   const { t } = useTranslation()
+  const canUpdate = useCan()('CAMPAIGN_UPDATE')
   const rows: [React.ElementType, string, React.ReactNode][] = [
     [Users2, t('campaign.wizard.steps.audience'), c.segmentId ? <Link className="text-link hover:underline" to={`/segments/${c.segmentId}`}>{c.segmentName}</Link> : '—'],
     [CalendarClock, t('campaign.wizard.steps.schedule'), `${t(`campaign.wizard.schedule.${c.schedule.type}`)} · ${fmtDateTime(c.schedule.startAt)}${c.schedule.endAt ? ' → ' + fmtDateTime(c.schedule.endAt) : ''}${c.schedule.silentHours?.enabled ? ` · ${t('campaign.wizard.silent')} ${c.schedule.silentHours.from}–${c.schedule.silentHours.to}` : ''}`],
@@ -288,6 +291,7 @@ function ConfigTab({ c }: { c: CampaignDetail }) {
             </div>
           ))}
           {c.goal.description && <p className="rounded-lg bg-muted/60 px-3 py-2 text-[13px] text-foreground/80">{c.goal.description}</p>}
+          {c.goal.mode === 'MANUAL_FILE' && canUpdate && ['RUNNING', 'PAUSED', 'COMPLETED'].includes(c.status) && <ConversionImport campaignId={c.id} />}
         </CardContent>
       </Card>
     </div>

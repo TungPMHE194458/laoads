@@ -27,7 +27,8 @@
     "status": "ສະຖານະ",
     "updatedAt": "ອັບເດດ",
     "view": "ເບິ່ງລາຍລະອຽດ",
-    "viewAll": "ເບິ່ງທັງໝົດ"
+    "viewAll": "ເບິ່ງທັງໝົດ",
+    "done": "ສຳເລັດ"
   },
   "errors": {
     "network": "ບໍ່ສາມາດເຊື່ອມຕໍ່ເຊີບເວີໄດ້. ກວດສອບເຄືອຂ່າຍ ຫຼື BE.",
@@ -385,7 +386,9 @@
       "REJECT": "ຖືກປະຕິເສດ",
       "PAUSE": "ຢຸດຊົ່ວຄາວ",
       "RESUME": "ດຳເນີນຕໍ່",
-      "CANCEL": "ຍົກເລີກ"
+      "CANCEL": "ຍົກເລີກ",
+      "START": "ເລີ່ມແລ່ນ",
+      "COMPLETE": "ສຳເລັດ"
     },
     "detail": {
       "tabReport": "ລາຍງານ",
@@ -409,7 +412,10 @@
       "smsNoOpen": "SMS ບໍ່ວັດການເປີດ",
       "summary": "ສະຫຼຸບ",
       "rejected": "ແຄມເປນຖືກປະຕິເສດ",
-      "pendingNote": "ແຄມເປນກຳລັງລໍຖ້າອະນຸມັດ — ບໍ່ສາມາດແກ້ໄຂໄດ້ໃນຕອນນີ້."
+      "pendingNote": "ແຄມເປນກຳລັງລໍຖ້າອະນຸມັດ — ບໍ່ສາມາດແກ້ໄຂໄດ້ໃນຕອນນີ້.",
+      "importConversions": "ອັບໂຫຼດລາຍຊື່ການປ່ຽນ",
+      "conversionsHint": "ເປົ້າໝາຍແບບອັບໂຫຼດ: ອັບໂຫຼດໄຟລ໌ .xlsx / .csv ຂອງເບີທີ່ບັນລຸເປົ້າໝາຍ.",
+      "conversionsImported": "ບັນທຶກ {{matched}} ການປ່ຽນ ({{rows}} ເບີໃນໄຟລ໌)"
     },
     "wizard": {
       "newTitle": "ສ້າງແຄມເປນໃໝ່",
@@ -529,7 +535,11 @@
         "start": "ກະລຸນາເລືອກເວລາເລີ່ມ.",
         "endBeforeStart": "ເວລາສິ້ນສຸດຕ້ອງຫຼັງເວລາເລີ່ມ.",
         "budget": "ງົບປະມານສູງສຸດຕ່ຳກວ່າຄ່າໃຊ້ຈ່າຍຄາດຄະເນ."
-      }
+      },
+      "trackLinks": "ຕິດຕາມການຄລິກລິ້ງ (ແທນລິ້ງໃນຂໍ້ຄວາມດ້ວຍລິ້ງຕິດຕາມ)",
+      "newGroup": "ສ້າງກຸ່ມແຄມເປນ",
+      "createGroup": "ສ້າງກຸ່ມ",
+      "groupCreated": "ສ້າງກຸ່ມແຄມເປນແລ້ວ"
     }
   },
   "approval": {
@@ -592,7 +602,8 @@
     "members": "ລາຍຊື່ລູກຄ້າ",
     "phone": "ເລກໝາຍ",
     "notReady": "ກຸ່ມຍັງບໍ່ພ້ອມ",
-    "notReadyDesc": "ລະບົບກຳລັງປະມວນຜົນ ຫຼື ສ້າງກຸ່ມລົ້ມເຫຼວ."
+    "notReadyDesc": "ລະບົບກຳລັງປະມວນຜົນ ຫຼື ສ້າງກຸ່ມລົ້ມເຫຼວ.",
+    "invalidRows": "ຂ້າມ {{n}} ແຖວທີ່ບໍ່ແມ່ນເບີໂທທີ່ຖືກຕ້ອງ"
   },
   "workspace": {
     "name": "ຊື່ workspace",
@@ -627,7 +638,9 @@
     "remove": "ເອົາອອກຈາກ workspace",
     "removeTitle": "ເອົາສະມາຊິກອອກ?",
     "removeDesc": "{{name}} ຈະເສຍສິດເຂົ້າ workspace. ບໍ່ສາມາດຍົກເລີກໄດ້.",
-    "removed": "ເອົາສະມາຊິກອອກແລ້ວ"
+    "removed": "ເອົາສະມາຊິກອອກແລ້ວ",
+    "email": "ອີເມວ",
+    "phone": "ເບີໂທ"
   },
   "price": {
     "desc": "ລາຄາຕໍ່ໜ່ວຍຂອງແຕ່ລະການກະທຳ — ໃຊ້ຄາດຄະເນ ແລະ ຄິດໄລ່ຄ່າໃຊ້ຈ່າຍແຄມເປນ.",
@@ -677,7 +690,12 @@
     "SUBMIT": "ສົ່ງອະນຸມັດ",
     "CHANGE_ROLE": "ປ່ຽນບົດບາດ",
     "RESET_PASSWORD": "ຕັ້ງລະຫັດຜ່ານໃໝ່",
-    "IMPORT": "ນຳເຂົ້າ"
+    "IMPORT": "ນຳເຂົ້າ",
+    "PAUSE": "ຢຸດຊົ່ວຄາວ",
+    "RESUME": "ສືບຕໍ່",
+    "CANCEL": "ຍົກເລີກ",
+    "EXPORT": "ສົ່ງອອກ",
+    "CHANGE_PASSWORD": "ປ່ຽນລະຫັດຜ່ານ"
   },
   "auditEntity": {
     "AUTH": "ເຂົ້າສູ່ລະບົບ",
@@ -687,7 +705,13 @@
     "ROLE": "ບົດບາດ",
     "PRICE_QUOTE": "ຕາຕະລາງລາຄາ",
     "CAMPAIGN": "ແຄມເປນ",
-    "SEGMENT": "ກຸ່ມລູກຄ້າ"
+    "SEGMENT": "ກຸ່ມລູກຄ້າ",
+    "SENDER_NUMBER": "ເລກຜູ້ສົ່ງ",
+    "SETTING": "ການຕັ້ງຄ່າ",
+    "CAMPAIGN_GROUP": "ກຸ່ມແຄມເປນ",
+    "API_KEY": "API key",
+    "ROLE_PERMISSION": "ສິດທິ",
+    "AUDIT_LOG": "ບັນທຶກ"
   },
   "adminWs": {
     "desc": "ສ້າງ workspace ສຳລັບແຕ່ລະພະແນກ ແລະ ກຳນົດເຈົ້າຂອງ.",
@@ -745,5 +769,39 @@
     "refund": "ຄືນຊັບພະຍາກອນທີ່ຫັກໄປເມື່ອສົ່ງບໍ່ສຳເລັດ",
     "silentDefault": "ເປີດຊ່ວງເວລາບໍ່ສົ່ງເລີ່ມຕົ້ນ",
     "defaultLang": "ພາສາເນື້ອຫາເລີ່ມຕົ້ນ"
+  },
+  "adminDash": {
+    "title": "ທັງລະບົບ",
+    "subtitle": "ຂໍ້ມູນທຸກ workspace — ສະເພາະ Super Admin",
+    "activeWorkspaces": "Workspace ທີ່ໃຊ້ງານ",
+    "totalUsers": "ຜູ້ໃຊ້ທັງໝົດ",
+    "runningCampaigns": "ແຄມເປນທີ່ກຳລັງແລ່ນ (ທັງໝົດ)",
+    "totalCampaigns": "ແຄມເປນທັງໝົດ (ທັງລະບົບ)",
+    "topTitle": "Workspace ອັນດັບຕົ້ນຕາມຈຳນວນແຄມເປນ",
+    "topDesc": "ຈັດອັນດັບຕາມຈຳນວນແຄມເປນທີ່ສ້າງ",
+    "export": "ສົ່ງອອກ Excel",
+    "workspace": "Workspace",
+    "campaigns": "ແຄມເປນ",
+    "running": "ກຳລັງແລ່ນ"
+  },
+  "apiKey": {
+    "title": "API key ເຫດການ",
+    "desc": "ລະບົບພາຍນອກໃຊ້ key ນີ້ແຈ້ງເຫດການຂອງຜູ້ໃຊ້ (ເປີດ SIM, ເຕີມເງິນຄັ້ງທຳອິດ…) ໃຫ້ແຄມເປນຕາມເຫດການ.",
+    "none": "ຍັງບໍ່ມີ API key",
+    "rotatedAt": "ສ້າງເມື່ອ {{at}}",
+    "create": "ສ້າງ API key",
+    "rotate": "ສ້າງ key ໃໝ່",
+    "revoke": "ຍົກເລີກ",
+    "rotateTitle": "ສ້າງ API key ໃໝ່?",
+    "rotateDesc": "Key ປັດຈຸບັນຈະໃຊ້ບໍ່ໄດ້ທັນທີ. ອັບເດດ key ໃໝ່ໃຫ້ທຸກລະບົບທີ່ເອີ້ນ API ເຫດການ.",
+    "revokeTitle": "ຍົກເລີກ API key?",
+    "revokeDesc": "ລະບົບພາຍນອກຈະສົ່ງເຫດການບໍ່ໄດ້ຈົນກວ່າຈະສ້າງ key ໃໝ່.",
+    "revoked": "ຍົກເລີກ API key ແລ້ວ",
+    "freshTitle": "API key ໃໝ່",
+    "freshDesc": "ສຳເນົາ ແລະ ເກັບໄວ້ດຽວນີ້ — key ສະແດງພຽງຄັ້ງດຽວ.",
+    "copy": "ສຳເນົາ",
+    "copied": "ສຳເນົາແລ້ວ",
+    "copyFailed": "ສຳເນົາບໍ່ໄດ້, ກະລຸນາເລືອກແລ້ວສຳເນົາເອງ",
+    "usage": "ເອີ້ນ POST /api/v1/events ພ້ອມ header X-Api-Key ແລະ body {\"eventType\": \"SIM_ACTIVATION_D0\", \"isdn\": \"2055512345\"}."
   }
 }

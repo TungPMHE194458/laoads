@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cleanParams, request, requestPage } from '@/api/client'
-import type { Member, PageQuery, Workspace, WorkspaceRole, WorkspaceUpdateInput } from '@/api/types'
+import type { ApiKeyInfo, Member, PageQuery, Workspace, WorkspaceRole, WorkspaceUpdateInput } from '@/api/types'
 import { meKey } from '@/features/auth/api'
 
 export function useWorkspace(id: number | null) {
@@ -102,5 +102,24 @@ export function useSetWorkspaceStatus() {
       qc.invalidateQueries({ queryKey: ['admin', 'workspaces'] })
       qc.invalidateQueries({ queryKey: meKey })
     },
+  })
+}
+
+// ───── API key sự kiện (quyền SECRET_KEY_MANAGE) ─────
+export function useApiKey(wsId: number) {
+  return useQuery({ queryKey: ['workspace', wsId, 'api-key'], queryFn: () => request<ApiKeyInfo>({ url: `/workspaces/${wsId}/api-key` }) })
+}
+export function useRotateApiKey(wsId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => request<ApiKeyInfo>({ url: `/workspaces/${wsId}/api-key`, method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workspace', wsId, 'api-key'] }),
+  })
+}
+export function useRevokeApiKey(wsId: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => request<null>({ url: `/workspaces/${wsId}/api-key`, method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workspace', wsId, 'api-key'] }),
   })
 }

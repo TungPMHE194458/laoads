@@ -52,10 +52,11 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
     create.mutate(
       tab === 'QUERY'
         ? { name: name.trim(), description: desc, type: 'QUERY', conditions: conds }
-        : { name: name.trim(), description: desc, type: 'FILE', fileName: file!.name, rowCount: Math.max(1, Math.round(file!.size / 48)) },
+        : { name: name.trim(), description: desc, type: 'FILE', file: file! },
       {
-        onSuccess: () => {
+        onSuccess: (s) => {
           toast.success(t('segment.created'))
+          if (s.invalidRows) toast.warning(t('segment.invalidRows', { n: s.invalidRows }))
           onOpenChange(false)
         },
         onError: (e) => setErr(errorMessage(e)),

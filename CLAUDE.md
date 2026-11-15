@@ -62,11 +62,14 @@ There is no test runner in the FE. Verify UI changes by running `dev:mock` and l
 The Vite dev proxy strips the `Origin` header on `/api` (same-origin via proxy) — otherwise the BE's CORS filter 403s whenever Vite auto-increments to a port outside the whitelist (BOC hit this as troubleshooting #3).
 
 ### API modes (`VITE_API_MODE`) — the most important FE concept
-- `mock`: MSW mocks **core + pending** handlers.
-- `hybrid` (dev default): core endpoints hit the real BE; only **pending** handlers (dashboard, campaigns, groups, approvals, segments, sending settings — BE đợt 1 doesn't have them) are mocked, with `onUnhandledRequest: 'bypass'`.
+- `mock`: MSW mocks **core + campaign + pending** handlers, so the UI runs with no BE.
+- `hybrid` (dev default): only `pending.ts` handlers are mocked. That list is **empty**, because every module the FE uses now has a BE. When it is empty, `browser.ts` skips MSW and unregisters any old mock service worker, so every request goes to the real BE.
 - `real` (Docker default): MSW is never loaded (`main.tsx` dynamic-imports `src/mocks/browser.ts` only when mode ≠ real, keeping ~470KB out of the main bundle).
-- In hybrid the access token is the **real BE JWT**: `mocks/utils.ts` `authOf()` decodes its claims (`sub`, `uid`, `sr`, `exp`) without verifying the signature, maps to a mock user by username, and `guard()` takes permissions from the cached real `/me`. A mock must never answer 401 `UNAUTHORIZED` to a real token, because `client.ts` treats that as a dead session and calls `forceLogout()` (that was the 2026-11-15 "can't log in" bug). An expired token gets 401 `TOKEN_EXPIRED`, so the FE refreshes against the real BE.
-- `src/mocks/handlers/core.ts` = endpoints the BE already implements; `pending.ts` = not yet. **When a BE module ships, delete its handlers from `pending.ts`** — otherwise hybrid mode keeps serving mock data and hides the real API. Mock data lives in `src/mocks/db.ts` (in-memory, seeded PRNG, resets on reload) and must keep the contract/SRS shape.
+- Handler files:
+  - `handlers/core.ts` (auth, workspace, members, admin, price quotes, audit) and `handlers/campaign.ts` (dashboard, campaigns, approvals, groups, segments, sending settings, API key, admin dashboard) mirror endpoints the BE already has. They are loaded **in mock mode only**, and must keep the BE's shape.
+  - `handlers/pending.ts` is for endpoints the BE does not have yet. They are loaded in hybrid too. When a BE module ships, move its handlers out of `pending.ts`, otherwise hybrid keeps serving mock data and hides the real API.
+  - Mock data lives in `src/mocks/db.ts` (in-memory, seeded PRNG, resets on reload).
+- If a handler is ever added back to `pending.ts`, remember that in hybrid the access token is the **real BE JWT**. `mocks/utils.ts` `authOf()` decodes its claims (`sub`, `uid`, `sr`, `exp`) without verifying the signature, maps them to a mock user by username, and `guard()` takes permissions from the cached real `/me`. A mock must never answer 401 `UNAUTHORIZED` to a real token: `client.ts` treats that as a dead session and calls `forceLogout()` (the 2026-11-15 "can't log in" bug). An expired token gets 401 `TOKEN_EXPIRED`, so the FE refreshes against the real BE.
 
 ### Key files
 - `src/api/client.ts` — axios: adds JWT, `X-Workspace-Id` (from `useUiStore`), `Accept-Language`; unwraps the envelope into `ApiError(status, statusCode, message, errors)`; single-flight refresh on 401 `TOKEN_EXPIRED`, then `forceLogout()` → `/login?redirect=`. Use `request<T>()` / `requestPage<T>()` (returns `{items, meta}`) / `download()`; `cleanParams()` drops empty/NaN params (`NaN != null` is true — don't rely on `!= null`).
@@ -99,7 +102,7 @@ Reuses BOC's backend infrastructure — see BOC's CLAUDE.md "Critical: schema sh
 
 ```bash
 docker compose -f ../docker-compose.dev.yml up -d   # local Oracle XE 11.2 (healthy in ~40s on a fresh volume); `down -v` wipes it
-./mvnw clean verify                              # build + 106 unit tests (no DB needed)
+./mvnw clean verify                              # build + 122 unit tests (no DB needed)
 ./mvnw -pl laoads-web -am spring-boot:run        # dev profile, :8095/api, local DB — non-web modules set spring-boot.run.skip, so -am is safe
 ./mvnw -pl laoads-web -am test -Dtest=ClassName#method -Dsurefire.failIfNoSpecifiedTests=false   # single test; swap the module
 .\start-dev.ps1                                  # Windows; loads gitignored .env.local.ps1, starts the local DB container, runs dev
@@ -115,7 +118,10 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
 | `LAOADS_BOOTSTRAP_ADMIN_USERNAME` / `_PASSWORD` / `_FULL_NAME` | uat/prod: first SUPER_ADMIN (see `AdminBootstrap`); remove the password from the env after first login |
 | `LAOADS_DB_SCHEMA` | dev default `LAOADS`; uat/prod default `BOC` |
 | `LAOADS_DEV_ALLOW_REMOTE_DB` | dev only; `true` lets dev point at a non-localhost DB (otherwise `DevDatabaseGuard` refuses to start) |
-| `LAOADS_DEV_MOCK_DATA` | dev only, default `true`; `false` skips `DevMockDataSeeder` |
+| `LAOADS_DEV_MOCK_DATA` | dev only, default `true`; `false` skips `DevMockDataSeeder` and `DevEngineDataSeeder` |
+| `LAOADS_ENGINE_ENABLED` | default `true`; `false` stops every engine job (segment builds, runs, dispatch, stats) |
+| `LAOADS_ENGINE_GATEWAY` / `_CONVERSION` / `_SIMULATE_ENGAGEMENT` | default `simulated` / `simulated` / `true`. These are the **simulation adapters**; set them to something else only once real adapters exist |
+| `LAOADS_PUBLIC_BASE_URL` | base URL for tracking links `/api/v1/t/{token}` (default `http://localhost:5173`) |
 | `LAOADS_JWT_SECRET` | ≥ 32 bytes; only the dev profile has a default |
 | `LAOADS_CORS_ALLOWED_ORIGINS` | required in prod (dev allows localhost:5173–5175) |
 | `LAOADS_VSA_ENABLED` / `_CAS_URL` / `_SERVICE_URL` | VSA off by default |
@@ -144,6 +150,28 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
 
   It only enriches the 4 base users and BSD/BCD while they still carry seed values, and it writes the audit history once (`REQUEST_ID = 'mock-seed'`). Campaigns and segments have no tables yet, so they stay in MSW. To re-seed from scratch, run `docker compose -f docker-compose.dev.yml down -v`.
 - The read-only Hikari pool is configured (for future OCS/segment reads) but not used yet.
+
+### Campaign engine (đợt 2–3, `V3__campaign_engine.sql`)
+- **Packages**:
+  - `domain.settings`: sender numbers and notification settings (retry, refund, silent hours) stored as key/value in `LADS_APP_SETTING`.
+  - `domain.segment`: segments. `SegmentQueryBuilder` builds QUERY segments with a column whitelist from `SegmentAttributeCatalog` and bind parameters only. `IsdnFileParser` reads .xlsx/.xls/.csv. Members are written in JDBC batches to `LADS_SEGMENT_MEMBER`.
+  - `domain.campaign`: CRUD, lifecycle, approvals and groups. Nested config (action groups, schedule, goal, budget) is JSON in `DEFINITION_JSON`, in exactly the FE shape (`CampaignDefinition`). `SchedulePlanner` handles NOW / ONCE / RECURRING and silent hours in Asia/Vientiane.
+  - `domain.engine`: `CampaignRunner`, `MessageDispatcher`, `EngineMaintenance`, tracking, test send, events, API keys.
+  - `domain.report`: campaign report, workspace dashboard and Super Admin dashboard.
+  - `infra.engine.EngineJobs`: `@Scheduled` jobs, gated on `DatabaseBootstrap.isMigrated()`, on a scheduling pool of 4 threads.
+- **Data flow**:
+  - `LADS_SUBSCRIBER` is the **staging table for BI extracts** (`all_report_stl_new`). QUERY segments run against it.
+  - Approve sets `NEXT_RUN_AT`. `startRun` materializes targets with one `INSERT … SELECT` from segment members. A/B and control buckets come from `MOD(ORA_HASH(isdn||':'||campaignId),100)`.
+  - One `LADS_CAMPAIGN_MESSAGE` row is written per action. In a sequential chain, delays accumulate and `PREV_MESSAGE_ID` links each message to the previous one.
+  - `MessageDispatcher` calls the gateway **outside** any transaction. It retries with refund, skips on stop-on-goal or end time, auto-pauses at max budget, and rewrites URLs into `LADS_TRACKING_LINK`.
+  - `EngineMaintenance` closes runs, completes campaigns (a goal produces a `CAMPAIGN_OUTCOME` segment), refreshes counters and uplift, and measures conversions.
+- **Simulation**: `MessageGateway` and `ConversionSource` are domain ports. `infra.simulation` provides `SimulatedMessageGateway`, `SimulatedConversionSource` and `EngagementSimulator` (DLR, opens, clicks). **No SMS, WhatsApp, Email, USSD, OCS or BI connection is real yet.** Real adapters replace these beans through the `laoads.engine.*` properties.
+- **Timestamps**: they are UTC wall time. JDBC code must bind and read through `engine.Utc`, the same as `AuditWriter`. SQL "now" is `SYS_EXTRACT_UTC(SYSTIMESTAMP)`. Laos-day bucketing uses `+ INTERVAL '7' HOUR` (Laos has no DST).
+- **Public endpoints** (`SecurityConfig.PUBLIC_PATHS`):
+  - `GET /v1/t/{token}`: tracking redirect.
+  - `POST /v1/events`: header `X-Api-Key`; the workspace key is stored only as a SHA-256 hash in `LADS_WORKSPACE.API_KEY_HASH`.
+- **Single-instance assumption**: jobs assume **one BE instance**. There is no `SKIP LOCKED` or leader election. Add one before scaling out.
+- **Dev data**: `DevEngineDataSeeder` (dev only) inserts 30,000 synthetic subscribers, 4 segments, 3 groups and 8 campaigns in every status. Approved campaigns really run through the simulated gateway, so reports and dashboards show live numbers a minute after startup.
 
 ## Deployment
 

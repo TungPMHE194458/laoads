@@ -12,20 +12,38 @@ servers:
 security:
 - bearerAuth: []
 tags:
-- name: admin-permission
-  description: Ma trận quyền (SUPER_ADMIN)
+- name: admin-dashboard
+  description: Tổng quan Super Admin
 - name: admin-user
   description: Quản trị tài khoản (SUPER_ADMIN)
-- name: workspace
-  description: Workspace của tôi
+- name: campaign-approval
+  description: Phê duyệt chiến dịch
+- name: settings
+  description: Cấu hình gửi tin
 - name: member
   description: Thành viên workspace
 - name: price-quote
   description: Bảng giá (Quản lý chi phí)
-- name: audit-log
-  description: Nhật ký hệ thống
+- name: segment
+  description: Tệp khách hàng
 - name: auth
   description: Đăng nhập / refresh / VSA / đổi mật khẩu
+- name: campaign
+  description: Chiến dịch
+- name: public
+  description: Link tracking & API sự kiện
+- name: admin-permission
+  description: Ma trận quyền (SUPER_ADMIN)
+- name: workspace
+  description: Workspace của tôi
+- name: campaign-group
+  description: Nhóm chiến dịch
+- name: workspace-api-key
+  description: API key sự kiện
+- name: audit-log
+  description: Nhật ký hệ thống
+- name: dashboard
+  description: Tổng quan workspace
 - name: admin-workspace
   description: Quản trị workspace (SUPER_ADMIN)
 paths:
@@ -141,6 +159,93 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseMemberDto"
+  /v1/settings/sender-numbers/{id}:
+    put:
+      tags:
+      - settings
+      summary: Sửa / bật / tắt đầu số
+      operationId: updateSender
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SenderNumberRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSenderNumberDto"
+  /v1/settings/notification:
+    get:
+      tags:
+      - settings
+      summary: "Cấu hình gửi tin (retry, hoàn tài nguyên, khung giờ không gửi, ngô\
+        n ngữ mặc định)"
+      operationId: notification
+      parameters:
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseNotificationSettings"
+    put:
+      tags:
+      - settings
+      summary: Cập nhật cấu hình gửi tin
+      operationId: updateNotification
+      parameters:
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationSettings"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseNotificationSettings"
   /v1/price-quotes/{id}:
     get:
       tags:
@@ -234,13 +339,210 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
+  /v1/campaigns/{id}:
+    get:
+      tags:
+      - campaign
+      summary: Chi tiết chiến dịch (cấu hình + lịch sử)
+      operationId: get_2
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDetail"
+    put:
+      tags:
+      - campaign
+      summary: Sửa chiến dịch Nháp / Bị từ chối
+      description: Trạng thái khác → 409 CAMPAIGN_LOCKED.
+      operationId: update_2
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: submit
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Request"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDetail"
+    delete:
+      tags:
+      - campaign
+      summary: Xoá chiến dịch Nháp / Bị từ chối / Đã huỷ
+      operationId: delete_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+  /v1/campaign-groups/{id}:
+    put:
+      tags:
+      - campaign-group
+      summary: Đổi tên nhóm
+      operationId: rename
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseGroupDto"
+    delete:
+      tags:
+      - campaign-group
+      summary: Xoá nhóm trống
+      description: Còn chiến dịch → 409 GROUP_IN_USE.
+      operationId: delete_2
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseGroupDto"
   /v1/admin/users/{id}:
     put:
       tags:
       - admin-user
       summary: Cập nhật user
       description: Tự đổi systemRole của mình → 400 CANNOT_CHANGE_SELF.
-      operationId: update_2
+      operationId: update_3
       parameters:
       - name: id
         in: path
@@ -424,12 +726,398 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseMemberDto"
+  /v1/workspaces/{id}/api-key:
+    get:
+      tags:
+      - workspace-api-key
+      summary: Trạng thái API key (chỉ 4 ký tự cuối)
+      operationId: get_3
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseKeyDto"
+    post:
+      tags:
+      - workspace-api-key
+      summary: Tạo / xoay vòng API key (key cũ hết hiệu lực ngay) — trả key đầy đủ
+        đúng 1 lần
+      operationId: rotate
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseKeyDto"
+    delete:
+      tags:
+      - workspace-api-key
+      summary: Thu hồi API key
+      operationId: revoke
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+  /v1/settings/sender-numbers:
+    get:
+      tags:
+      - settings
+      summary: Danh mục đầu số gửi SMS
+      operationId: senders
+      parameters:
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSenderNumberDto"
+    post:
+      tags:
+      - settings
+      summary: Thêm đầu số
+      description: Trùng mã → 409 SENDER_CODE_DUPLICATE.
+      operationId: createSender
+      parameters:
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SenderNumberRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSenderNumberDto"
+  /v1/segments:
+    get:
+      tags:
+      - segment
+      summary: Danh sách tệp khách hàng
+      operationId: list_1
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: query
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - FILE
+          - QUERY
+          - EVENT
+          - CAMPAIGN_OUTCOME
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - BUILDING
+          - READY
+          - FAILED
+          - ARCHIVED
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSegmentDto"
+    post:
+      tags:
+      - segment
+      summary: Tạo tệp từ thuộc tính (QUERY) — build bất đồng bộ
+      description: Trùng tên → 409 SEGMENT_NAME_DUPLICATE.
+      operationId: create
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateQueryRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSegmentDto"
+  /v1/segments/import:
+    post:
+      tags:
+      - segment
+      summary: Tạo tệp từ file .xlsx / .xls / .csv (cột isdn / msisdn / phone hoặc
+        cột đầu tiên)
+      operationId: importFile
+      parameters:
+      - name: name
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: description
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSegmentDto"
+  /v1/segments/estimate:
+    post:
+      tags:
+      - segment
+      summary: Ước tính số thuê bao khớp điều kiện
+      operationId: estimate
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstimateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringLong"
+  /v1/segments/bulk-delete:
+    post:
+      tags:
+      - segment
+      summary: Xoá nhiều tệp (bỏ qua tệp đang được chiến dịch dùng)
+      operationId: bulkDelete
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkDeleteRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBulkDeleteResult"
   /v1/price-quotes:
     get:
       tags:
       - price-quote
       summary: Danh sách bảng giá (createdAt giảm dần)
-      operationId: list_1
+      operationId: list_2
       parameters:
       - name: page
         in: query
@@ -472,7 +1160,7 @@ paths:
       tags:
       - price-quote
       summary: Tạo bảng giá DRAFT
-      operationId: create
+      operationId: create_1
       parameters:
       - name: Accept-Language
         in: header
@@ -526,6 +1214,564 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponsePriceQuoteDto"
+  /v1/events:
+    post:
+      tags:
+      - public
+      summary: Báo sự kiện thuê bao (header X-Api-Key) → ghi danh vào chiến dịch EVENT
+        đang chạy cùng template
+      description: Key sai / bị thu hồi → 401 API_KEY_INVALID.
+      operationId: event
+      parameters:
+      - name: X-Api-Key
+        in: header
+        required: false
+        schema:
+          type: string
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAccepted"
+  /v1/campaigns:
+    get:
+      tags:
+      - campaign
+      summary: Danh sách chiến dịch
+      operationId: list_3
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: query
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - DRAFT
+          - PENDING_APPROVAL
+          - SCHEDULED
+          - RUNNING
+          - PAUSED
+          - COMPLETED
+          - REJECTED
+          - CANCELLED
+      - name: mode
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - OFFICIAL
+          - TEST
+      - name: groupId
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSummary"
+    post:
+      tags:
+      - campaign
+      summary: "Tạo chiến dịch (submit=true: gửi duyệt luôn)"
+      operationId: create_2
+      parameters:
+      - name: submit
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Request"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDetail"
+  /v1/campaigns/{id}/submit:
+    post:
+      tags:
+      - campaign
+      summary: Gửi duyệt
+      operationId: submit
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDetail"
+  /v1/campaigns/{id}/resume:
+    post:
+      tags:
+      - campaign
+      summary: Tiếp tục
+      operationId: resume
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDetail"
+  /v1/campaigns/{id}/pause:
+    post:
+      tags:
+      - campaign
+      summary: Tạm dừng
+      operationId: pause
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDetail"
+  /v1/campaigns/{id}/duplicate:
+    post:
+      tags:
+      - campaign
+      summary: Nhân bản thành chiến dịch Nháp
+      operationId: duplicate
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDetail"
+  /v1/campaigns/{id}/conversions/import:
+    post:
+      tags:
+      - campaign
+      summary: "Mục tiêu MANUAL_FILE: tải danh sách số thuê bao đã chuyển đổi"
+      operationId: importConversions
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringInteger"
+  /v1/campaigns/{id}/cancel:
+    post:
+      tags:
+      - campaign
+      summary: Huỷ (huỷ luôn các tin chưa gửi)
+      operationId: cancel
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDetail"
+  /v1/campaigns/test-send:
+    post:
+      tags:
+      - campaign
+      summary: Bắn tin thử tới danh sách ISDN (tối đa 20 số)
+      operationId: testSend
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestSendRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListResult"
+  /v1/campaign-groups:
+    get:
+      tags:
+      - campaign-group
+      summary: Danh sách nhóm (kèm số chiến dịch / đang chạy)
+      operationId: list_4
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListGroupDto"
+    post:
+      tags:
+      - campaign-group
+      summary: Tạo nhóm
+      description: Trùng tên → 409 GROUP_NAME_DUPLICATE.
+      operationId: create_3
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseGroupDto"
+  /v1/campaign-approvals/{id}/reject:
+    post:
+      tags:
+      - campaign-approval
+      summary: Từ chối (bắt buộc lý do)
+      operationId: reject
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDetail"
+  /v1/campaign-approvals/{id}/approve:
+    post:
+      tags:
+      - campaign-approval
+      summary: Duyệt → SCHEDULED (chưa tới giờ) hoặc RUNNING
+      operationId: approve
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDetail"
   /v1/auth/vsa/login:
     post:
       tags:
@@ -688,7 +1934,7 @@ paths:
       - admin-workspace
       summary: "Danh sách workspace (tìm theo code/tên), sắp xếp createdAt giảm dầ\
         n"
-      operationId: list_2
+      operationId: list_5
       parameters:
       - name: page
         in: query
@@ -737,7 +1983,7 @@ paths:
       summary: Tạo workspace + gán OWNER
       description: Trùng code → 409 WORKSPACE_CODE_DUPLICATE; ownerUsername không
         tồn tại → 404 USER_NOT_FOUND.
-      operationId: create_1
+      operationId: create_4
       parameters:
       - name: Accept-Language
         in: header
@@ -767,7 +2013,7 @@ paths:
       - admin-user
       summary: "Danh sách user — query tìm username/tên/email/SĐT, sắp xếp createdAt\
         \ giảm dần"
-      operationId: list_3
+      operationId: list_6
       parameters:
       - name: page
         in: query
@@ -823,7 +2069,7 @@ paths:
       - admin-user
       summary: Tạo user
       description: Trùng username → 409 USERNAME_DUPLICATE.
-      operationId: create_2
+      operationId: create_5
       parameters:
       - name: Accept-Language
         in: header
@@ -977,6 +2223,145 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseListMyWorkspace"
+  /v1/t/{token}:
+    get:
+      tags:
+      - public
+      summary: "Link tracking: ghi nhận click rồi chuyển hướng tới URL gốc (302)"
+      operationId: track
+      parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+  /v1/segments/{id}:
+    get:
+      tags:
+      - segment
+      summary: Chi tiết tệp khách hàng
+      operationId: get_4
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSegmentDto"
+  /v1/segments/{id}/members:
+    get:
+      tags:
+      - segment
+      summary: Thành viên tệp (số thuê bao đã che)
+      description: Tệp chưa READY → 409 SEGMENT_NOT_READY.
+      operationId: members
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListMemberDto"
+  /v1/segment-attributes:
+    get:
+      tags:
+      - segment
+      summary: Danh mục thuộc tính thuê bao dùng để lọc
+      operationId: attributes
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListAttributeDto"
   /v1/price-quotes/active:
     get:
       tags:
@@ -1023,6 +2408,215 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseMeResponse"
+  /v1/dashboard/trend:
+    get:
+      tags:
+      - dashboard
+      summary: Xu hướng gửi / mở / click / chuyển đổi theo ngày
+      operationId: trend
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 30
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListTimePoint"
+  /v1/dashboard/summary:
+    get:
+      tags:
+      - dashboard
+      summary: "Chỉ số tổng quan (đang chạy, chờ duyệt, tổng chiến dịch, khách hà\
+        ng tiếp cận)"
+      operationId: summary
+      parameters:
+      - name: periodDays
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 7
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseDashboardSummary"
+  /v1/dashboard/channels:
+    get:
+      tags:
+      - dashboard
+      summary: Hiệu quả theo kênh
+      operationId: channels
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 30
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListChannelStat"
+  /v1/campaigns/{id}/report:
+    get:
+      tags:
+      - campaign
+      summary: "Báo cáo hiệu quả: tổng, chuỗi thời gian (DAY/WEEK/MONTH), theo kê\
+        nh, theo nhóm A/B"
+      operationId: report
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: bucket
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCampaignReport"
+  /v1/campaign-approvals:
+    get:
+      tags:
+      - campaign-approval
+      summary: Chiến dịch chờ duyệt
+      operationId: list_7
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - name: query
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: mode
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - OFFICIAL
+          - TEST
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSummary"
   /v1/auth/vsa/config:
     get:
       tags:
@@ -1054,7 +2648,7 @@ paths:
       summary: Tra cứu nhật ký
       description: "from/to: yyyy-MM-dd (giờ Lào, to tính hết ngày) hoặc ISO-8601.\
         \ actor tìm 'chứa'. workspaceId chỉ có tác dụng với SUPER_ADMIN."
-      operationId: list_4
+      operationId: list_8
       parameters:
       - name: page
         in: query
@@ -1233,6 +2827,61 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseListPermissionDef"
+  /v1/admin/dashboard:
+    get:
+      tags:
+      - admin-dashboard
+      summary: "Workspace hoạt động, tổng người dùng, chiến dịch, top workspace theo\
+        \ số chiến dịch"
+      operationId: get_5
+      parameters:
+      - name: periodDays
+        in: query
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 7
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAdminDashboard"
+  /v1/admin/dashboard/top-workspaces/export:
+    get:
+      tags:
+      - admin-dashboard
+      summary: Xuất Excel top workspace theo số chiến dịch
+      operationId: export_1
+      parameters:
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
   /v1/workspaces/{id}/members/{memberId}:
     delete:
       tags:
@@ -1438,6 +3087,101 @@ components:
         joinedAt:
           type: string
           format: date-time
+    SenderNumberRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 32
+          minLength: 0
+        kind:
+          type: string
+          enum:
+          - SHORTCODE
+          - BRANDNAME
+        description:
+          type: string
+          maxLength: 255
+          minLength: 0
+        enabled:
+          type: boolean
+      required:
+      - code
+      - kind
+    ApiResponseSenderNumberDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/SenderNumberDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    SenderNumberDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        kind:
+          type: string
+          enum:
+          - SHORTCODE
+          - BRANDNAME
+        description:
+          type: string
+        enabled:
+          type: boolean
+    NotificationSettings:
+      type: object
+      properties:
+        retryMaxAttempts:
+          type: integer
+          format: int32
+        retryIntervalMinutes:
+          type: integer
+          format: int32
+        refundOnFailure:
+          type: boolean
+        silentHoursEnabled:
+          type: boolean
+        silentFrom:
+          type: string
+        silentTo:
+          type: string
+        defaultLanguage:
+          type: string
+    ApiResponseNotificationSettings:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/NotificationSettings"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
     PriceItemInput:
       type: object
       properties:
@@ -1542,6 +3286,337 @@ components:
         createdBy:
           type: string
         updatedAt:
+          type: string
+          format: date-time
+    ActionDef:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+          - TOP_UP
+          - ADD_MONEY
+          - ADD_PROMOTION
+          - ADD_DATA
+          - ADD_SMS
+          - ADD_CALL_MINUTES
+          - ADD_PACKAGE
+          - REGISTER_CRBT
+          - REGISTER_LAOTV
+          - NOTIFICATION_SMS
+          - NOTIFICATION_EMAIL
+          - NOTIFICATION_WHATSAPP
+          - NOTIFICATION_USSD
+        delayMinutes:
+          type: integer
+          format: int32
+        senderId:
+          type: string
+        subject:
+          type: string
+        content:
+          type: string
+        templateId:
+          type: string
+        amount:
+          type: number
+        packageCode:
+          type: string
+        trackLinks:
+          type: boolean
+    ActionGroupDef:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        allocationPercent:
+          type: integer
+          format: int32
+        isControl:
+          type: boolean
+        mode:
+          type: string
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionDef"
+    BudgetDef:
+      type: object
+      properties:
+        expected:
+          type: number
+        max:
+          type: number
+    GoalDef:
+      type: object
+      properties:
+        mode:
+          type: string
+        description:
+          type: string
+        attributionWindowDays:
+          type: integer
+          format: int32
+        stopOnGoal:
+          type: boolean
+        maxNoResponse:
+          type: integer
+          format: int32
+    Request:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 0
+        description:
+          type: string
+          maxLength: 2000
+          minLength: 0
+        mode:
+          type: string
+          enum:
+          - OFFICIAL
+          - TEST
+        type:
+          type: string
+          enum:
+          - STATIC
+          - EVENT
+        groupId:
+          type: integer
+          format: int64
+        segmentId:
+          type: integer
+          format: int64
+        language:
+          type: string
+        testIsdns:
+          type: array
+          items:
+            type: string
+        actionGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionGroupDef"
+        schedule:
+          $ref: "#/components/schemas/ScheduleDef"
+        goal:
+          $ref: "#/components/schemas/GoalDef"
+        budget:
+          $ref: "#/components/schemas/BudgetDef"
+      required:
+      - mode
+      - name
+      - type
+    ScheduleDef:
+      type: object
+      properties:
+        type:
+          type: string
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        every:
+          type: integer
+          format: int32
+        unit:
+          type: string
+        weekdays:
+          type: array
+          items:
+            type: integer
+            format: int32
+        sendTime:
+          type: string
+        silentHours:
+          $ref: "#/components/schemas/SilentHoursDef"
+    SilentHoursDef:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        from:
+          type: string
+        to:
+          type: string
+    ApiResponseDetail:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/Detail"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    Detail:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+        mode:
+          type: string
+          enum:
+          - OFFICIAL
+          - TEST
+        type:
+          type: string
+          enum:
+          - STATIC
+          - EVENT
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - PENDING_APPROVAL
+          - SCHEDULED
+          - RUNNING
+          - PAUSED
+          - COMPLETED
+          - REJECTED
+          - CANCELLED
+        groupId:
+          type: integer
+          format: int64
+        groupName:
+          type: string
+        segmentId:
+          type: integer
+          format: int64
+        segmentName:
+          type: string
+        targetCount:
+          type: integer
+          format: int32
+        channels:
+          type: array
+          items:
+            type: string
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        expectedCost:
+          type: number
+        sentRate:
+          type: number
+          format: double
+        openRate:
+          type: number
+          format: double
+        conversionRate:
+          type: number
+          format: double
+        uplift:
+          type: number
+        description:
+          type: string
+        language:
+          type: string
+        testIsdns:
+          type: array
+          items:
+            type: string
+        actionGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionGroupDef"
+        schedule:
+          $ref: "#/components/schemas/ScheduleDef"
+        goal:
+          $ref: "#/components/schemas/GoalDef"
+        budget:
+          $ref: "#/components/schemas/BudgetDef"
+        rejectReason:
+          type: string
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryItem"
+    HistoryItem:
+      type: object
+      properties:
+        at:
+          type: string
+          format: date-time
+        actor:
+          type: string
+        action:
+          type: string
+        note:
+          type: string
+    GroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 0
+      required:
+      - name
+    ApiResponseGroupDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/GroupDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    GroupDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        campaignCount:
+          type: integer
+          format: int64
+        runningCount:
+          type: integer
+          format: int64
+        createdAt:
           type: string
           format: date-time
     UpdateUserRequest:
@@ -1676,6 +3751,335 @@ components:
       required:
       - identifier
       - role
+    ApiResponseKeyDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/KeyDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    KeyDto:
+      type: object
+      properties:
+        configured:
+          type: boolean
+        hint:
+          type: string
+        rotatedAt:
+          type: string
+          format: date-time
+        key:
+          type: string
+    CreateQueryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 0
+        description:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        type:
+          type: string
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SegmentCondition"
+      required:
+      - name
+    SegmentCondition:
+      type: object
+      properties:
+        field:
+          type: string
+        operator:
+          type: string
+        value:
+          type: string
+        valueTo:
+          type: string
+        join:
+          type: string
+    ApiResponseSegmentDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/SegmentDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    SegmentDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum:
+          - FILE
+          - QUERY
+          - EVENT
+          - CAMPAIGN_OUTCOME
+        source:
+          type: string
+          enum:
+          - OCS
+          - DWH
+          - FILE
+          - CAMPAIGN
+          - EVENT
+        status:
+          type: string
+          enum:
+          - BUILDING
+          - READY
+          - FAILED
+          - ARCHIVED
+        totalUsers:
+          type: integer
+          format: int32
+        fileName:
+          type: string
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SegmentCondition"
+        referencedBy:
+          type: integer
+          format: int32
+        errorMessage:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        invalidRows:
+          type: integer
+          format: int32
+    EstimateRequest:
+      type: object
+      properties:
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SegmentCondition"
+    ApiResponseMapStringLong:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    BulkDeleteRequest:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 200
+          minItems: 0
+      required:
+      - ids
+    ApiResponseBulkDeleteResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/BulkDeleteResult"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    BulkDeleteResult:
+      type: object
+      properties:
+        deleted:
+          type: integer
+          format: int32
+        failed:
+          type: array
+          items:
+            $ref: "#/components/schemas/Failure"
+    Failure:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+    EventRequest:
+      type: object
+      properties:
+        eventType:
+          type: string
+        isdn:
+          type: string
+    Accepted:
+      type: object
+      properties:
+        eventType:
+          type: string
+        isdn:
+          type: string
+        matchedCampaigns:
+          type: integer
+          format: int32
+        enrolled:
+          type: integer
+          format: int32
+    ApiResponseAccepted:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/Accepted"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    ApiResponseMapStringInteger:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    TestSendRequest:
+      type: object
+      properties:
+        campaignId:
+          type: integer
+          format: int64
+        isdns:
+          type: array
+          items:
+            type: string
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionDef"
+    ApiResponseListResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Result"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    Result:
+      type: object
+      properties:
+        isdn:
+          type: string
+        channel:
+          type: string
+        status:
+          type: string
+        detail:
+          type: string
+    RejectRequest:
+      type: object
+      properties:
+        reason:
+          type: string
     VsaLoginRequest:
       type: object
       properties:
@@ -1931,6 +4335,82 @@ components:
           type: array
           items:
             type: string
+    ApiResponseListSenderNumberDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SenderNumberDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    ApiResponseListSegmentDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SegmentDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    ApiResponseListAttributeDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttributeDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    AttributeDto:
+      type: object
+      properties:
+        field:
+          type: string
+        group:
+          type: string
+        dataType:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
     ApiResponseListPriceQuoteDto:
       type: object
       properties:
@@ -1980,6 +4460,328 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MyWorkspace"
+    ApiResponseListTimePoint:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimePoint"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    TimePoint:
+      type: object
+      properties:
+        date:
+          type: string
+        sent:
+          type: integer
+          format: int64
+        opens:
+          type: integer
+          format: int64
+        clicks:
+          type: integer
+          format: int64
+        conversions:
+          type: integer
+          format: int64
+    ApiResponseDashboardSummary:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/DashboardSummary"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    DashboardSummary:
+      type: object
+      properties:
+        runningCampaigns:
+          $ref: "#/components/schemas/Metric"
+        pendingApprovals:
+          $ref: "#/components/schemas/Metric"
+        totalCampaigns:
+          $ref: "#/components/schemas/Metric"
+        reachedCustomers:
+          $ref: "#/components/schemas/Metric"
+        periodDays:
+          type: integer
+          format: int32
+    Metric:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int64
+        previousTotal:
+          type: integer
+          format: int64
+        growth:
+          type: number
+          format: double
+    ApiResponseListChannelStat:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChannelStat"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    ChannelStat:
+      type: object
+      properties:
+        channel:
+          type: string
+        sent:
+          type: integer
+          format: int64
+        delivered:
+          type: integer
+          format: int64
+        opened:
+          type: integer
+          format: int64
+        clicked:
+          type: integer
+          format: int64
+        converted:
+          type: integer
+          format: int64
+    ApiResponseListSummary:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Summary"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    Summary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+        mode:
+          type: string
+          enum:
+          - OFFICIAL
+          - TEST
+        type:
+          type: string
+          enum:
+          - STATIC
+          - EVENT
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - PENDING_APPROVAL
+          - SCHEDULED
+          - RUNNING
+          - PAUSED
+          - COMPLETED
+          - REJECTED
+          - CANCELLED
+        groupId:
+          type: integer
+          format: int64
+        groupName:
+          type: string
+        segmentId:
+          type: integer
+          format: int64
+        segmentName:
+          type: string
+        targetCount:
+          type: integer
+          format: int32
+        channels:
+          type: array
+          items:
+            type: string
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        expectedCost:
+          type: number
+        sentRate:
+          type: number
+          format: double
+        openRate:
+          type: number
+          format: double
+        conversionRate:
+          type: number
+          format: double
+        uplift:
+          type: number
+    ApiResponseCampaignReport:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/CampaignReport"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    CampaignReport:
+      type: object
+      properties:
+        totals:
+          $ref: "#/components/schemas/Totals"
+        timeseries:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimePoint"
+        channels:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChannelStat"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupStat"
+    GroupStat:
+      type: object
+      properties:
+        groupName:
+          type: string
+        isControl:
+          type: boolean
+        target:
+          type: integer
+          format: int64
+        sentRate:
+          type: number
+          format: double
+        openRate:
+          type: number
+          format: double
+        conversionRate:
+          type: number
+          format: double
+        uplift:
+          type: number
+          format: double
+    Totals:
+      type: object
+      properties:
+        target:
+          type: integer
+          format: int64
+        sent:
+          type: integer
+          format: int64
+        delivered:
+          type: integer
+          format: int64
+        failed:
+          type: integer
+          format: int64
+        opens:
+          type: integer
+          format: int64
+        clicks:
+          type: integer
+          format: int64
+        conversions:
+          type: integer
+          format: int64
+        spent:
+          type: number
+    ApiResponseListGroupDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
     ApiResponseVsaConfigDto:
       type: object
       properties:
@@ -2153,6 +4955,59 @@ components:
           - REPORT
         description:
           type: string
+    AdminDashboard:
+      type: object
+      properties:
+        activeWorkspaces:
+          $ref: "#/components/schemas/Metric"
+        totalUsers:
+          $ref: "#/components/schemas/Metric"
+        runningCampaigns:
+          $ref: "#/components/schemas/Metric"
+        totalCampaigns:
+          $ref: "#/components/schemas/Metric"
+        topWorkspaces:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopWorkspace"
+        periodDays:
+          type: integer
+          format: int32
+    ApiResponseAdminDashboard:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/AdminDashboard"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    TopWorkspace:
+      type: object
+      properties:
+        workspaceId:
+          type: integer
+          format: int64
+        code:
+          type: string
+        name:
+          type: string
+        campaignCount:
+          type: integer
+          format: int64
+        runningCount:
+          type: integer
+          format: int64
   securitySchemes:
     bearerAuth:
       type: http

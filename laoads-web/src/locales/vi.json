@@ -27,7 +27,8 @@
     "status": "Trạng thái",
     "updatedAt": "Cập nhật",
     "view": "Xem chi tiết",
-    "viewAll": "Xem tất cả"
+    "viewAll": "Xem tất cả",
+    "done": "Xong"
   },
   "errors": {
     "network": "Không kết nối được máy chủ. Kiểm tra mạng hoặc BE.",
@@ -385,7 +386,9 @@
       "REJECT": "Bị từ chối",
       "PAUSE": "Tạm dừng",
       "RESUME": "Chạy lại",
-      "CANCEL": "Huỷ"
+      "CANCEL": "Huỷ",
+      "START": "Bắt đầu chạy",
+      "COMPLETE": "Hoàn tất"
     },
     "detail": {
       "tabReport": "Báo cáo",
@@ -409,7 +412,10 @@
       "smsNoOpen": "SMS không đo lượt mở",
       "summary": "Tóm tắt",
       "rejected": "Chiến dịch bị từ chối",
-      "pendingNote": "Chiến dịch đang chờ phê duyệt — không thể chỉnh sửa trong lúc này."
+      "pendingNote": "Chiến dịch đang chờ phê duyệt — không thể chỉnh sửa trong lúc này.",
+      "importConversions": "Tải danh sách chuyển đổi",
+      "conversionsHint": "Mục tiêu tải danh sách thủ công: tải file .xlsx / .csv chứa số thuê bao đã đạt mục tiêu.",
+      "conversionsImported": "Đã ghi nhận {{matched}} chuyển đổi (trong {{rows}} số trong file)"
     },
     "wizard": {
       "newTitle": "Tạo chiến dịch mới",
@@ -529,7 +535,11 @@
         "start": "Vui lòng chọn thời gian bắt đầu.",
         "endBeforeStart": "Thời gian kết thúc phải sau thời gian bắt đầu.",
         "budget": "Ngân sách tối đa thấp hơn chi phí dự kiến."
-      }
+      },
+      "trackLinks": "Theo dõi click link (thay link trong nội dung bằng link tracking)",
+      "newGroup": "Tạo nhóm chiến dịch",
+      "createGroup": "Tạo nhóm",
+      "groupCreated": "Đã tạo nhóm chiến dịch"
     }
   },
   "approval": {
@@ -592,7 +602,8 @@
     "members": "Danh sách khách hàng",
     "phone": "Số thuê bao",
     "notReady": "Tệp chưa sẵn sàng",
-    "notReadyDesc": "Hệ thống đang xử lý hoặc tạo tệp thất bại."
+    "notReadyDesc": "Hệ thống đang xử lý hoặc tạo tệp thất bại.",
+    "invalidRows": "Đã bỏ qua {{n}} dòng không phải số thuê bao hợp lệ"
   },
   "workspace": {
     "name": "Tên workspace",
@@ -627,7 +638,9 @@
     "remove": "Gỡ khỏi workspace",
     "removeTitle": "Gỡ thành viên?",
     "removeDesc": "{{name}} sẽ mất quyền truy cập workspace. Thao tác không thể hoàn tác.",
-    "removed": "Đã gỡ thành viên"
+    "removed": "Đã gỡ thành viên",
+    "email": "Email",
+    "phone": "Số điện thoại"
   },
   "price": {
     "desc": "Đơn giá từng loại hành động — dùng để ước tính và tính chi phí chiến dịch.",
@@ -677,7 +690,12 @@
     "SUBMIT": "Gửi duyệt",
     "CHANGE_ROLE": "Đổi vai trò",
     "RESET_PASSWORD": "Đặt lại mật khẩu",
-    "IMPORT": "Import"
+    "IMPORT": "Import",
+    "PAUSE": "Tạm dừng",
+    "RESUME": "Tiếp tục",
+    "CANCEL": "Huỷ",
+    "EXPORT": "Xuất dữ liệu",
+    "CHANGE_PASSWORD": "Đổi mật khẩu"
   },
   "auditEntity": {
     "AUTH": "Đăng nhập",
@@ -687,7 +705,13 @@
     "ROLE": "Vai trò",
     "PRICE_QUOTE": "Bảng giá",
     "CAMPAIGN": "Chiến dịch",
-    "SEGMENT": "Tệp khách hàng"
+    "SEGMENT": "Tệp khách hàng",
+    "SENDER_NUMBER": "Đầu số",
+    "SETTING": "Cấu hình",
+    "CAMPAIGN_GROUP": "Nhóm chiến dịch",
+    "API_KEY": "API key",
+    "ROLE_PERMISSION": "Phân quyền",
+    "AUDIT_LOG": "Nhật ký"
   },
   "adminWs": {
     "desc": "Tạo workspace cho từng phòng ban và gán chủ sở hữu.",
@@ -745,5 +769,39 @@
     "refund": "Hoàn tài nguyên đã trừ khi gửi thất bại",
     "silentDefault": "Bật khung giờ không gửi mặc định",
     "defaultLang": "Ngôn ngữ nội dung mặc định"
+  },
+  "adminDash": {
+    "title": "Toàn hệ thống",
+    "subtitle": "Số liệu tất cả workspace — chỉ Super Admin nhìn thấy",
+    "activeWorkspaces": "Workspace đang hoạt động",
+    "totalUsers": "Tổng người dùng",
+    "runningCampaigns": "Chiến dịch đang chạy (toàn hệ thống)",
+    "totalCampaigns": "Tổng chiến dịch (toàn hệ thống)",
+    "topTitle": "Top workspace theo số chiến dịch",
+    "topDesc": "Xếp theo tổng số chiến dịch đã tạo",
+    "export": "Xuất Excel",
+    "workspace": "Workspace",
+    "campaigns": "Chiến dịch",
+    "running": "Đang chạy"
+  },
+  "apiKey": {
+    "title": "API key sự kiện",
+    "desc": "Hệ thống ngoài dùng key này để báo sự kiện thuê bao (kích hoạt SIM, nạp thẻ lần đầu…) cho chiến dịch theo sự kiện.",
+    "none": "Chưa có API key",
+    "rotatedAt": "Tạo lúc {{at}}",
+    "create": "Tạo API key",
+    "rotate": "Tạo key mới",
+    "revoke": "Thu hồi",
+    "rotateTitle": "Tạo API key mới?",
+    "rotateDesc": "Key hiện tại sẽ hết hiệu lực ngay. Cập nhật key mới cho mọi hệ thống đang gọi API sự kiện.",
+    "revokeTitle": "Thu hồi API key?",
+    "revokeDesc": "Hệ thống ngoài sẽ không gửi được sự kiện cho tới khi tạo key mới.",
+    "revoked": "Đã thu hồi API key",
+    "freshTitle": "API key mới",
+    "freshDesc": "Sao chép và lưu lại ngay — key chỉ hiển thị một lần.",
+    "copy": "Sao chép",
+    "copied": "Đã sao chép",
+    "copyFailed": "Không sao chép được, hãy chọn và sao chép thủ công",
+    "usage": "Gọi POST /api/v1/events với header X-Api-Key và body {\"eventType\": \"SIM_ACTIVATION_D0\", \"isdn\": \"2055512345\"}."
   }
 }

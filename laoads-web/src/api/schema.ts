@@ -42,6 +42,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/settings/sender-numbers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Sửa / bật / tắt đầu số */
+        put: operations["updateSender"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/settings/notification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cấu hình gửi tin (retry, hoàn tài nguyên, khung giờ không gửi, ngôn ngữ mặc định) */
+        get: operations["notification"];
+        /** Cập nhật cấu hình gửi tin */
+        put: operations["updateNotification"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/price-quotes/{id}": {
         parameters: {
             query?: never;
@@ -67,6 +102,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/campaigns/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chi tiết chiến dịch (cấu hình + lịch sử) */
+        get: operations["get_2"];
+        /**
+         * Sửa chiến dịch Nháp / Bị từ chối
+         * @description Trạng thái khác → 409 CAMPAIGN_LOCKED.
+         */
+        put: operations["update_2"];
+        post?: never;
+        /** Xoá chiến dịch Nháp / Bị từ chối / Đã huỷ */
+        delete: operations["delete_1"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaign-groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Đổi tên nhóm */
+        put: operations["rename"];
+        post?: never;
+        /**
+         * Xoá nhóm trống
+         * @description Còn chiến dịch → 409 GROUP_IN_USE.
+         */
+        delete: operations["delete_2"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/users/{id}": {
         parameters: {
             query?: never;
@@ -79,7 +157,7 @@ export interface paths {
          * Cập nhật user
          * @description Tự đổi systemRole của mình → 400 CANNOT_CHANGE_SELF.
          */
-        put: operations["update_2"];
+        put: operations["update_3"];
         post?: never;
         delete?: never;
         options?: never;
@@ -131,6 +209,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/workspaces/{id}/api-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trạng thái API key (chỉ 4 ký tự cuối) */
+        get: operations["get_3"];
+        put?: never;
+        /** Tạo / xoay vòng API key (key cũ hết hiệu lực ngay) — trả key đầy đủ đúng 1 lần */
+        post: operations["rotate"];
+        /** Thu hồi API key */
+        delete: operations["revoke"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/settings/sender-numbers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Danh mục đầu số gửi SMS */
+        get: operations["senders"];
+        put?: never;
+        /**
+         * Thêm đầu số
+         * @description Trùng mã → 409 SENDER_CODE_DUPLICATE.
+         */
+        post: operations["createSender"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Danh sách tệp khách hàng */
+        get: operations["list_1"];
+        put?: never;
+        /**
+         * Tạo tệp từ thuộc tính (QUERY) — build bất đồng bộ
+         * @description Trùng tên → 409 SEGMENT_NAME_DUPLICATE.
+         */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Tạo tệp từ file .xlsx / .xls / .csv (cột isdn / msisdn / phone hoặc cột đầu tiên) */
+        post: operations["importFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ước tính số thuê bao khớp điều kiện */
+        post: operations["estimate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Xoá nhiều tệp (bỏ qua tệp đang được chiến dịch dùng) */
+        post: operations["bulkDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/price-quotes": {
         parameters: {
             query?: never;
@@ -139,10 +329,10 @@ export interface paths {
             cookie?: never;
         };
         /** Danh sách bảng giá (createdAt giảm dần) */
-        get: operations["list_1"];
+        get: operations["list_2"];
         put?: never;
         /** Tạo bảng giá DRAFT */
-        post: operations["create"];
+        post: operations["create_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -163,6 +353,218 @@ export interface paths {
          * @description Không phải DRAFT → 409 PRICE_QUOTE_NOT_DRAFT.
          */
         post: operations["lock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Báo sự kiện thuê bao (header X-Api-Key) → ghi danh vào chiến dịch EVENT đang chạy cùng template
+         * @description Key sai / bị thu hồi → 401 API_KEY_INVALID.
+         */
+        post: operations["event"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Danh sách chiến dịch */
+        get: operations["list_3"];
+        put?: never;
+        /** Tạo chiến dịch (submit=true: gửi duyệt luôn) */
+        post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Gửi duyệt */
+        post: operations["submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Tiếp tục */
+        post: operations["resume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Tạm dừng */
+        post: operations["pause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Nhân bản thành chiến dịch Nháp */
+        post: operations["duplicate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{id}/conversions/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mục tiêu MANUAL_FILE: tải danh sách số thuê bao đã chuyển đổi */
+        post: operations["importConversions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Huỷ (huỷ luôn các tin chưa gửi) */
+        post: operations["cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/test-send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bắn tin thử tới danh sách ISDN (tối đa 20 số) */
+        post: operations["testSend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaign-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Danh sách nhóm (kèm số chiến dịch / đang chạy) */
+        get: operations["list_4"];
+        put?: never;
+        /**
+         * Tạo nhóm
+         * @description Trùng tên → 409 GROUP_NAME_DUPLICATE.
+         */
+        post: operations["create_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaign-approvals/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Từ chối (bắt buộc lý do) */
+        post: operations["reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaign-approvals/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duyệt → SCHEDULED (chưa tới giờ) hoặc RUNNING */
+        post: operations["approve"];
         delete?: never;
         options?: never;
         head?: never;
@@ -274,13 +676,13 @@ export interface paths {
             cookie?: never;
         };
         /** Danh sách workspace (tìm theo code/tên), sắp xếp createdAt giảm dần */
-        get: operations["list_2"];
+        get: operations["list_5"];
         put?: never;
         /**
          * Tạo workspace + gán OWNER
          * @description Trùng code → 409 WORKSPACE_CODE_DUPLICATE; ownerUsername không tồn tại → 404 USER_NOT_FOUND.
          */
-        post: operations["create_1"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -295,13 +697,13 @@ export interface paths {
             cookie?: never;
         };
         /** Danh sách user — query tìm username/tên/email/SĐT, sắp xếp createdAt giảm dần */
-        get: operations["list_3"];
+        get: operations["list_6"];
         put?: never;
         /**
          * Tạo user
          * @description Trùng username → 409 USERNAME_DUPLICATE.
          */
-        post: operations["create_2"];
+        post: operations["create_5"];
         delete?: never;
         options?: never;
         head?: never;
@@ -379,6 +781,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/t/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Link tracking: ghi nhận click rồi chuyển hướng tới URL gốc (302) */
+        get: operations["track"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chi tiết tệp khách hàng */
+        get: operations["get_4"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Thành viên tệp (số thuê bao đã che)
+         * @description Tệp chưa READY → 409 SEGMENT_NOT_READY.
+         */
+        get: operations["members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segment-attributes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Danh mục thuộc tính thuê bao dùng để lọc */
+        get: operations["attributes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/price-quotes/active": {
         parameters: {
             query?: never;
@@ -405,6 +878,91 @@ export interface paths {
         };
         /** User hiện tại + danh sách workspace (kèm role, permissions) */
         get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/trend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Xu hướng gửi / mở / click / chuyển đổi theo ngày */
+        get: operations["trend"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chỉ số tổng quan (đang chạy, chờ duyệt, tổng chiến dịch, khách hàng tiếp cận) */
+        get: operations["summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/dashboard/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Hiệu quả theo kênh */
+        get: operations["channels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/{id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Báo cáo hiệu quả: tổng, chuỗi thời gian (DAY/WEEK/MONTH), theo kênh, theo nhóm A/B */
+        get: operations["report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaign-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chiến dịch chờ duyệt */
+        get: operations["list_7"];
         put?: never;
         post?: never;
         delete?: never;
@@ -441,7 +999,7 @@ export interface paths {
          * Tra cứu nhật ký
          * @description from/to: yyyy-MM-dd (giờ Lào, to tính hết ngày) hoặc ISO-8601. actor tìm 'chứa'. workspaceId chỉ có tác dụng với SUPER_ADMIN.
          */
-        get: operations["list_4"];
+        get: operations["list_8"];
         put?: never;
         post?: never;
         delete?: never;
@@ -496,6 +1054,40 @@ export interface paths {
         };
         /** Danh mục permission (mô tả dịch theo Accept-Language) */
         get: operations["permissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Workspace hoạt động, tổng người dùng, chiến dịch, top workspace theo số chiến dịch */
+        get: operations["get_5"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/dashboard/top-workspaces/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Xuất Excel top workspace theo số chiến dịch */
+        get: operations["export_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -606,6 +1198,51 @@ export interface components {
             /** Format: date-time */
             joinedAt?: string;
         };
+        SenderNumberRequest: {
+            code: string;
+            /** @enum {string} */
+            kind: "SHORTCODE" | "BRANDNAME";
+            description?: string;
+            enabled?: boolean;
+        };
+        ApiResponseSenderNumberDto: {
+            success?: boolean;
+            data?: components["schemas"]["SenderNumberDto"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        SenderNumberDto: {
+            /** Format: int64 */
+            id?: number;
+            code?: string;
+            /** @enum {string} */
+            kind?: "SHORTCODE" | "BRANDNAME";
+            description?: string;
+            enabled?: boolean;
+        };
+        NotificationSettings: {
+            /** Format: int32 */
+            retryMaxAttempts?: number;
+            /** Format: int32 */
+            retryIntervalMinutes?: number;
+            refundOnFailure?: boolean;
+            silentHoursEnabled?: boolean;
+            silentFrom?: string;
+            silentTo?: string;
+            defaultLanguage?: string;
+        };
+        ApiResponseNotificationSettings: {
+            success?: boolean;
+            data?: components["schemas"]["NotificationSettings"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
         PriceItemInput: {
             /** @enum {string} */
             actionType: "TOP_UP" | "ADD_MONEY" | "ADD_PROMOTION" | "ADD_DATA" | "ADD_SMS" | "ADD_CALL_MINUTES" | "ADD_PACKAGE" | "REGISTER_CRBT" | "REGISTER_LAOTV" | "NOTIFICATION_SMS" | "NOTIFICATION_EMAIL" | "NOTIFICATION_WHATSAPP" | "NOTIFICATION_USSD";
@@ -644,6 +1281,162 @@ export interface components {
             createdBy?: string;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        ActionDef: {
+            id?: string;
+            /** @enum {string} */
+            type?: "TOP_UP" | "ADD_MONEY" | "ADD_PROMOTION" | "ADD_DATA" | "ADD_SMS" | "ADD_CALL_MINUTES" | "ADD_PACKAGE" | "REGISTER_CRBT" | "REGISTER_LAOTV" | "NOTIFICATION_SMS" | "NOTIFICATION_EMAIL" | "NOTIFICATION_WHATSAPP" | "NOTIFICATION_USSD";
+            /** Format: int32 */
+            delayMinutes?: number;
+            senderId?: string;
+            subject?: string;
+            content?: string;
+            templateId?: string;
+            amount?: number;
+            packageCode?: string;
+            trackLinks?: boolean;
+        };
+        ActionGroupDef: {
+            id?: string;
+            name?: string;
+            /** Format: int32 */
+            allocationPercent?: number;
+            isControl?: boolean;
+            mode?: string;
+            actions?: components["schemas"]["ActionDef"][];
+        };
+        BudgetDef: {
+            expected?: number;
+            max?: number;
+        };
+        GoalDef: {
+            mode?: string;
+            description?: string;
+            /** Format: int32 */
+            attributionWindowDays?: number;
+            stopOnGoal?: boolean;
+            /** Format: int32 */
+            maxNoResponse?: number;
+        };
+        Request: {
+            name: string;
+            description?: string;
+            /** @enum {string} */
+            mode: "OFFICIAL" | "TEST";
+            /** @enum {string} */
+            type: "STATIC" | "EVENT";
+            /** Format: int64 */
+            groupId?: number;
+            /** Format: int64 */
+            segmentId?: number;
+            language?: string;
+            testIsdns?: string[];
+            actionGroups?: components["schemas"]["ActionGroupDef"][];
+            schedule?: components["schemas"]["ScheduleDef"];
+            goal?: components["schemas"]["GoalDef"];
+            budget?: components["schemas"]["BudgetDef"];
+        };
+        ScheduleDef: {
+            type?: string;
+            /** Format: date-time */
+            startAt?: string;
+            /** Format: date-time */
+            endAt?: string;
+            /** Format: int32 */
+            every?: number;
+            unit?: string;
+            weekdays?: number[];
+            sendTime?: string;
+            silentHours?: components["schemas"]["SilentHoursDef"];
+        };
+        SilentHoursDef: {
+            enabled?: boolean;
+            from?: string;
+            to?: string;
+        };
+        ApiResponseDetail: {
+            success?: boolean;
+            data?: components["schemas"]["Detail"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        Detail: {
+            /** Format: int64 */
+            id?: number;
+            code?: string;
+            name?: string;
+            /** @enum {string} */
+            mode?: "OFFICIAL" | "TEST";
+            /** @enum {string} */
+            type?: "STATIC" | "EVENT";
+            /** @enum {string} */
+            status?: "DRAFT" | "PENDING_APPROVAL" | "SCHEDULED" | "RUNNING" | "PAUSED" | "COMPLETED" | "REJECTED" | "CANCELLED";
+            /** Format: int64 */
+            groupId?: number;
+            groupName?: string;
+            /** Format: int64 */
+            segmentId?: number;
+            segmentName?: string;
+            /** Format: int32 */
+            targetCount?: number;
+            channels?: string[];
+            /** Format: date-time */
+            startAt?: string;
+            /** Format: date-time */
+            endAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            createdBy?: string;
+            expectedCost?: number;
+            /** Format: double */
+            sentRate?: number;
+            /** Format: double */
+            openRate?: number;
+            /** Format: double */
+            conversionRate?: number;
+            uplift?: number;
+            description?: string;
+            language?: string;
+            testIsdns?: string[];
+            actionGroups?: components["schemas"]["ActionGroupDef"][];
+            schedule?: components["schemas"]["ScheduleDef"];
+            goal?: components["schemas"]["GoalDef"];
+            budget?: components["schemas"]["BudgetDef"];
+            rejectReason?: string;
+            history?: components["schemas"]["HistoryItem"][];
+        };
+        HistoryItem: {
+            /** Format: date-time */
+            at?: string;
+            actor?: string;
+            action?: string;
+            note?: string;
+        };
+        GroupRequest: {
+            name: string;
+        };
+        ApiResponseGroupDto: {
+            success?: boolean;
+            data?: components["schemas"]["GroupDto"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        GroupDto: {
+            /** Format: int64 */
+            id?: number;
+            name?: string;
+            /** Format: int64 */
+            campaignCount?: number;
+            /** Format: int64 */
+            runningCount?: number;
+            /** Format: date-time */
+            createdAt?: string;
         };
         UpdateUserRequest: {
             fullName: string;
@@ -700,6 +1493,162 @@ export interface components {
             identifier: string;
             /** @enum {string} */
             role: "OWNER" | "ADMIN" | "MEMBER";
+        };
+        ApiResponseKeyDto: {
+            success?: boolean;
+            data?: components["schemas"]["KeyDto"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        KeyDto: {
+            configured?: boolean;
+            hint?: string;
+            /** Format: date-time */
+            rotatedAt?: string;
+            key?: string;
+        };
+        CreateQueryRequest: {
+            name: string;
+            description?: string;
+            type?: string;
+            conditions?: components["schemas"]["SegmentCondition"][];
+        };
+        SegmentCondition: {
+            field?: string;
+            operator?: string;
+            value?: string;
+            valueTo?: string;
+            join?: string;
+        };
+        ApiResponseSegmentDto: {
+            success?: boolean;
+            data?: components["schemas"]["SegmentDto"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        SegmentDto: {
+            /** Format: int64 */
+            id?: number;
+            name?: string;
+            description?: string;
+            /** @enum {string} */
+            type?: "FILE" | "QUERY" | "EVENT" | "CAMPAIGN_OUTCOME";
+            /** @enum {string} */
+            source?: "OCS" | "DWH" | "FILE" | "CAMPAIGN" | "EVENT";
+            /** @enum {string} */
+            status?: "BUILDING" | "READY" | "FAILED" | "ARCHIVED";
+            /** Format: int32 */
+            totalUsers?: number;
+            fileName?: string;
+            conditions?: components["schemas"]["SegmentCondition"][];
+            /** Format: int32 */
+            referencedBy?: number;
+            errorMessage?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            createdBy?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            /** Format: int32 */
+            invalidRows?: number;
+        };
+        EstimateRequest: {
+            conditions?: components["schemas"]["SegmentCondition"][];
+        };
+        ApiResponseMapStringLong: {
+            success?: boolean;
+            data?: {
+                [key: string]: number;
+            };
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        BulkDeleteRequest: {
+            ids: number[];
+        };
+        ApiResponseBulkDeleteResult: {
+            success?: boolean;
+            data?: components["schemas"]["BulkDeleteResult"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        BulkDeleteResult: {
+            /** Format: int32 */
+            deleted?: number;
+            failed?: components["schemas"]["Failure"][];
+        };
+        Failure: {
+            /** Format: int64 */
+            id?: number;
+            reason?: string;
+        };
+        EventRequest: {
+            eventType?: string;
+            isdn?: string;
+        };
+        Accepted: {
+            eventType?: string;
+            isdn?: string;
+            /** Format: int32 */
+            matchedCampaigns?: number;
+            /** Format: int32 */
+            enrolled?: number;
+        };
+        ApiResponseAccepted: {
+            success?: boolean;
+            data?: components["schemas"]["Accepted"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        ApiResponseMapStringInteger: {
+            success?: boolean;
+            data?: {
+                [key: string]: number;
+            };
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        TestSendRequest: {
+            /** Format: int64 */
+            campaignId?: number;
+            isdns?: string[];
+            actions?: components["schemas"]["ActionDef"][];
+        };
+        ApiResponseListResult: {
+            success?: boolean;
+            data?: components["schemas"]["Result"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        Result: {
+            isdn?: string;
+            channel?: string;
+            status?: string;
+            detail?: string;
+        };
+        RejectRequest: {
+            reason?: string;
         };
         VsaLoginRequest: {
             ticket: string;
@@ -800,6 +1749,39 @@ export interface components {
             role?: "OWNER" | "ADMIN" | "MEMBER";
             permissions?: string[];
         };
+        ApiResponseListSenderNumberDto: {
+            success?: boolean;
+            data?: components["schemas"]["SenderNumberDto"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        ApiResponseListSegmentDto: {
+            success?: boolean;
+            data?: components["schemas"]["SegmentDto"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        ApiResponseListAttributeDto: {
+            success?: boolean;
+            data?: components["schemas"]["AttributeDto"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        AttributeDto: {
+            field?: string;
+            group?: string;
+            dataType?: string;
+            options?: string[];
+        };
         ApiResponseListPriceQuoteDto: {
             success?: boolean;
             data?: components["schemas"]["PriceQuoteDto"][];
@@ -821,6 +1803,173 @@ export interface components {
         MeResponse: {
             user?: components["schemas"]["UserDto"];
             workspaces?: components["schemas"]["MyWorkspace"][];
+        };
+        ApiResponseListTimePoint: {
+            success?: boolean;
+            data?: components["schemas"]["TimePoint"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        TimePoint: {
+            date?: string;
+            /** Format: int64 */
+            sent?: number;
+            /** Format: int64 */
+            opens?: number;
+            /** Format: int64 */
+            clicks?: number;
+            /** Format: int64 */
+            conversions?: number;
+        };
+        ApiResponseDashboardSummary: {
+            success?: boolean;
+            data?: components["schemas"]["DashboardSummary"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        DashboardSummary: {
+            runningCampaigns?: components["schemas"]["Metric"];
+            pendingApprovals?: components["schemas"]["Metric"];
+            totalCampaigns?: components["schemas"]["Metric"];
+            reachedCustomers?: components["schemas"]["Metric"];
+            /** Format: int32 */
+            periodDays?: number;
+        };
+        Metric: {
+            /** Format: int64 */
+            total?: number;
+            /** Format: int64 */
+            previousTotal?: number;
+            /** Format: double */
+            growth?: number;
+        };
+        ApiResponseListChannelStat: {
+            success?: boolean;
+            data?: components["schemas"]["ChannelStat"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        ChannelStat: {
+            channel?: string;
+            /** Format: int64 */
+            sent?: number;
+            /** Format: int64 */
+            delivered?: number;
+            /** Format: int64 */
+            opened?: number;
+            /** Format: int64 */
+            clicked?: number;
+            /** Format: int64 */
+            converted?: number;
+        };
+        ApiResponseListSummary: {
+            success?: boolean;
+            data?: components["schemas"]["Summary"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        Summary: {
+            /** Format: int64 */
+            id?: number;
+            code?: string;
+            name?: string;
+            /** @enum {string} */
+            mode?: "OFFICIAL" | "TEST";
+            /** @enum {string} */
+            type?: "STATIC" | "EVENT";
+            /** @enum {string} */
+            status?: "DRAFT" | "PENDING_APPROVAL" | "SCHEDULED" | "RUNNING" | "PAUSED" | "COMPLETED" | "REJECTED" | "CANCELLED";
+            /** Format: int64 */
+            groupId?: number;
+            groupName?: string;
+            /** Format: int64 */
+            segmentId?: number;
+            segmentName?: string;
+            /** Format: int32 */
+            targetCount?: number;
+            channels?: string[];
+            /** Format: date-time */
+            startAt?: string;
+            /** Format: date-time */
+            endAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            createdBy?: string;
+            expectedCost?: number;
+            /** Format: double */
+            sentRate?: number;
+            /** Format: double */
+            openRate?: number;
+            /** Format: double */
+            conversionRate?: number;
+            uplift?: number;
+        };
+        ApiResponseCampaignReport: {
+            success?: boolean;
+            data?: components["schemas"]["CampaignReport"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        CampaignReport: {
+            totals?: components["schemas"]["Totals"];
+            timeseries?: components["schemas"]["TimePoint"][];
+            channels?: components["schemas"]["ChannelStat"][];
+            groups?: components["schemas"]["GroupStat"][];
+        };
+        GroupStat: {
+            groupName?: string;
+            isControl?: boolean;
+            /** Format: int64 */
+            target?: number;
+            /** Format: double */
+            sentRate?: number;
+            /** Format: double */
+            openRate?: number;
+            /** Format: double */
+            conversionRate?: number;
+            /** Format: double */
+            uplift?: number;
+        };
+        Totals: {
+            /** Format: int64 */
+            target?: number;
+            /** Format: int64 */
+            sent?: number;
+            /** Format: int64 */
+            delivered?: number;
+            /** Format: int64 */
+            failed?: number;
+            /** Format: int64 */
+            opens?: number;
+            /** Format: int64 */
+            clicks?: number;
+            /** Format: int64 */
+            conversions?: number;
+            spent?: number;
+        };
+        ApiResponseListGroupDto: {
+            success?: boolean;
+            data?: components["schemas"]["GroupDto"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
         };
         ApiResponseVsaConfigDto: {
             success?: boolean;
@@ -900,6 +2049,34 @@ export interface components {
             /** @enum {string} */
             group?: "WORKSPACE" | "MEMBER" | "CAMPAIGN" | "SEGMENT" | "SECRET_KEY" | "REPORT";
             description?: string;
+        };
+        AdminDashboard: {
+            activeWorkspaces?: components["schemas"]["Metric"];
+            totalUsers?: components["schemas"]["Metric"];
+            runningCampaigns?: components["schemas"]["Metric"];
+            totalCampaigns?: components["schemas"]["Metric"];
+            topWorkspaces?: components["schemas"]["TopWorkspace"][];
+            /** Format: int32 */
+            periodDays?: number;
+        };
+        ApiResponseAdminDashboard: {
+            success?: boolean;
+            data?: components["schemas"]["AdminDashboard"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        TopWorkspace: {
+            /** Format: int64 */
+            workspaceId?: number;
+            code?: string;
+            name?: string;
+            /** Format: int64 */
+            campaignCount?: number;
+            /** Format: int64 */
+            runningCount?: number;
         };
     };
     responses: never;
@@ -993,6 +2170,82 @@ export interface operations {
             };
         };
     };
+    updateSender: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SenderNumberRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSenderNumberDto"];
+                };
+            };
+        };
+    };
+    notification: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseNotificationSettings"];
+                };
+            };
+        };
+    };
+    updateNotification: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettings"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseNotificationSettings"];
+                };
+            };
+        };
+    };
     get_1: {
         parameters: {
             query?: never;
@@ -1069,7 +2322,147 @@ export interface operations {
             };
         };
     };
+    get_2: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDetail"];
+                };
+            };
+        };
+    };
     update_2: {
+        parameters: {
+            query?: {
+                submit?: boolean;
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Request"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDetail"];
+                };
+            };
+        };
+    };
+    delete_1: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    rename: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseGroupDto"];
+                };
+            };
+        };
+    };
+    delete_2: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseGroupDto"];
+                };
+            };
+        };
+    };
+    update_3: {
         parameters: {
             query?: never;
             header?: {
@@ -1187,7 +2580,281 @@ export interface operations {
             };
         };
     };
+    get_3: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseKeyDto"];
+                };
+            };
+        };
+    };
+    rotate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseKeyDto"];
+                };
+            };
+        };
+    };
+    revoke: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    senders: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListSenderNumberDto"];
+                };
+            };
+        };
+    };
+    createSender: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SenderNumberRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSenderNumberDto"];
+                };
+            };
+        };
+    };
     list_1: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                query?: string;
+                type?: "FILE" | "QUERY" | "EVENT" | "CAMPAIGN_OUTCOME";
+                status?: "BUILDING" | "READY" | "FAILED" | "ARCHIVED";
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListSegmentDto"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateQueryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSegmentDto"];
+                };
+            };
+        };
+    };
+    importFile: {
+        parameters: {
+            query: {
+                name: string;
+                description?: string;
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSegmentDto"];
+                };
+            };
+        };
+    };
+    estimate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EstimateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringLong"];
+                };
+            };
+        };
+    };
+    bulkDelete: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseBulkDeleteResult"];
+                };
+            };
+        };
+    };
+    list_2: {
         parameters: {
             query?: {
                 page?: number;
@@ -1213,7 +2880,7 @@ export interface operations {
             };
         };
     };
-    create: {
+    create_1: {
         parameters: {
             query?: never;
             header?: {
@@ -1259,6 +2926,393 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponsePriceQuoteDto"];
+                };
+            };
+        };
+    };
+    event: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Api-Key"?: string;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EventRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAccepted"];
+                };
+            };
+        };
+    };
+    list_3: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                query?: string;
+                status?: "DRAFT" | "PENDING_APPROVAL" | "SCHEDULED" | "RUNNING" | "PAUSED" | "COMPLETED" | "REJECTED" | "CANCELLED";
+                mode?: "OFFICIAL" | "TEST";
+                groupId?: number;
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListSummary"];
+                };
+            };
+        };
+    };
+    create_2: {
+        parameters: {
+            query?: {
+                submit?: boolean;
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Request"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDetail"];
+                };
+            };
+        };
+    };
+    submit: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDetail"];
+                };
+            };
+        };
+    };
+    resume: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDetail"];
+                };
+            };
+        };
+    };
+    pause: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDetail"];
+                };
+            };
+        };
+    };
+    duplicate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDetail"];
+                };
+            };
+        };
+    };
+    importConversions: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringInteger"];
+                };
+            };
+        };
+    };
+    cancel: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDetail"];
+                };
+            };
+        };
+    };
+    testSend: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestSendRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListResult"];
+                };
+            };
+        };
+    };
+    list_4: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListGroupDto"];
+                };
+            };
+        };
+    };
+    create_3: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseGroupDto"];
+                };
+            };
+        };
+    };
+    reject: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RejectRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDetail"];
+                };
+            };
+        };
+    };
+    approve: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDetail"];
                 };
             };
         };
@@ -1393,7 +3447,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    list_5: {
         parameters: {
             query?: {
                 page?: number;
@@ -1420,7 +3474,7 @@ export interface operations {
             };
         };
     };
-    create_1: {
+    create_4: {
         parameters: {
             query?: never;
             header?: {
@@ -1446,7 +3500,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_6: {
         parameters: {
             query?: {
                 page?: number;
@@ -1474,7 +3528,7 @@ export interface operations {
             };
         };
     };
-    create_2: {
+    create_5: {
         parameters: {
             query?: never;
             header?: {
@@ -1606,6 +3660,107 @@ export interface operations {
             };
         };
     };
+    track: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_4: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSegmentDto"];
+                };
+            };
+        };
+    };
+    members: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListMemberDto"];
+                };
+            };
+        };
+    };
+    attributes: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListAttributeDto"];
+                };
+            };
+        };
+    };
     active: {
         parameters: {
             query?: never;
@@ -1650,6 +3805,141 @@ export interface operations {
             };
         };
     };
+    trend: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListTimePoint"];
+                };
+            };
+        };
+    };
+    summary: {
+        parameters: {
+            query?: {
+                periodDays?: number;
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDashboardSummary"];
+                };
+            };
+        };
+    };
+    channels: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListChannelStat"];
+                };
+            };
+        };
+    };
+    report: {
+        parameters: {
+            query?: {
+                bucket?: string;
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCampaignReport"];
+                };
+            };
+        };
+    };
+    list_7: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+                query?: string;
+                mode?: "OFFICIAL" | "TEST";
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListSummary"];
+                };
+            };
+        };
+    };
     vsaConfig: {
         parameters: {
             query?: never;
@@ -1672,7 +3962,7 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    list_8: {
         parameters: {
             query?: {
                 page?: number;
@@ -1777,6 +4067,52 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListPermissionDef"];
+                };
+            };
+        };
+    };
+    get_5: {
+        parameters: {
+            query?: {
+                periodDays?: number;
+            };
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAdminDashboard"];
+                };
+            };
+        };
+    };
+    export_1: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
                 };
             };
         };

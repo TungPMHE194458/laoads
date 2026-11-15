@@ -1,10 +1,11 @@
 /*
- * Chiến dịch / nhóm / phê duyệt / dashboard / tệp KH / cài đặt gửi tin — BE đợt 1 CHƯA có,
- * các endpoint dưới đây được MSW mock (src/mocks/handlers/pending.ts). Shape theo SRS.
+ * Chiến dịch / nhóm / phê duyệt / dashboard / tệp KH / cài đặt gửi tin / API key — BE thật (đợt 2–3).
+ * Chế độ mock dùng src/mocks/handlers/campaign.ts (cùng shape).
  */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cleanParams, request, requestPage } from '@/api/client'
 import type {
+  CampaignAction,
   CampaignDetail,
   CampaignGroup,
   CampaignInput,
@@ -118,11 +119,12 @@ export function useDeleteCampaign() {
 }
 export function useTestSend() {
   return useMutation({
-    mutationFn: ({ id, isdns }: { id?: number; isdns: string[] }) =>
+    mutationFn: ({ id, isdns, actions }: { id?: number; isdns: string[]; actions?: CampaignAction[] }) =>
       request<{ isdn: string; channel: string; status: 'SENT' | 'FAILED'; detail: string }[]>({
         url: '/campaigns/test-send',
         method: 'POST',
-        data: { campaignId: id, isdns },
+        // actions: nội dung đang soạn trong wizard (chưa lưu) — BE ưu tiên dùng thay cho bản đã lưu
+        data: { campaignId: id, isdns, actions },
       }),
   })
 }
@@ -184,8 +186,17 @@ export function useEstimateSegment() {
 export function useCreateSegment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { name: string; description?: string; type: 'QUERY' | 'FILE'; conditions?: SegmentCondition[]; fileName?: string; rowCount?: number }) =>
-      request<Segment>({ url: '/segments', method: 'POST', data: body }),
+    mutationFn: (body: { name: string; description?: string; type: 'QUERY' | 'FILE'; conditions?: SegmentCondition[]; file?: File }) => {
+      if (body.type === 'FILE' && body.file) {
+        // Tệp từ file: gửi file thật (multipart) — BE đọc cột isdn / msisdn / phone hoặc cột đầu tiên
+        const form = new FormData()
+        form.append('file', body.file)
+        form.append('name', body.name)
+        if (body.description) form.append('description', body.description)
+        return request<Segment>({ url: '/segments/import', method: 'POST', data: form, timeout: 300_000 })
+      }
+      return request<Segment>({ url: '/segments', method: 'POST', data: { name: body.name, description: body.description, type: 'QUERY', conditions: body.conditions } })
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['segments'] }),
   })
 }
@@ -217,5 +228,30 @@ export function useSaveNotificationSettings() {
   return useMutation({
     mutationFn: (body: NotificationSettings) => request<NotificationSettings>({ url: '/settings/notification', method: 'PUT', data: body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings', 'notification'] }),
+  })
+}
+
+// ───── Nhóm chiến dịch ─────
+export function useCreateCampaignGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => request<CampaignGroup>({ url: '/campaign-groups', method: 'POST', data: { name } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['campaign-groups'] }),
+  })
+}
+
+// ───── Mục tiêu MANUAL_FILE: tải danh sách số thuê bao đã chuyển đổi (SRS 3.2.6.2) ─────
+export function useImportConversions(id: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return request<{ matched: number; rows: number; invalidRows: number }>({ url: `/campaigns/${id}/conversions/import`, method: 'POST', data: form, timeout: 300_000 })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaign', id] })
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+    },
   })
 }

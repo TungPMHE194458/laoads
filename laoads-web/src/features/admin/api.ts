@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cleanParams, download, request, requestPage } from '@/api/client'
-import type { AuditLog, PageQuery, Permission, PermissionDef, RoleDef, SystemRole, UserDto, WorkspaceRole } from '@/api/types'
+import type { AdminDashboard, AuditLog, PageQuery, Permission, PermissionDef, RoleDef, SystemRole, UserDto, WorkspaceRole } from '@/api/types'
 import { meKey } from '@/features/auth/api'
 
 // ───── Người dùng ─────
@@ -88,4 +88,15 @@ export function useAuditLogs(q: AuditQuery) {
 }
 export function exportAuditLogs(q: AuditQuery) {
   return download('/audit-logs/export', cleanParams({ ...q, page: undefined, size: undefined }), `nhat-ky-${Date.now()}.xlsx`)
+}
+
+// ───── Dashboard Super Admin (SRS 3.1.1, 3.1.4, 3.1.6, 3.1.7) ─────
+export function useAdminDashboard(periodDays = 7) {
+  return useQuery({
+    queryKey: ['admin', 'dashboard', periodDays],
+    queryFn: () => request<AdminDashboard>({ url: '/admin/dashboard', params: { periodDays } }),
+  })
+}
+export function downloadTopWorkspaces() {
+  return download('/admin/dashboard/top-workspaces/export', {}, `top-workspace-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }

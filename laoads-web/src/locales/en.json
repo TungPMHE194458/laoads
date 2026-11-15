@@ -27,7 +27,8 @@
     "status": "Status",
     "updatedAt": "Updated",
     "view": "View details",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "done": "Done"
   },
   "errors": {
     "network": "Cannot reach the server. Check your network or the backend.",
@@ -385,7 +386,9 @@
       "REJECT": "Rejected",
       "PAUSE": "Paused",
       "RESUME": "Resumed",
-      "CANCEL": "Cancelled"
+      "CANCEL": "Cancelled",
+      "START": "Run started",
+      "COMPLETE": "Completed"
     },
     "detail": {
       "tabReport": "Report",
@@ -409,7 +412,10 @@
       "smsNoOpen": "SMS opens aren't tracked",
       "summary": "Summary",
       "rejected": "Campaign rejected",
-      "pendingNote": "This campaign is pending approval — it can't be edited right now."
+      "pendingNote": "This campaign is pending approval — it can't be edited right now.",
+      "importConversions": "Upload conversions",
+      "conversionsHint": "Manual goal: upload an .xlsx / .csv file of subscribers who reached the goal.",
+      "conversionsImported": "Recorded {{matched}} conversions ({{rows}} numbers in the file)"
     },
     "wizard": {
       "newTitle": "New campaign",
@@ -529,7 +535,11 @@
         "start": "Please choose a start time.",
         "endBeforeStart": "End time must be after start time.",
         "budget": "Maximum budget is below the estimated cost."
-      }
+      },
+      "trackLinks": "Track link clicks (replace links in the message with tracking links)",
+      "newGroup": "New campaign group",
+      "createGroup": "Create group",
+      "groupCreated": "Campaign group created"
     }
   },
   "approval": {
@@ -592,7 +602,8 @@
     "members": "Customer list",
     "phone": "Subscriber number",
     "notReady": "Audience not ready",
-    "notReadyDesc": "Still processing, or building failed."
+    "notReadyDesc": "Still processing, or building failed.",
+    "invalidRows": "Skipped {{n}} rows that are not valid subscriber numbers"
   },
   "workspace": {
     "name": "Workspace name",
@@ -627,7 +638,9 @@
     "remove": "Remove from workspace",
     "removeTitle": "Remove member?",
     "removeDesc": "{{name}} will lose access to this workspace. This can't be undone.",
-    "removed": "Member removed"
+    "removed": "Member removed",
+    "email": "Email",
+    "phone": "Phone"
   },
   "price": {
     "desc": "Unit prices per action type — used to estimate and charge campaign costs.",
@@ -677,7 +690,12 @@
     "SUBMIT": "Submit",
     "CHANGE_ROLE": "Change role",
     "RESET_PASSWORD": "Reset password",
-    "IMPORT": "Import"
+    "IMPORT": "Import",
+    "PAUSE": "Pause",
+    "RESUME": "Resume",
+    "CANCEL": "Cancel",
+    "EXPORT": "Export",
+    "CHANGE_PASSWORD": "Change password"
   },
   "auditEntity": {
     "AUTH": "Sign in",
@@ -687,7 +705,13 @@
     "ROLE": "Role",
     "PRICE_QUOTE": "Price list",
     "CAMPAIGN": "Campaign",
-    "SEGMENT": "Audience"
+    "SEGMENT": "Audience",
+    "SENDER_NUMBER": "Sender number",
+    "SETTING": "Setting",
+    "CAMPAIGN_GROUP": "Campaign group",
+    "API_KEY": "API key",
+    "ROLE_PERMISSION": "Role permissions",
+    "AUDIT_LOG": "Audit log"
   },
   "adminWs": {
     "desc": "Create a workspace per department and assign its owner.",
@@ -745,5 +769,39 @@
     "refund": "Refund deducted resources when sending fails",
     "silentDefault": "Enable default quiet hours",
     "defaultLang": "Default content language"
+  },
+  "adminDash": {
+    "title": "System-wide",
+    "subtitle": "Figures across all workspaces — visible to Super Admin only",
+    "activeWorkspaces": "Active workspaces",
+    "totalUsers": "Total users",
+    "runningCampaigns": "Running campaigns (all)",
+    "totalCampaigns": "Total campaigns (all)",
+    "topTitle": "Top workspaces by campaigns",
+    "topDesc": "Ranked by total campaigns created",
+    "export": "Export Excel",
+    "workspace": "Workspace",
+    "campaigns": "Campaigns",
+    "running": "Running"
+  },
+  "apiKey": {
+    "title": "Event API key",
+    "desc": "External systems use this key to report subscriber events (SIM activation, first top-up…) to event-triggered campaigns.",
+    "none": "No API key yet",
+    "rotatedAt": "Created {{at}}",
+    "create": "Create API key",
+    "rotate": "Rotate key",
+    "revoke": "Revoke",
+    "rotateTitle": "Rotate the API key?",
+    "rotateDesc": "The current key stops working immediately. Update every system calling the event API.",
+    "revokeTitle": "Revoke the API key?",
+    "revokeDesc": "External systems cannot send events until a new key is created.",
+    "revoked": "API key revoked",
+    "freshTitle": "New API key",
+    "freshDesc": "Copy and store it now — it is shown only once.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Copy failed, select and copy it manually",
+    "usage": "Call POST /api/v1/events with header X-Api-Key and body {\"eventType\": \"SIM_ACTIVATION_D0\", \"isdn\": \"2055512345\"}."
   }
 }

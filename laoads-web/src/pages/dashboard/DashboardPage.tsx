@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, BadgeCheck, CalendarDays, Megaphone, Rocket, UsersRound } from 'lucide-react'
 import { useMe } from '@/features/auth/api'
-import { useCan, useCurrentWorkspace } from '@/features/auth/permissions'
+import { useCan, useCurrentWorkspace, useIsSuperAdmin } from '@/features/auth/permissions'
 import { useApprovals, useCampaigns, useDashboardChannels, useDashboardSummary, useDashboardTrend } from '@/features/campaign/api'
 import { StatCard } from '@/components/common/StatCard'
 import { ChartCard } from '@/components/common/ChartCard'
@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress, Skeleton } from '@/components/ui/misc'
 import { EmptyState } from '@/components/common/EmptyState'
 import { fmtCompact, fmtDate, fmtNumber, fmtPercent, fmtRelative } from '@/lib/format'
+import { AdminOverview } from './AdminOverview'
 
 function greetingKey() {
   const h = new Date().getHours()
@@ -26,6 +27,7 @@ export default function DashboardPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const can = useCan()
+  const isSuperAdmin = useIsSuperAdmin()
   const { data: me } = useMe()
   const ws = useCurrentWorkspace()
   const [days, setDays] = React.useState(30)
@@ -69,6 +71,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {isSuperAdmin && <AdminOverview />}
 
       {/* KPI */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

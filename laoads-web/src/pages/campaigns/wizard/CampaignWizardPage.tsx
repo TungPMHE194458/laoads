@@ -2,13 +2,13 @@ import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, FlaskConical, ListChecks, Rocket, Send, Users2, XCircle, Zap } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, FlaskConical, ListChecks, Plus, Rocket, Send, Users2, XCircle, Zap } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { CampaignDetail, CampaignInput, CampaignSchedule } from '@/api/types'
-import { useCampaign, useCampaignGroups, useNotificationSettings, useSaveCampaign, useSegments, useTestSend } from '@/features/campaign/api'
+import { useCampaign, useCampaignGroups, useCreateCampaignGroup, useNotificationSettings, useSaveCampaign, useSegments, useTestSend } from '@/features/campaign/api'
 import { useActivePriceQuote } from '@/features/price/api'
 import { PageHeader } from '@/components/common/PageHeader'
-import { Field } from '@/components/common/dialogs'
+import { Field, FormDialog } from '@/components/common/dialogs'
 import { SegmentStatusBadge, ChannelChips } from '@/components/common/status'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -115,6 +115,9 @@ export default function CampaignWizardPage() {
   }, [existing.data])
 
   const groups = useCampaignGroups()
+  const createGroup = useCreateCampaignGroup()
+  const [groupDialog, setGroupDialog] = React.useState(false)
+  const [groupName, setGroupName] = React.useState('')
   const segments = useSegments({ page: 0, size: 100, status: 'READY' })
   const price = useActivePriceQuote()
   const notif = useNotificationSettings()
@@ -237,7 +240,12 @@ export default function CampaignWizardPage() {
                       </Field>
                     )}
                     <Field label={t('campaign.wizard.group')}>
-                      <Select value={draft.groupId ? String(draft.groupId) : ''} onValueChange={(v) => set('groupId', v ? Number(v) : null)} allLabel={t('campaign.wizard.noGroup')} options={(groups.data ?? []).map((g) => ({ value: String(g.id), label: g.name }))} />
+                      <div className="flex gap-2">
+                        <Select className="flex-1" value={draft.groupId ? String(draft.groupId) : ''} onValueChange={(v) => set('groupId', v ? Number(v) : null)} allLabel={t('campaign.wizard.noGroup')} options={(groups.data ?? []).map((g) => ({ value: String(g.id), label: g.name }))} />
+                        <Button type="button" variant="outline" size="icon" aria-label={t('campaign.wizard.newGroup')} onClick={() => setGroupDialog(true)}>
+                          <Plus />
+                        </Button>
+                      </div>
                     </Field>
                     <Field label={t('campaign.wizard.language')}>
                       <Select value={draft.language} onValueChange={(v) => set('language', v as CampaignInput['language'])} options={(['LO', 'EN', 'VI'] as const).map((l) => ({ value: l, label: t(`langName.${l}`) }))} />
@@ -435,7 +443,7 @@ export default function CampaignWizardPage() {
                         variant="outline"
                         loading={testSend.isPending}
                         disabled={!testList.trim()}
-                        onClick={() => testSend.mutate({ id: editId ?? undefined, isdns: testList.split(/[\s,;]+/).filter(Boolean).slice(0, 10) })}
+                        onClick={() => testSend.mutate({ id: editId ?? undefined, isdns: testList.split(/[\s,;]+/).filter(Boolean).slice(0, 10), actions: draft.actionGroups.find((g) => !g.isControl)?.actions })}
                       >
                         {t('campaign.wizard.sendTest')}
                       </Button>
@@ -487,6 +495,32 @@ export default function CampaignWizardPage() {
           </Card>
         </div>
       </div>
+      <FormDialog
+        open={groupDialog}
+        onOpenChange={(o) => {
+          setGroupDialog(o)
+          if (!o) setGroupName('')
+        }}
+        title={t('campaign.wizard.newGroup')}
+        submitLabel={t('campaign.wizard.createGroup')}
+        loading={createGroup.isPending}
+        onSubmit={() => {
+          if (!groupName.trim()) return
+          createGroup.mutate(groupName.trim(), {
+            onSuccess: (g) => {
+              set('groupId', g.id)
+              setGroupDialog(false)
+              setGroupName('')
+              toast.success(t('campaign.wizard.groupCreated'))
+            },
+            onError: (e) => toast.error(errorMessage(e)),
+          })
+        }}
+      >
+        <Field label={t('campaign.wizard.groupName')} required>
+          <Input value={groupName} onChange={(e) => setGroupName(e.target.value)} maxLength={255} />
+        </Field>
+      </FormDialog>
     </>
   )
 }

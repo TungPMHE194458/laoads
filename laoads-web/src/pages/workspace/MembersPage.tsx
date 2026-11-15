@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { initials } from '@/lib/utils'
+import { MemberDetailSheet } from './MemberDetailSheet'
 import { fmtDate } from '@/lib/format'
 
 const ROLES: WorkspaceRole[] = ['OWNER', 'ADMIN', 'MEMBER']
@@ -32,6 +33,7 @@ export default function MembersPage() {
   const [page, setPage] = React.useState(0)
   const [query, setQuery] = React.useState('')
   const [role, setRole] = React.useState<WorkspaceRole | ''>('')
+  const [detail, setDetail] = React.useState<Member | null>(null)
   const list = useMembers(ws?.id ?? null, { page, size: 10, query, role })
   const add = useAddMember(wsId)
   const changeRole = useChangeMemberRole(wsId)
@@ -81,6 +83,8 @@ export default function MembersPage() {
         const canRemove = active && manage && !self && m.role !== 'OWNER'
         if (!canRole && !canRemove) return null
         return (
+          // không để click menu lan lên dòng (mở chi tiết)
+          <div onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon-sm" aria-label={t('common.actions')}>
@@ -108,6 +112,7 @@ export default function MembersPage() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         )
       },
     },
@@ -139,6 +144,7 @@ export default function MembersPage() {
         columns={columns}
         rows={list.data?.items}
         rowKey={(m) => m.id}
+        onRowClick={setDetail}
         loading={list.isLoading}
         error={list.isError ? errorMessage(list.error) : undefined}
         meta={list.data?.meta}
@@ -215,6 +221,7 @@ export default function MembersPage() {
           })
         }
       />
+      <MemberDetailSheet member={detail} onClose={() => setDetail(null)} />
     </>
   )
 }

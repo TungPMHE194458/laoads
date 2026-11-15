@@ -129,6 +129,14 @@ export interface Member {
   joinedAt: string
 }
 
+/** API key sự kiện của workspace — `key` chỉ có trong response tạo / xoay vòng */
+export interface ApiKeyInfo {
+  configured: boolean
+  hint: string | null
+  rotatedAt: string | null
+  key: string | null
+}
+
 export interface PermissionDef {
   code: Permission
   group: 'WORKSPACE' | 'MEMBER' | 'CAMPAIGN' | 'SEGMENT' | 'SECRET_KEY' | 'REPORT'
@@ -212,7 +220,7 @@ export interface AuditLog {
   createdAt: string
 }
 
-// ───────────── Pending BE (MSW mock, shape theo SRS) ─────────────
+// ───────────── Chiến dịch / tệp KH / dashboard (BE đợt 2–3; mock: handlers/campaign.ts) ─────────────
 export type Channel = 'SMS' | 'EMAIL' | 'WHATSAPP' | 'USSD'
 export const CHANNELS: Channel[] = ['SMS', 'EMAIL', 'WHATSAPP', 'USSD']
 
@@ -262,6 +270,8 @@ export interface CampaignAction {
   templateId?: string | null
   amount?: number | null
   packageCode?: string | null
+  /** Thay URL trong nội dung bằng link tracking /api/v1/t/{token} (SRS 3.2.3.6) */
+  trackLinks?: boolean | null
 }
 export interface ActionGroup {
   id: string
@@ -360,6 +370,22 @@ export interface DashboardSummary {
   periodDays: number
 }
 
+export interface TopWorkspace {
+  workspaceId: number
+  code: string
+  name: string
+  campaignCount: number
+  runningCount: number
+}
+export interface AdminDashboard {
+  activeWorkspaces: Metric
+  totalUsers: Metric
+  runningCampaigns: Metric
+  totalCampaigns: Metric
+  topWorkspaces: TopWorkspace[]
+  periodDays: number
+}
+
 export type SegmentType = 'FILE' | 'QUERY' | 'EVENT' | 'CAMPAIGN_OUTCOME'
 export type SegmentStatus = 'BUILDING' | 'READY' | 'FAILED' | 'ARCHIVED'
 export interface SegmentCondition {
@@ -380,6 +406,10 @@ export interface Segment {
   fileName: string | null
   conditions: SegmentCondition[]
   referencedBy: number
+  /** Lý do build thất bại (status FAILED) */
+  errorMessage?: string | null
+  /** Chỉ có khi vừa import file: số dòng không hợp lệ đã bỏ qua */
+  invalidRows?: number | null
   createdAt: string
   createdBy: string
   updatedAt: string | null

@@ -160,6 +160,26 @@ AuditLog = { id: number; actor: string; actionType: string; entityType: string; 
 ```
 `actionType`: `LOGIN | CREATE | UPDATE | DELETE | LOCK | UNLOCK | APPROVE | REJECT | SUBMIT | RESET_PASSWORD | IMPORT | EXPORT | CHANGE_ROLE | ...`
 
-## 9. Chưa có BE ở đợt 1 (FE dùng MSW mock theo shape SRS)
+## 9. Đợt 2–3 (đã có BE) 🏢 = theo workspace (`X-Workspace-Id`)
 
-`/dashboard/*`, `/campaigns*`, `/campaign-groups*`, `/campaign-approvals*`, `/segments*`, `/settings/sender-numbers*`, `/settings/notification`. Shape tham chiếu SRS mục 3.1–3.5 và `src/mocks/fixtures` trong FE.
+Shape chi tiết: springdoc (`/api/swagger-ui.html`) và `laoads-web/src/api/types.ts`. Mọi thao tác ghi đều vào nhật ký.
+
+| Endpoint | Quyền | Ghi chú |
+|---|---|---|
+| 🏢 `GET /dashboard/summary?periodDays` · `/trend?days` · `/channels?days` | REPORT_VIEW | số liệu thật từ engine |
+| `GET /admin/dashboard?periodDays` · `GET /admin/dashboard/top-workspaces/export` | SUPER_ADMIN | SRS 3.1.1 / 3.1.4 / 3.1.6 / 3.1.7 |
+| 🏢 `GET/POST /campaigns`, `GET/PUT/DELETE /campaigns/{id}` (`?submit=true` = gửi duyệt luôn) | CAMPAIGN_VIEW / CREATE / UPDATE / DELETE | BE tự tính `targetCount`, `channels`, `expectedCost` |
+| 🏢 `POST /campaigns/{id}/submit` · `/pause` · `/resume` · `/cancel` · `/duplicate` | SUBMIT / UPDATE / UPDATE / UPDATE / CREATE | sai trạng thái → 409 `INVALID_TRANSITION`; sửa khi không phải Nháp / Bị từ chối → 409 `CAMPAIGN_LOCKED` |
+| 🏢 `GET /campaigns/{id}/report?bucket=DAY\|WEEK\|MONTH` | REPORT_VIEW | tổng, chuỗi thời gian, theo kênh, theo nhóm A/B (uplift = điểm %) |
+| 🏢 `POST /campaigns/test-send` `{campaignId?, isdns[≤20], actions?}` | CAMPAIGN_CREATE hoặc UPDATE | gửi ngay, không tính vào số liệu |
+| 🏢 `POST /campaigns/{id}/conversions/import` (multipart `file`) | CAMPAIGN_UPDATE | mục tiêu MANUAL_FILE |
+| 🏢 `GET /campaign-approvals`, `POST /campaign-approvals/{id}/approve` · `/reject` `{reason}` | CAMPAIGN_APPROVE | từ chối bắt buộc lý do |
+| 🏢 `GET/POST /campaign-groups`, `PUT/DELETE /campaign-groups/{id}` | VIEW / CREATE / UPDATE / DELETE | trùng tên → 409 `GROUP_NAME_DUPLICATE`; còn chiến dịch → 409 `GROUP_IN_USE` |
+| `GET /segment-attributes` | đăng nhập | danh mục thuộc tính (= danh sách trắng cột lọc) |
+| 🏢 `GET /segments`, `GET /segments/{id}`, `GET /segments/{id}/members` | CAMPAIGN_VIEW | số thuê bao trả về đã che; chưa READY → 409 `SEGMENT_NOT_READY` |
+| 🏢 `POST /segments` (QUERY) · `POST /segments/import` (multipart `file`, `name`, `description`) | SEGMENT_MANAGE | QUERY build bất đồng bộ (BUILDING → READY / FAILED); import trả `invalidRows` |
+| 🏢 `POST /segments/estimate` · `POST /segments/bulk-delete` | VIEW / SEGMENT_MANAGE | tệp đang được chiến dịch dùng không xoá được |
+| `GET /settings/sender-numbers`, `POST`, `PUT /{id}` · `GET/PUT /settings/notification` | đọc: đăng nhập; ghi: SUPER_ADMIN | trùng mã → 409 `SENDER_CODE_DUPLICATE` |
+| 🏢 `GET/POST/DELETE /workspaces/{id}/api-key` | SECRET_KEY_MANAGE | key đầy đủ chỉ trả về khi tạo |
+| `POST /events` (header `X-Api-Key`) `{eventType, isdn}` | API key workspace | không cần đăng nhập; key sai → 401 `API_KEY_INVALID` |
+| `GET /t/{token}` | công khai | link tracking → 302 tới URL gốc |

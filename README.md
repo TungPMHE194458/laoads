@@ -56,8 +56,10 @@ workspace BSD / BCD / MKT / VAS (VAS bị khoá), thành viên (có trường h�
 | `hybrid` (mặc định dev) | auth, workspace, thành viên, quản trị, bảng giá, nhật ký | dashboard, chiến dịch, phê duyệt, tệp KH, cấu hình gửi tin |
 | `real` (mặc định Docker) | toàn bộ | — |
 
-## Phạm vi đợt 1
+## Phạm vi hiện tại
 
-- **BE**: đăng nhập (tài khoản nội bộ + adapter VSA/CAS), refresh token, `/me`, workspace, thành viên (quy tắc SRS 3.4), ma trận vai trò–quyền, quản trị người dùng, bảng giá (khoá/áp dụng), nhật ký + xuất Excel.
-- **FE**: toàn bộ màn hình — Tổng quan, Chiến dịch (danh sách, chi tiết, wizard 6 bước, A/B + nhóm đối chứng, khung giờ không gửi, bắn tin thử), Phê duyệt, Tệp khách hàng (bộ lọc thuộc tính, import file), Workspace, Thành viên, Bảng giá, Nhật ký, Quản trị (workspace, người dùng, phân quyền, cấu hình gửi tin), dark mode, responsive.
-- Đợt sau: segment engine, campaign engine, gateway SMS/WhatsApp/Email/USSD, OCS/Upoint, đo chuyển đổi — xem `docs/DANH_GIA_KE_THUA_BOC.md`.
+- **BE (đợt 1)**: đăng nhập (tài khoản nội bộ + adapter VSA/CAS), refresh token, `/me`, workspace, thành viên (quy tắc SRS 3.4), ma trận vai trò–quyền, quản trị người dùng, bảng giá, nhật ký + xuất Excel.
+- **BE (đợt 2–3)**: tệp khách hàng (lọc thuộc tính bằng SQL an toàn, import .xlsx/.csv), chiến dịch + phê duyệt (vòng đời đầy đủ), nhóm chiến dịch, cấu hình đầu số / retry / khung giờ không gửi, dashboard workspace + Super Admin (xuất Excel top workspace), **engine thực thi**: lịch chạy ngay / một lần / lặp lại, A/B + nhóm đối chứng, chuỗi hành động có thời gian chờ, khung giờ không gửi, retry + hoàn tài nguyên, dừng khi đạt mục tiêu / ngân sách, link tracking, đo chuyển đổi, API sự kiện (API key theo workspace), bắn tin thử.
+- **Giả lập**: gateway SMS / Email / WhatsApp / USSD / OCS và nguồn đo chuyển đổi (BI) đều là **giả lập** — engine chạy đầu-cuối nhưng chưa gửi ra ngoài. Cần thông số kết nối thật để thay adapter (`laoads.engine.*`).
+- **FE**: toàn bộ màn hình, gọi BE thật ở chế độ hybrid; chế độ mock vẫn chạy được không cần BE.
+- Còn lại: adapter gateway / OCS / trích xuất BI thật, chạy nhiều instance BE (job hiện giả định 1 instance) — xem `docs/DANH_GIA_KE_THUA_BOC.md`.

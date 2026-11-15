@@ -99,6 +99,10 @@ function ActionEditor({ a, index, sequential, onChange, onRemove }: { a: Campaig
                 </button>
               ))}
             </div>
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+              <Switch checked={!!a.trackLinks} onCheckedChange={(v) => onChange({ ...a, trackLinks: v })} />
+              {t('campaign.wizard.trackLinks')}
+            </label>
           </Field>
         )}
         {NEEDS_AMOUNT.includes(a.type) && (

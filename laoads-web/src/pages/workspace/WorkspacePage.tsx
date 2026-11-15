@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input, Textarea } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/misc'
 import { fmtCompact, fmtDateTime } from '@/lib/format'
+import { ApiKeyCard } from './ApiKeyCard'
 
 export default function WorkspacePage() {
   const { t } = useTranslation()
@@ -121,6 +122,12 @@ export default function WorkspacePage() {
           </CardContent>
         </Card>
       </div>
+
+      {cur && can('SECRET_KEY_MANAGE') && (
+        <div className="mt-6 max-w-2xl">
+          <ApiKeyCard wsId={cur.id} />
+        </div>
+      )}
 
       <FormDialog
         open={open}
