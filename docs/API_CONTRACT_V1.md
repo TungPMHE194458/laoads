@@ -178,6 +178,7 @@ Shape chi tiết: springdoc (`/api/swagger-ui.html`) và `laoads-web/src/api/typ
 | `GET /segment-attributes` | đăng nhập | danh mục thuộc tính (= danh sách trắng cột lọc) |
 | 🏢 `GET /segments`, `GET /segments/{id}`, `GET /segments/{id}/members` | CAMPAIGN_VIEW | số thuê bao trả về đã che; chưa READY → 409 `SEGMENT_NOT_READY` |
 | 🏢 `POST /segments` (QUERY) · `POST /segments/import` (multipart `file`, `name`, `description`) | SEGMENT_MANAGE | QUERY build bất đồng bộ (BUILDING → READY / FAILED); import trả `invalidRows` |
+| 🏢 `GET /segments/import/template` | SEGMENT_MANAGE | file mẫu `.xlsx`: sheet `ISDN` chỉ có tiêu đề `isdn` (cột định dạng Text), sheet hướng dẫn theo `Accept-Language` |
 | 🏢 `POST /segments/estimate` · `POST /segments/bulk-delete` | VIEW / SEGMENT_MANAGE | tệp đang được chiến dịch dùng không xoá được |
 | `GET /settings/sender-numbers`, `POST`, `PUT /{id}` · `GET/PUT /settings/notification` | đọc: đăng nhập; ghi: SUPER_ADMIN | trùng mã → 409 `SENDER_CODE_DUPLICATE` |
 | 🏢 `GET/POST/DELETE /workspaces/{id}/api-key` | SECRET_KEY_MANAGE | key đầy đủ chỉ trả về khi tạo |

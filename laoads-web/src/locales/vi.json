@@ -603,7 +603,9 @@
     "phone": "Số thuê bao",
     "notReady": "Tệp chưa sẵn sàng",
     "notReadyDesc": "Hệ thống đang xử lý hoặc tạo tệp thất bại.",
-    "invalidRows": "Đã bỏ qua {{n}} dòng không phải số thuê bao hợp lệ"
+    "invalidRows": "Đã bỏ qua {{n}} dòng không phải số thuê bao hợp lệ",
+    "downloadTemplate": "Tải file mẫu",
+    "templateHint": "Điền số thuê bao vào cột isdn của file mẫu."
   },
   "workspace": {
     "name": "Tên workspace",

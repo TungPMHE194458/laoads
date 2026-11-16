@@ -2332,6 +2332,39 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseListMemberDto"
+  /v1/segments/import/template:
+    get:
+      tags:
+      - segment
+      summary: Tải file mẫu import tệp khách hàng (.xlsx)
+      description: Sheet 1 chỉ có tiêu đề isdn (cột định dạng Text); sheet 2 là hướng
+        dẫn theo Accept-Language.
+      operationId: importTemplate
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
   /v1/segment-attributes:
     get:
       tags:

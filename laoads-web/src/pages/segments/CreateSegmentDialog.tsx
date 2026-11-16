@@ -1,10 +1,10 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Calculator, FileSpreadsheet, Filter, Plus, Trash2, UploadCloud } from 'lucide-react'
+import { Calculator, Download, FileSpreadsheet, Filter, Plus, Trash2, UploadCloud } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { SegmentCondition } from '@/api/types'
-import { useCreateSegment, useEstimateSegment, useSegmentAttributes } from '@/features/campaign/api'
+import { downloadSegmentTemplate, useCreateSegment, useEstimateSegment, useSegmentAttributes } from '@/features/campaign/api'
 import { Field } from '@/components/common/dialogs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +43,18 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
     setErr(null)
     setFile(f)
     if (!name) setName(f.name.replace(/\.[^.]+$/, ''))
+  }
+
+  const [downloading, setDownloading] = React.useState(false)
+  const downloadTemplate = async () => {
+    setDownloading(true)
+    try {
+      await downloadSegmentTemplate()
+    } catch (e) {
+      toast.error(errorMessage(e))
+    } finally {
+      setDownloading(false)
+    }
   }
 
   const submit = () => {
@@ -162,6 +174,14 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
               <span className="text-xs text-muted-foreground">{t('segment.fileRule')}</span>
               <input type="file" accept=".xlsx,.xls,.csv" className="sr-only" onChange={(e) => pickFile(e.target.files?.[0])} />
             </label>
+            {/* Đặt ngoài <label>: bấm nút không được mở hộp chọn file */}
+            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>{t('segment.templateHint')}</span>
+              <Button variant="outline" size="sm" loading={downloading} onClick={downloadTemplate}>
+                <Download />
+                {t('segment.downloadTemplate')}
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
         {err && <p className="rounded-lg border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>}

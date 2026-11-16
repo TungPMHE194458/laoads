@@ -376,6 +376,13 @@ export const campaignHandlers = [
     return ok(notificationSettings)
   }),
 
+  // ───── File mẫu import (BE trả .xlsx 2 sheet; mock chỉ trả nội dung CSV như các mock xuất file khác) ─────
+  http.get(`${B}/segments/import/template`, ({ request }) => {
+    const g = guard(request, 'SEGMENT_MANAGE')
+    if (g) return g
+    return new HttpResponse('isdn\n', { headers: { 'Content-Type': 'application/octet-stream' } })
+  }),
+
   // ───── Tạo tệp từ file (multipart) ─────
   http.post(`${B}/segments/import`, async ({ request }) => {
     const g = guard(request, 'SEGMENT_MANAGE')

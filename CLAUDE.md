@@ -102,7 +102,7 @@ Reuses BOC's backend infrastructure — see BOC's CLAUDE.md "Critical: schema sh
 
 ```bash
 docker compose -f ../docker-compose.dev.yml up -d   # local Oracle XE 11.2 (healthy in ~40s on a fresh volume); `down -v` wipes it
-./mvnw clean verify                              # build + 122 unit tests (no DB needed)
+./mvnw clean verify                              # build + 127 unit tests (no DB needed)
 ./mvnw -pl laoads-web -am spring-boot:run        # dev profile, :8095/api, local DB — non-web modules set spring-boot.run.skip, so -am is safe
 ./mvnw -pl laoads-web -am test -Dtest=ClassName#method -Dsurefire.failIfNoSpecifiedTests=false   # single test; swap the module
 .\start-dev.ps1                                  # Windows; loads gitignored .env.local.ps1, starts the local DB container, runs dev
@@ -154,7 +154,7 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
 ### Campaign engine (đợt 2–3, `V3__campaign_engine.sql`)
 - **Packages**:
   - `domain.settings`: sender numbers and notification settings (retry, refund, silent hours) stored as key/value in `LADS_APP_SETTING`.
-  - `domain.segment`: segments. `SegmentQueryBuilder` builds QUERY segments with a column whitelist from `SegmentAttributeCatalog` and bind parameters only. `IsdnFileParser` reads .xlsx/.xls/.csv. Members are written in JDBC batches to `LADS_SEGMENT_MEMBER`.
+  - `domain.segment`: segments. `SegmentQueryBuilder` builds QUERY segments with a column whitelist from `SegmentAttributeCatalog` and bind parameters only. `IsdnFileParser` reads .xlsx/.xls/.csv; it reads only the first sheet, and it takes numeric cells through `BigDecimal` because Excel's General format turns a 13-digit 856… number into `8.56E+12`. `IsdnFileTemplate` builds the downloadable template (`GET /segments/import/template`) to match: a header-only `ISDN` sheet with a Text-formatted column and no sample rows (samples would be imported as real recipients), plus a localized instructions sheet from `segment.template.*` in `messages*.properties`. Members are written in JDBC batches to `LADS_SEGMENT_MEMBER`.
   - `domain.campaign`: CRUD, lifecycle, approvals and groups. Nested config (action groups, schedule, goal, budget) is JSON in `DEFINITION_JSON`, in exactly the FE shape (`CampaignDefinition`). `SchedulePlanner` handles NOW / ONCE / RECURRING and silent hours in Asia/Vientiane.
   - `domain.engine`: `CampaignRunner`, `MessageDispatcher`, `EngineMaintenance`, tracking, test send, events, API keys.
   - `domain.report`: campaign report, workspace dashboard and Super Admin dashboard.

@@ -603,7 +603,9 @@
     "phone": "Subscriber number",
     "notReady": "Audience not ready",
     "notReadyDesc": "Still processing, or building failed.",
-    "invalidRows": "Skipped {{n}} rows that are not valid subscriber numbers"
+    "invalidRows": "Skipped {{n}} rows that are not valid subscriber numbers",
+    "downloadTemplate": "Download template",
+    "templateHint": "Fill subscriber numbers into the isdn column of the template."
   },
   "workspace": {
     "name": "Workspace name",

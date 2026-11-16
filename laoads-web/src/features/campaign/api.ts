@@ -3,7 +3,7 @@
  * Chế độ mock dùng src/mocks/handlers/campaign.ts (cùng shape).
  */
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { cleanParams, request, requestPage } from '@/api/client'
+import { cleanParams, download, request, requestPage } from '@/api/client'
 import type {
   CampaignAction,
   CampaignDetail,
@@ -199,6 +199,10 @@ export function useCreateSegment() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['segments'] }),
   })
+}
+/** File mẫu import tệp KH: sheet ISDN (cột isdn định dạng Text) + sheet hướng dẫn theo ngôn ngữ đang chọn. */
+export function downloadSegmentTemplate() {
+  return download('/segments/import/template', {}, 'isdn_template.xlsx')
 }
 export function useDeleteSegments() {
   const qc = useQueryClient()

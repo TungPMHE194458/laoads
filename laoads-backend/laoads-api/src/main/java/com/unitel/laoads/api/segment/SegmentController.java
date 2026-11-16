@@ -11,6 +11,7 @@ import com.unitel.laoads.domain.common.ErrorCode;
 import com.unitel.laoads.domain.common.Isdns;
 import com.unitel.laoads.domain.common.LaoadsException;
 import com.unitel.laoads.domain.common.Times;
+import com.unitel.laoads.domain.segment.IsdnFileTemplate;
 import com.unitel.laoads.domain.segment.Segment;
 import com.unitel.laoads.domain.segment.SegmentAttributeCatalog;
 import com.unitel.laoads.domain.segment.SegmentCondition;
@@ -23,8 +24,13 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,7 +51,9 @@ import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 /** Tệp khách hàng (SRS 3.2.2, 3.5) — theo workspace (X-Workspace-Id). */
 @RestController
@@ -77,8 +85,12 @@ public class SegmentController {
     public record BulkDeleteRequest(@NotEmpty @Size(max = 200) List<Long> ids) {
     }
 
+    static final String TEMPLATE_FILE = "isdn_template.xlsx";
+    private static final int TEMPLATE_LINES = 5; // segment.template.line1..5 trong messages*.properties
+
     private final SegmentService service;
     private final WorkspaceContext workspaceContext;
+    private final MessageSource messages;
 
     @GetMapping("/segment-attributes")
     @Operation(summary = "Danh mục thuộc tính thuê bao dùng để lọc")
@@ -162,6 +174,24 @@ public class SegmentController {
         } catch (IOException e) {
             throw new LaoadsException(ErrorCode.FILE_INVALID, "File không hợp lệ", "không đọc được file");
         }
+    }
+
+    @GetMapping("/segments/import/template")
+    @PreAuthorize("@perm.has('SEGMENT_MANAGE')")
+    @Operation(summary = "Tải file mẫu import tệp khách hàng (.xlsx)",
+            description = "Sheet 1 chỉ có tiêu đề isdn (cột định dạng Text); sheet 2 là hướng dẫn theo Accept-Language.")
+    public ResponseEntity<byte[]> importTemplate() {
+        Locale locale = LocaleContextHolder.getLocale();
+        List<String> lines = IntStream.rangeClosed(1, TEMPLATE_LINES)
+                .mapToObj(i -> messages.getMessage("segment.template.line" + i, null, "", locale)).toList();
+        byte[] body = IsdnFileTemplate.xlsx(new IsdnFileTemplate.Guide(
+                messages.getMessage("segment.template.sheet", null, "Huong dan", locale),
+                messages.getMessage("segment.template.title", null, "", locale), lines));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(TEMPLATE_FILE, StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(body);
     }
 
     @PostMapping("/segments/bulk-delete")

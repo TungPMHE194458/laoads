@@ -4,7 +4,9 @@ import com.unitel.laoads.domain.common.ErrorCode;
 import com.unitel.laoads.domain.common.Isdns;
 import com.unitel.laoads.domain.common.LaoadsException;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -14,6 +16,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -93,8 +96,8 @@ public final class IsdnFileParser {
                     first = false;
                     String[] cells = new String[Math.max(0, row.getLastCellNum())];
                     for (int i = 0; i < cells.length; i++) {
-                        Cell c = row.getCell(i);
-                        cells[i] = c == null ? "" : fmt.formatCellValue(c);
+                        String v = cellText(row.getCell(i), fmt);
+                        cells[i] = v == null ? "" : v;
                     }
                     int h = headerIndex(cells);
                     if (h >= 0) {
@@ -102,8 +105,7 @@ public final class IsdnFileParser {
                         continue;
                     }
                 }
-                Cell c = row.getCell(col);
-                String v = c == null ? null : fmt.formatCellValue(c);
+                String v = cellText(row.getCell(col), fmt);
                 if (v == null || v.isBlank()) {
                     continue;
                 }
@@ -112,6 +114,20 @@ public final class IsdnFileParser {
             }
         }
         return finish(out, invalid);
+    }
+
+    /**
+     * Ô kiểu số lấy đủ chữ số: định dạng General (Excel lẫn POI) hiện số từ 12 chữ số trở lên dạng 8.56201E+12,
+     * nên 856XXXXXXXXXX gõ thẳng vào ô sẽ thành dòng sai nếu đi qua DataFormatter.
+     */
+    private static String cellText(Cell c, DataFormatter fmt) {
+        if (c == null) {
+            return null;
+        }
+        if (c.getCellType() == CellType.NUMERIC && !DateUtil.isCellDateFormatted(c)) {
+            return BigDecimal.valueOf(c.getNumericCellValue()).stripTrailingZeros().toPlainString();
+        }
+        return fmt.formatCellValue(c);
     }
 
     private static int headerIndex(String[] cells) {
