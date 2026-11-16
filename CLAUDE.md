@@ -14,6 +14,7 @@ laoads/
 │   ├── API_CONTRACT_V1.md         ← the FE↔BE contract (read before touching either side)
 │   ├── DANH_GIA_KE_THUA_BOC.md    ← what was inherited from BOC + roadmap
 │   ├── openapi.yaml               ← springdoc export, input of FE `gen:api`
+│   ├── LaoAds_Thong_tin_ha_tang_go_live.xlsx  ← go-live infra/config checklist — GITIGNORED, keep in sync (see Deployment)
 │   └── requirements/              ← source requirements (*.docx/*.xlsx) — GITIGNORED
 ├── docker-compose.dev.yml         ← local Oracle XE for dev only
 └── docker-compose.yml             ← deployment only (not for local dev)
@@ -176,3 +177,30 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
 ## Deployment
 
 `docker-compose.yml` is deployment only, and it never includes the dev DB (that lives in `docker-compose.dev.yml`). It builds `laoads-be` (prod profile, :8080 in container, host `LAOADS_BE_PORT` default 8391) and `laoads-fe` (nginx :80, host `LAOADS_FE_PORT` default 8392; `VITE_API_MODE` is a **build arg** from `LAOADS_FE_API_MODE`, default `real`; proxies `/api/` → `laoads-be:8080`, `client_max_body_size 25m`, 300s read timeout for Excel imports). Spring's multipart limit (`application.yml`) is also 25MB. Change the two together. Unitel servers have no internet: build locally, `docker save | gzip`, ship, `docker load` (BOC's `scripts/deploy_prod.py` is the reference for a scripted version). Prod env lives in a gitignored `.env.prod`.
+
+### Go-live checklist workbook (`docs/LaoAds_Thong_tin_ha_tang_go_live.xlsx`)
+The infra, DBA, network and business teams fill this workbook in before go-live. It has these sheets:
+- `Tổng quan`: progress formulas and the list of go-live blockers.
+- `1`–`9`: server, network, firewall, DB, `4b` DB sizing, env vars, sending policy, sender numbers, integrations, initial data.
+- `10`: go-live checklist.
+- `11`: risks and decisions.
+
+It is gitignored like every `docs/*.xlsx`, so it exists only on this machine.
+
+**Keep it in sync with the system (user decision, 2026-11-16).** When a change affects deployment, update the matching rows in the same task and bump the version/date in `Tổng quan!A2`. Changes that count:
+- an env var is added, renamed or gets a new default;
+- a simulated adapter is replaced by a real one (SMS/WhatsApp/Email/USSD/OCS/BI);
+- a migration adds tables or needs new privileges (also re-check `4b` sizing);
+- ports, public paths or `StartupValidator` rules change;
+- sender-number fields or `LADS_APP_SETTING` defaults change.
+
+A blocker comes off `Tổng quan` and sheet 11 only once the fix is actually merged.
+
+**Edit in place, never regenerate.** Other teams' input lives in the yellow `(điền)` columns, `Trạng thái` and `Quyết định`, and a regenerated workbook would wipe it.
+- Use openpyxl `load_workbook` (never `data_only=True`, which drops the formulas on save).
+- Touch only the description, default and current-state cells of the affected rows.
+- Add new rows inside rows 5–300 of a sheet.
+- Keep sheet names and column order: the `Tổng quan` formulas count fixed columns (Mức độ / Trạng thái) per sheet.
+- Never write a secret into the file; the cell says `Bàn giao riêng` instead.
+- Afterwards, recalculate. This machine has no LibreOffice: open the file through Excel COM, `CalculateFull`, save, and close only your own workbook. Then check that no formula cell is empty or an error.
+- If Excel or Word holds the file open (locked), don't force it: tell the user.
