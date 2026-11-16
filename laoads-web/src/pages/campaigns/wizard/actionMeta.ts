@@ -14,7 +14,16 @@ import {
   Wifi,
   type LucideIcon,
 } from 'lucide-react'
-import type { ActionType, Channel } from '@/api/types'
+import type { ActionGroup, ActionType, Channel, SenderChannel } from '@/api/types'
+
+/** Kênh đầu số của hành động (chỉ SMS / USSD chọn đầu số). */
+export const SENDER_CHANNEL_OF: Partial<Record<ActionType, SenderChannel>> = { NOTIFICATION_SMS: 'SMS', NOTIFICATION_USSD: 'USSD' }
+
+/** Hành động SMS chưa chọn đầu số → đầu số SMS mặc định (đầu số đầu tiên workspace được dùng). */
+export function withDefaultSender(groups: ActionGroup[], defaultSms: string | null): ActionGroup[] {
+  if (!defaultSms) return groups
+  return groups.map((g) => ({ ...g, actions: g.actions.map((a) => (a.type === 'NOTIFICATION_SMS' && !a.senderId ? { ...a, senderId: defaultSms } : a)) }))
+}
 
 const ICONS: Record<ActionType, LucideIcon> = {
   NOTIFICATION_SMS: MessageSquareText,

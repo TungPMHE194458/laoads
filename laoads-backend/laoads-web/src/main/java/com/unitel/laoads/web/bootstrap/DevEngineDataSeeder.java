@@ -18,9 +18,10 @@ import com.unitel.laoads.domain.pricing.ActionType;
 import com.unitel.laoads.domain.segment.Segment;
 import com.unitel.laoads.domain.segment.SegmentCondition;
 import com.unitel.laoads.domain.segment.SegmentService;
+import com.unitel.laoads.domain.settings.GatewayProtocol;
 import com.unitel.laoads.domain.settings.SenderKind;
+import com.unitel.laoads.domain.settings.SenderNumber;
 import com.unitel.laoads.domain.settings.SenderNumberRepository;
-import com.unitel.laoads.domain.settings.SettingsService;
 import com.unitel.laoads.domain.workspace.Workspace;
 import com.unitel.laoads.domain.workspace.WorkspaceRepository;
 import com.unitel.laoads.infra.bootstrap.DatabaseReadyEvent;
@@ -69,19 +70,58 @@ public class DevEngineDataSeeder {
     private final JdbcTemplate jdbc;
     private final WorkspaceRepository workspaceRepo;
     private final SenderNumberRepository senderRepo;
-    private final SettingsService settingsService;
     private final SegmentService segmentService;
     private final CampaignService campaignService;
     private final CampaignRepository campaignRepo;
+
+    /**
+     * Đầu số 1555 + cấu hình mẫu (kết nối, chính sách) cho đầu số seed để trang Cấu hình gửi tin có dữ liệu minh hoạ.
+     * Chỉ sửa đầu số còn nguyên giá trị seed (chưa ai cập nhật, chưa cấu hình kết nối). Host là địa chỉ minh hoạ —
+     * "Kiểm tra kết nối" sẽ báo không phân giải được host cho tới khi nhập địa chỉ gateway thật.
+     */
+    private void seedSenders() {
+        if (senderRepo.findByCode("1555").isEmpty()) {
+            SenderNumber s = new SenderNumber();
+            s.setCode("1555");
+            s.setKind(SenderKind.SHORTCODE);
+            s.setDescription("Dịch vụ giá trị gia tăng");
+            s.setEnabled(true);
+            s.setChannels("SMS,USSD");
+            s.setCreatedAt(Instant.now());
+            s.setCreatedBy("seed");
+            senderRepo.save(s);
+        }
+        senderRepo.findByCode("118").filter(this::untouched).ifPresent(s -> {
+            s.setGwProtocol(GatewayProtocol.SMPP);
+            s.setGwHost("smsc.unitel.example");
+            s.setGwPort(2775);
+            s.setGwUsername("laoads118");
+            s.setGwTps(50);
+            senderRepo.save(s);
+        });
+        senderRepo.findByCode("209").filter(this::untouched).ifPresent(s -> {
+            s.setGwProtocol(GatewayProtocol.HTTP);
+            s.setGwUrl("https://sms-gateway.unitel.example/api/send");
+            s.setGwUsername("laoads");
+            s.setGwTps(20);
+            s.setDailyLimit(50_000L);
+            s.setSilentEnabled(true);
+            s.setSilentFrom("20:00");
+            s.setSilentTo("08:00");
+            senderRepo.save(s);
+        });
+    }
+
+    private boolean untouched(SenderNumber s) {
+        return s.getUpdatedAt() == null && s.getGwProtocol() == null && !s.hasPolicyOverride();
+    }
 
     @Order(20)
     @EventListener(DatabaseReadyEvent.class)
     public void onDatabaseReady() {
         try {
             int subs = seedSubscribers();
-            if (senderRepo.findByCode("1555").isEmpty()) {
-                settingsService.createSender("1555", SenderKind.SHORTCODE, "Dịch vụ giá trị gia tăng", true, "seed");
-            }
+            seedSenders();
             Workspace bsd = workspaceRepo.findByCode("BSD").orElse(null);
             if (bsd == null) {
                 return;

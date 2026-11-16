@@ -426,12 +426,96 @@ export interface SegmentMember {
   attributes: Record<string, string | number>
 }
 
+// ───── Đầu số gửi tin (cấu hình từng đầu số) ─────
+export type SenderKind = 'SHORTCODE' | 'BRANDNAME'
+export type SenderChannel = 'SMS' | 'USSD'
+export const SENDER_CHANNELS: SenderChannel[] = ['SMS', 'USSD']
+export type GatewayProtocol = 'NONE' | 'SMPP' | 'HTTP'
+export type ConnectionTestCode = 'OK' | 'TIMEOUT' | 'REFUSED' | 'UNKNOWN_HOST' | 'AUTH_FAILED' | 'REJECTED' | 'PROTOCOL_ERROR' | 'ERROR'
+export interface ConnectionTestResult {
+  ok: boolean
+  code: ConnectionTestCode
+  detail: string | null
+  latencyMs: number | null
+  testedAt: string
+}
+export interface SenderGateway {
+  protocol: GatewayProtocol
+  /** SMPP */
+  host: string | null
+  port: number | null
+  systemType: string | null
+  /** HTTP */
+  url: string | null
+  /** SMPP system_id (≤ 15 ký tự) / HTTP user (≤ 128) */
+  username: string | null
+  /** Mật khẩu không bao giờ trả về — chỉ biết đã lưu hay chưa */
+  hasPassword: boolean
+  /** null = không giới hạn */
+  tps: number | null
+  lastTest: ConnectionTestResult | null
+}
+/** Mọi trường null = theo chính sách chung (/settings/notification). */
+export interface SenderPolicy {
+  retryMaxAttempts: number | null
+  retryIntervalMinutes: number | null
+  /** null = theo chung; true = khung riêng; false = đầu số này không chặn giờ */
+  silentHoursEnabled: boolean | null
+  silentFrom: string | null
+  silentTo: string | null
+  /** null = không giới hạn */
+  dailyLimit: number | null
+}
 export interface SenderNumber {
   id: number
   code: string
-  kind: 'SHORTCODE' | 'BRANDNAME'
+  kind: SenderKind
   description: string | null
   enabled: boolean
+  /** không rỗng; BRANDNAME chỉ được ['SMS'] */
+  channels: SenderChannel[]
+  allWorkspaces: boolean
+  workspaceIds: number[]
+  gateway: SenderGateway
+  policy: SenderPolicy
+  /** số tin đã gửi qua đầu số trong ngày (giờ Lào) */
+  sentToday: number
+  createdAt: string
+  createdBy: string | null
+  updatedAt: string | null
+  updatedBy: string | null
+}
+export interface SenderGatewayInput {
+  protocol: GatewayProtocol
+  host: string | null
+  port: number | null
+  systemType: string | null
+  url: string | null
+  username: string | null
+  /** bỏ trống/null = giữ mật khẩu đã lưu; chuỗi khác rỗng = thay */
+  password?: string | null
+  /** true = xoá mật khẩu đã lưu */
+  clearPassword?: boolean
+  tps: number | null
+}
+export interface SenderNumberInput {
+  code: string
+  kind: SenderKind
+  description: string | null
+  enabled: boolean
+  channels: SenderChannel[]
+  allWorkspaces: boolean
+  workspaceIds: number[]
+  gateway: SenderGatewayInput
+  policy: SenderPolicy
+}
+/** Đầu số workspace hiện tại được dùng (wizard chọn đầu số). */
+export interface AvailableSender {
+  id: number
+  code: string
+  kind: SenderKind
+  description: string | null
+  channels: SenderChannel[]
 }
 export interface NotificationSettings {
   retryMaxAttempts: number

@@ -16,6 +16,16 @@ public final class Times {
     private Times() {
     }
 
+    /** 00:00 giờ Lào của ngày chứa {@code t}. */
+    public static Instant laosDayStart(Instant t) {
+        return t.atZone(ZONE).toLocalDate().atStartOfDay(ZONE).toInstant();
+    }
+
+    /** 00:00 giờ Lào của ngày kế tiếp. */
+    public static Instant nextLaosDayStart(Instant t) {
+        return t.atZone(ZONE).toLocalDate().plusDays(1).atStartOfDay(ZONE).toInstant();
+    }
+
     public static OffsetDateTime toOffset(Instant instant) {
         if (instant == null) {
             return null;

@@ -11,8 +11,12 @@ import com.unitel.laoads.domain.campaign.CampaignHistoryRepository;
 import com.unitel.laoads.domain.campaign.CampaignRepository;
 import com.unitel.laoads.domain.campaign.CampaignService;
 import com.unitel.laoads.domain.campaign.SchedulePlanner;
+import com.unitel.laoads.domain.common.Times;
 import com.unitel.laoads.domain.pricing.ActionType;
 import com.unitel.laoads.domain.settings.NotificationSettings;
+import com.unitel.laoads.domain.settings.SenderNumber;
+import com.unitel.laoads.domain.settings.SenderNumberRepository;
+import com.unitel.laoads.domain.settings.SenderNumberService;
 import com.unitel.laoads.domain.settings.SettingsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,8 +49,11 @@ public class MessageDispatcher {
                ActionType actionType, Channel channel, int attempts, String prevStatus, boolean converted) {
     }
 
-    record CampaignCtx(Campaign campaign, CampaignDefinition def, LocalTime[] silent, boolean overBudget) {
+    record CampaignCtx(Campaign campaign, CampaignDefinition def, boolean overBudget) {
     }
+
+    /** Đầu số đang tắt / ngoài phạm vi khi chiến dịch đang chạy: hoãn tin, kiểm tra lại sau khoảng này. */
+    static final Duration SENDER_UNAVAILABLE_RETRY = Duration.ofMinutes(10);
 
     private static final Pattern URL = Pattern.compile("https?://[^\\s]+");
     private static final char[] TOKEN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789".toCharArray();
@@ -57,12 +64,17 @@ public class MessageDispatcher {
     private final CampaignHistoryRepository historyRepo;
     private final CampaignService campaignService;
     private final SettingsService settingsService;
+    private final SenderNumberRepository senderRepo;
+    private final SenderNumberService senderService;
     private final MessageGateway gateway;
     private final TransactionTemplate tx;
     private final String publicBaseUrl;
+    /** Chu kỳ dispatch ~5 giây → bucket chứa TPS × 5 lượt để đạt đúng TPS trung bình. */
+    private final SenderThrottle throttle = new SenderThrottle(5.0);
 
     public MessageDispatcher(JdbcTemplate jdbc, CampaignRepository campaignRepo, CampaignHistoryRepository historyRepo,
-                             CampaignService campaignService, SettingsService settingsService, MessageGateway gateway,
+                             CampaignService campaignService, SettingsService settingsService,
+                             SenderNumberRepository senderRepo, SenderNumberService senderService, MessageGateway gateway,
                              PlatformTransactionManager txManager,
                              @Value("${laoads.engine.public-base-url:http://localhost:5173}") String publicBaseUrl) {
         this.jdbc = jdbc;
@@ -70,6 +82,8 @@ public class MessageDispatcher {
         this.historyRepo = historyRepo;
         this.campaignService = campaignService;
         this.settingsService = settingsService;
+        this.senderRepo = senderRepo;
+        this.senderService = senderService;
         this.gateway = gateway;
         this.tx = new TransactionTemplate(txManager);
         this.publicBaseUrl = publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
@@ -96,41 +110,87 @@ public class MessageDispatcher {
         }
         NotificationSettings settings = settingsService.notification();
         Map<ActionType, BigDecimal> prices = campaignService.unitPrices();
+        Map<String, SenderNumber> senders = SenderPolicy.byCode(senderRepo.findAll());
+        Map<String, Long> sentToday = senders.values().stream().anyMatch(s -> s.getDailyLimit() != null)
+                ? new HashMap<>(senderService.sentToday()) : new HashMap<>();
+        Map<String, Integer> overflow = new HashMap<>();
+        List<Object[]> throttled = new ArrayList<>();
         Map<Long, CampaignCtx> contexts = new HashMap<>();
         int processed = 0;
         for (Due m : due) {
-            CampaignCtx ctx = contexts.computeIfAbsent(m.campaignId(), id -> load(id, settings));
+            CampaignCtx ctx = contexts.computeIfAbsent(m.campaignId(), this::load);
             if (ctx == null || ctx.overBudget()) {
                 continue;
             }
-            processed++;
             if (m.prevStatus() != null && !"SENT".equals(m.prevStatus()) && !"DELIVERED".equals(m.prevStatus())) {
+                processed++;
                 skip(m.id(), "Hành động trước trong chuỗi không thành công");
                 continue;
             }
             if (m.converted() && ctx.def().goal() != null && ctx.def().goal().stopOnGoal()) {
+                processed++;
                 skip(m.id(), "Khách hàng đã đạt mục tiêu");
                 continue;
             }
             Campaign c = ctx.campaign();
             if (c.getEndAt() != null && now.isAfter(c.getEndAt())) {
+                processed++;
                 skip(m.id(), "Hết thời gian chiến dịch");
                 continue;
             }
-            if (ctx.silent() != null) {
-                Instant allowed = SchedulePlanner.applySilentHours(now, ctx.silent()[0], ctx.silent()[1]);
+            ActionDef action = actionOf(ctx.def(), m.groupKey(), m.actionKey());
+            String code = SenderPolicy.key(action == null ? null : action.senderId());
+            SenderNumber sender = code == null ? null : senders.get(code);
+            if (code != null && sender == null) {
+                processed++;
+                fail(m.id(), "Đầu số " + code + " không còn tồn tại");
+                continue;
+            }
+            if (sender != null && (!sender.isEnabled() || !sender.allowedFor(c.getWorkspaceId())
+                    || !sender.supports(m.channel()))) {
+                processed++;
+                defer(m.id(), now.plus(SENDER_UNAVAILABLE_RETRY),
+                        "Đầu số " + code + " đang tắt hoặc không dùng được cho chiến dịch này — tạm hoãn");
+                continue;
+            }
+            LocalTime[] silent = SenderPolicy.silentWindow(ctx.def(), sender, settings);
+            if (silent != null) {
+                Instant allowed = SchedulePlanner.applySilentHours(now, silent[0], silent[1]);
                 if (allowed.isAfter(now)) {
+                    processed++;
                     jdbc.update("UPDATE LADS_CAMPAIGN_MESSAGE SET DUE_AT = ? WHERE ID = ?", Utc.ts(allowed), m.id());
                     continue;
                 }
             }
-            send(m, ctx, settings, prices.getOrDefault(m.actionType(), BigDecimal.ZERO), now);
+            if (sender != null && sender.getDailyLimit() != null
+                    && sentToday.getOrDefault(code, 0L) >= sender.getDailyLimit()) {
+                processed++;
+                defer(m.id(), Times.nextLaosDayStart(now),
+                        "Đạt giới hạn " + sender.getDailyLimit() + " tin/ngày của đầu số " + code);
+                continue;
+            }
+            if (sender != null && sender.getGwTps() != null
+                    && !throttle.tryAcquire(code, sender.getGwTps(), System.nanoTime())) {
+                // hết lượt TPS: rải lại DUE_AT theo TPS, không tính là đã xử lý để vòng dispatch dừng
+                int idx = overflow.merge(code, 1, Integer::sum) - 1;
+                throttled.add(new Object[]{Utc.ts(SenderPolicy.throttledDueAt(now, idx, sender.getGwTps())), m.id()});
+                continue;
+            }
+            processed++;
+            if (send(m, ctx, action, sender, code, settings, prices.getOrDefault(m.actionType(), BigDecimal.ZERO), now)
+                    && code != null) {
+                sentToday.merge(code, 1L, Long::sum);
+            }
+        }
+        if (!throttled.isEmpty()) {
+            jdbc.batchUpdate("UPDATE LADS_CAMPAIGN_MESSAGE SET DUE_AT = ? WHERE ID = ? AND STATUS = 'PENDING'", throttled);
         }
         return processed;
     }
 
-    private void send(Due m, CampaignCtx ctx, NotificationSettings settings, BigDecimal unitPrice, Instant now) {
-        ActionDef action = actionOf(ctx.def(), m.groupKey(), m.actionKey());
+    /** @return true nếu gateway nhận tin (SENT / DELIVERED) */
+    private boolean send(Due m, CampaignCtx ctx, ActionDef action, SenderNumber sender, String senderCode,
+                         NotificationSettings settings, BigDecimal unitPrice, Instant now) {
         String content = action == null ? null : action.content();
         if (action != null && action.tracksLinks() && content != null) {
             content = trackLinks(content, m.id(), m.campaignId(), now);
@@ -148,21 +208,24 @@ public class MessageDispatcher {
         int attempts = m.attempts() + 1;
         if (r.success()) {
             jdbc.update("UPDATE LADS_CAMPAIGN_MESSAGE SET STATUS = ?, ATTEMPTS = ?, SENT_AT = ?, DELIVERED_AT = ?, COST = ?, "
-                            + "PROVIDER_REF = ?, LAST_ERROR = NULL WHERE ID = ?",
+                            + "PROVIDER_REF = ?, LAST_ERROR = NULL, SENDER_CODE = ? WHERE ID = ?",
                     r.delivered() ? "DELIVERED" : "SENT", attempts, Utc.ts(now), r.delivered() ? Utc.ts(now) : null,
-                    unitPrice, r.providerRef(), m.id());
-        } else if (r.retryable() && attempts <= settings.retryMaxAttempts()) {
-            Instant retryAt = now.plus(Duration.ofMinutes(settings.retryIntervalMinutes()));
-            jdbc.update("UPDATE LADS_CAMPAIGN_MESSAGE SET ATTEMPTS = ?, DUE_AT = ?, LAST_ERROR = ? WHERE ID = ?",
-                    attempts, Utc.ts(retryAt), truncate(r.error()), m.id());
+                    unitPrice, r.providerRef(), senderCode, m.id());
+            return true;
+        }
+        if (r.retryable() && attempts <= SenderPolicy.retryMaxAttempts(sender, settings)) {
+            Instant retryAt = now.plus(Duration.ofMinutes(SenderPolicy.retryIntervalMinutes(sender, settings)));
+            jdbc.update("UPDATE LADS_CAMPAIGN_MESSAGE SET ATTEMPTS = ?, DUE_AT = ?, LAST_ERROR = ?, SENDER_CODE = ? WHERE ID = ?",
+                    attempts, Utc.ts(retryAt), truncate(r.error()), senderCode, m.id());
         } else {
             boolean refund = settings.refundOnFailure() && m.channel() == Channel.OCS;
             jdbc.update("UPDATE LADS_CAMPAIGN_MESSAGE SET STATUS = 'FAILED', ATTEMPTS = ?, LAST_ERROR = ?, REFUNDED = ?, "
-                    + "COST = 0 WHERE ID = ?", attempts, truncate(r.error()), refund ? 1 : 0, m.id());
+                    + "COST = 0, SENDER_CODE = ? WHERE ID = ?", attempts, truncate(r.error()), refund ? 1 : 0, senderCode, m.id());
         }
+        return false;
     }
 
-    private CampaignCtx load(long campaignId, NotificationSettings settings) {
+    private CampaignCtx load(long campaignId) {
         Campaign c = campaignRepo.findById(campaignId).orElse(null);
         if (c == null || !c.is(Status.RUNNING)) {
             return null;
@@ -177,7 +240,7 @@ public class MessageDispatcher {
                 autoPause(campaignId, "Đạt ngân sách tối đa " + c.getBudgetMax().toPlainString() + " LAK");
             }
         }
-        return new CampaignCtx(c, def, CampaignRunner.silentWindow(def, settings), over);
+        return new CampaignCtx(c, def, over);
     }
 
     private void autoPause(long campaignId, String reason) {
@@ -189,6 +252,16 @@ public class MessageDispatcher {
                 log.info("[ENGINE] Tự tạm dừng chiến dịch #{}: {}", campaignId, reason);
             }
         }));
+    }
+
+    private void defer(long messageId, Instant dueAt, String reason) {
+        jdbc.update("UPDATE LADS_CAMPAIGN_MESSAGE SET DUE_AT = ?, LAST_ERROR = ? WHERE ID = ? AND STATUS = 'PENDING'",
+                Utc.ts(dueAt), truncate(reason), messageId);
+    }
+
+    private void fail(long messageId, String reason) {
+        jdbc.update("UPDATE LADS_CAMPAIGN_MESSAGE SET STATUS = 'FAILED', LAST_ERROR = ?, COST = 0 "
+                + "WHERE ID = ? AND STATUS = 'PENDING'", truncate(reason), messageId);
     }
 
     private void skip(long messageId, String reason) {

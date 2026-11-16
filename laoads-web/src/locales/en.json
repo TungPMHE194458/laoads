@@ -534,12 +534,17 @@
         "amount": "Offer actions need an amount greater than 0.",
         "start": "Please choose a start time.",
         "endBeforeStart": "End time must be after start time.",
-        "budget": "Maximum budget is below the estimated cost."
+        "budget": "Maximum budget is below the estimated cost.",
+        "sender": "An SMS action has no sender selected."
       },
       "trackLinks": "Track link clicks (replace links in the message with tracking links)",
       "newGroup": "New campaign group",
       "createGroup": "Create group",
-      "groupCreated": "Campaign group created"
+      "groupCreated": "Campaign group created",
+      "senderNone": "None (default gateway)",
+      "senderUnavailable": "no longer available",
+      "senderUnavailableHint": "This sender is disabled, deleted or no longer allowed for this workspace — pick another one.",
+      "noSender": "This workspace has no sender for this channel yet — contact a Super Admin."
     }
   },
   "approval": {
@@ -697,7 +702,8 @@
     "RESUME": "Resume",
     "CANCEL": "Cancel",
     "EXPORT": "Export",
-    "CHANGE_PASSWORD": "Change password"
+    "CHANGE_PASSWORD": "Change password",
+    "TEST": "Test"
   },
   "auditEntity": {
     "AUTH": "Sign in",
@@ -753,8 +759,7 @@
   },
   "sending": {
     "desc": "Sender numbers, retry policy and default quiet hours.",
-    "senders": "Short codes & brandnames",
-    "sendersDesc": "Unitel sender list used when configuring SMS actions.",
+    "sendersDesc": "Unitel sender numbers / brandnames used by SMS and USSD actions. Click a row to configure it.",
     "addSender": "Add sender",
     "code": "Short code / brandname",
     "kindLabel": "Type",
@@ -770,7 +775,126 @@
     "retryInterval": "Interval between retries (min)",
     "refund": "Refund deducted resources when sending fails",
     "silentDefault": "Enable default quiet hours",
-    "defaultLang": "Default content language"
+    "defaultLang": "Default content language",
+    "deleteSender": "Delete sender",
+    "deleteTitle": "Delete sender {{code}}?",
+    "deleteDesc": "Finished campaigns keep this code in their history. If a campaign that hasn't finished still uses it, the deletion is refused. Disable the sender instead.",
+    "tabs": {
+      "senders": "Sender numbers",
+      "policy": "Default sending policy"
+    },
+    "searchPh": "Search code or description",
+    "allKinds": "All types",
+    "allChannels": "All channels",
+    "col": {
+      "code": "Sender",
+      "description": "Description",
+      "channels": "Channels",
+      "connection": "Connection",
+      "scope": "Scope",
+      "today": "Today",
+      "policy": "Policy",
+      "enabled": "On"
+    },
+    "notConfigured": "Not configured",
+    "policyCustom": "Custom",
+    "policyDefault": "Default",
+    "status": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "toggledOn": "Sender {{code}} enabled",
+    "toggledOff": "Sender {{code}} disabled",
+    "policyOverrideNote": "Each sender can override this policy under Sender numbers → Policy.",
+    "codeHint": "2–32 characters: letters, digits or underscore; uppercased automatically.",
+    "description": "Description",
+    "channels": "Channels",
+    "channelsHint": "Brandnames can only send SMS.",
+    "enabledLabel": "Enabled",
+    "enabledHint": "Disabled senders are hidden when creating campaigns; messages of running campaigns that use it are held until it is enabled again.",
+    "sentToday": "Sent today",
+    "unlimited": "Unlimited",
+    "sheet": {
+      "newTitle": "Add sender",
+      "newDesc": "Declare a sender number and its own sending configuration.",
+      "created": "Sender {{code}} added",
+      "unsaved": "Unsaved changes",
+      "tab": {
+        "info": "Details",
+        "connection": "Connection",
+        "scope": "Scope",
+        "policy": "Policy"
+      }
+    },
+    "protocol": {
+      "NONE": "Not configured",
+      "SMPP": "SMPP",
+      "HTTP": "HTTP API",
+      "NONE_desc": "Use the system default gateway",
+      "SMPP_desc": "Connect to the SMSC over SMPP 3.4 (bind transceiver)",
+      "HTTP_desc": "Call the provider's HTTP API"
+    },
+    "conn": {
+      "host": "SMSC host / IP",
+      "port": "Port",
+      "systemId": "System ID",
+      "systemIdHint": "Up to 15 characters.",
+      "systemType": "System type",
+      "password": "Password",
+      "smppPasswordHint": "SMPP 3.4: up to 8 characters.",
+      "url": "API URL",
+      "username": "Username",
+      "token": "Password / token",
+      "tps": "Max rate (messages/second)",
+      "tpsHint": "Leave empty for no limit.",
+      "noneNote": "This sender goes through the system's default gateway. Choose SMPP or HTTP API to give it its own connection.",
+      "lastTest": "Last check",
+      "neverTested": "Not checked yet",
+      "test": "Test connection",
+      "testCreateFirst": "Save the sender before testing the connection.",
+      "testSaveFirst": "Save your changes first — the test uses the saved configuration.",
+      "latency": "{{ms}} ms",
+      "simulatedNote": "The messaging gateway is still simulated: the configuration is saved and the connection test is real, but messages only go out through it once a real adapter is in place.",
+      "passwordSaved": "Saved — leave empty to keep it",
+      "passwordWillClear": "The saved password will be removed when you save.",
+      "undo": "Undo",
+      "clearPassword": "Remove saved password"
+    },
+    "test": {
+      "OK": "Connected",
+      "TIMEOUT": "Timed out",
+      "REFUSED": "Connection refused",
+      "UNKNOWN_HOST": "Host could not be resolved",
+      "AUTH_FAILED": "Wrong username or password",
+      "REJECTED": "Rejected by the gateway",
+      "PROTOCOL_ERROR": "Unexpected protocol response",
+      "ERROR": "Connection error"
+    },
+    "scope": {
+      "allShort": "All workspaces",
+      "count": "{{count}} workspace(s)",
+      "all": "All workspaces",
+      "all_desc": "Every current and future workspace can use this sender.",
+      "selected": "Selected workspaces only",
+      "selected_desc": "Only the workspaces ticked below see this sender when creating campaigns.",
+      "pick": "Allowed workspaces",
+      "selectedCount": "{{count}} selected",
+      "empty": "No workspaces yet."
+    },
+    "pol": {
+      "note": "Left at default, the sender follows the default sending policy. Quiet hours priority: campaign (if it sets its own) → sender → default policy.",
+      "inherit": "Default policy: {{value}}",
+      "custom": "Custom",
+      "globalSilentOff": "off",
+      "silentMode": {
+        "INHERIT": "Default policy",
+        "CUSTOM": "Custom quiet hours",
+        "OFF": "No quiet hours"
+      },
+      "silentOffWarn": "Messages through this sender may go out at night (unless the campaign sets its own quiet hours).",
+      "dailyLimit": "Daily message limit",
+      "dailyLimitHint": "Leave empty for no limit. Over the limit, messages move to 00:00 the next day (Laos time)."
+    }
   },
   "adminDash": {
     "title": "System-wide",

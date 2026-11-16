@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, GripVertical, Plus, Trash2 } from 'lucide-react'
-import type { ActionGroup, ActionType, CampaignAction } from '@/api/types'
+import type { ActionGroup, ActionType, CampaignAction, SenderChannel } from '@/api/types'
 import { NOTIFICATION_ACTIONS, TELECOM_ACTIONS } from '@/api/types'
-import { useSenderNumbers } from '@/features/campaign/api'
+import { useAvailableSenders } from '@/features/campaign/api'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -12,15 +12,16 @@ import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Field } from '@/components/common/dialogs'
 import { cn } from '@/lib/utils'
-import { actionIcon, AMOUNT_UNIT, NEEDS_AMOUNT, NEEDS_CONTENT, SMS_PARAMS, WA_TEMPLATES } from './actionMeta'
+import { actionIcon, AMOUNT_UNIT, NEEDS_AMOUNT, NEEDS_CONTENT, SENDER_CHANNEL_OF, SMS_PARAMS, WA_TEMPLATES } from './actionMeta'
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 
-export function newAction(type: ActionType): CampaignAction {
-  return { id: uid(), type, delayMinutes: 0, senderId: type === 'NOTIFICATION_SMS' ? '118' : null, subject: null, content: '', templateId: type === 'NOTIFICATION_WHATSAPP' ? WA_TEMPLATES[0] : null, amount: NEEDS_AMOUNT.includes(type) ? 0 : null, packageCode: null }
+/** `smsSender`: đầu số SMS mặc định (đầu tiên workspace được dùng); null = để trống, wizard tự điền khi lưu. */
+export function newAction(type: ActionType, smsSender: string | null = null): CampaignAction {
+  return { id: uid(), type, delayMinutes: 0, senderId: type === 'NOTIFICATION_SMS' ? smsSender : null, subject: null, content: '', templateId: type === 'NOTIFICATION_WHATSAPP' ? WA_TEMPLATES[0] : null, amount: NEEDS_AMOUNT.includes(type) ? 0 : null, packageCode: null }
 }
-export function newGroup(name: string, allocationPercent: number, isControl = false): ActionGroup {
-  return { id: uid(), name, allocationPercent, isControl, mode: 'SEQUENTIAL', actions: isControl ? [] : [newAction('NOTIFICATION_SMS')] }
+export function newGroup(name: string, allocationPercent: number, isControl = false, smsSender: string | null = null): ActionGroup {
+  return { id: uid(), name, allocationPercent, isControl, mode: 'SEQUENTIAL', actions: isControl ? [] : [newAction('NOTIFICATION_SMS', smsSender)] }
 }
 
 /** Kiểm tra cấu hình hành động; trả về key lỗi i18n hoặc null. */
@@ -30,6 +31,7 @@ export function validateActions(groups: ActionGroup[]): string | null {
   if (!groups.some((g) => !g.isControl && g.actions.length)) return 'campaign.wizard.err.noAction'
   for (const g of groups)
     for (const a of g.actions) {
+      if (a.type === 'NOTIFICATION_SMS' && !a.senderId) return 'campaign.wizard.err.sender'
       if (NEEDS_CONTENT.includes(a.type) && !a.content?.trim()) return 'campaign.wizard.err.content'
       if (a.type === 'NOTIFICATION_SMS' && (a.content?.length ?? 0) > 459) return 'campaign.wizard.err.smsLong'
       if (a.type === 'NOTIFICATION_EMAIL' && !a.subject?.trim()) return 'campaign.wizard.err.subject'
@@ -38,9 +40,37 @@ export function validateActions(groups: ActionGroup[]): string | null {
   return null
 }
 
-function ActionEditor({ a, index, sequential, onChange, onRemove }: { a: CampaignAction; index: number; sequential: boolean; onChange: (a: CampaignAction) => void; onRemove: () => void }) {
+/** Chọn đầu số cho hành động SMS (bắt buộc) / USSD (không bắt buộc) — chỉ đầu số workspace được dùng. */
+function SenderSelect({ a, channel, defaultSms, onChange }: { a: CampaignAction; channel: SenderChannel; defaultSms: string | null; onChange: (a: CampaignAction) => void }) {
   const { t } = useTranslation()
-  const senders = useSenderNumbers()
+  const list = useAvailableSenders(channel)
+  const required = channel === 'SMS'
+  const value = a.senderId ?? (required ? defaultSms : null) ?? ''
+  const available = (list.data ?? []).map((s) => ({ value: s.code, label: `${s.code} — ${s.description ?? t(`sending.kind.${s.kind}`)}` }))
+  // Đầu số đã lưu nhưng không còn dùng được (bị tắt, xoá, ra khỏi phạm vi) — vẫn hiện để người dùng thấy và đổi
+  const unavailable = !!a.senderId && !list.isLoading && !available.some((o) => o.value === a.senderId)
+  const options = unavailable ? [{ value: a.senderId!, label: `${a.senderId} (${t('campaign.wizard.senderUnavailable')})` }, ...available] : available
+  return (
+    <Field
+      label={t('campaign.wizard.sender')}
+      required={required}
+      error={unavailable ? t('campaign.wizard.senderUnavailableHint') : null}
+      hint={!list.isLoading && !list.data?.length ? t('campaign.wizard.noSender') : undefined}
+    >
+      <Select
+        value={value}
+        onValueChange={(v) => onChange({ ...a, senderId: v || null })}
+        options={options}
+        allLabel={required ? undefined : t('campaign.wizard.senderNone')}
+        placeholder={t('campaign.wizard.senderPh')}
+      />
+    </Field>
+  )
+}
+
+function ActionEditor({ a, index, sequential, defaultSms, onChange, onRemove }: { a: CampaignAction; index: number; sequential: boolean; defaultSms: string | null; onChange: (a: CampaignAction) => void; onRemove: () => void }) {
+  const { t } = useTranslation()
+  const senderChannel = SENDER_CHANNEL_OF[a.type]
   const smsLen = a.content?.length ?? 0
   const segments = smsLen <= 160 ? 1 : Math.ceil(smsLen / 153)
   const insert = (p: string) => onChange({ ...a, content: `${a.content ?? ''}${a.content && !a.content.endsWith(' ') ? ' ' : ''}${p}` })
@@ -66,11 +96,7 @@ function ActionEditor({ a, index, sequential, onChange, onRemove }: { a: Campaig
         </Button>
       </div>
       <div className="grid gap-4 p-4">
-        {a.type === 'NOTIFICATION_SMS' && (
-          <Field label={t('campaign.wizard.sender')} required>
-            <Select value={a.senderId ?? ''} onValueChange={(v) => onChange({ ...a, senderId: v })} options={(senders.data ?? []).filter((s) => s.enabled).map((s) => ({ value: s.code, label: `${s.code} — ${s.description ?? ''}` }))} placeholder={t('campaign.wizard.senderPh')} />
-          </Field>
-        )}
+        {senderChannel && <SenderSelect a={a} channel={senderChannel} defaultSms={defaultSms} onChange={onChange} />}
         {a.type === 'NOTIFICATION_EMAIL' && (
           <Field label={t('campaign.wizard.subject')} required>
             <Input value={a.subject ?? ''} onChange={(e) => onChange({ ...a, subject: e.target.value })} />
@@ -158,7 +184,7 @@ function AddActionMenu({ onAdd }: { onAdd: (t: ActionType) => void }) {
   )
 }
 
-export function ActionsStep({ groups, onChange }: { groups: ActionGroup[]; onChange: (g: ActionGroup[]) => void }) {
+export function ActionsStep({ groups, defaultSms, onChange }: { groups: ActionGroup[]; defaultSms: string | null; onChange: (g: ActionGroup[]) => void }) {
   const { t } = useTranslation()
   const total = groups.reduce((s, g) => s + (Number(g.allocationPercent) || 0), 0)
   const update = (id: string, patch: Partial<ActionGroup>) => onChange(groups.map((g) => (g.id === id ? { ...g, ...patch } : g)))
@@ -209,13 +235,14 @@ export function ActionsStep({ groups, onChange }: { groups: ActionGroup[]; onCha
                     a={a}
                     index={i}
                     sequential={g.mode === 'SEQUENTIAL'}
+                    defaultSms={defaultSms}
                     onChange={(na) => update(g.id, { actions: g.actions.map((x) => (x.id === a.id ? na : x)) })}
                     onRemove={() => update(g.id, { actions: g.actions.filter((x) => x.id !== a.id) })}
                   />
                 </div>
               ))}
               <div className="pt-2">
-                <AddActionMenu onAdd={(type) => update(g.id, { actions: [...g.actions, newAction(type)] })} />
+                <AddActionMenu onAdd={(type) => update(g.id, { actions: [...g.actions, newAction(type, defaultSms)] })} />
               </div>
             </div>
           )}
@@ -224,7 +251,7 @@ export function ActionsStep({ groups, onChange }: { groups: ActionGroup[]; onCha
       ))}
 
       <div className="flex flex-wrap gap-2">
-        <Button variant="soft" onClick={() => onChange([...groups, newGroup(`${t('campaign.wizard.group')} ${String.fromCharCode(65 + groups.filter((x) => !x.isControl).length)}`, 0)])}>
+        <Button variant="soft" onClick={() => onChange([...groups, newGroup(`${t('campaign.wizard.group')} ${String.fromCharCode(65 + groups.filter((x) => !x.isControl).length)}`, 0, false, defaultSms)])}>
           <Plus />
           {t('campaign.wizard.addGroup')}
         </Button>

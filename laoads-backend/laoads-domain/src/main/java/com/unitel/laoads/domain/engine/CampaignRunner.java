@@ -13,6 +13,8 @@ import com.unitel.laoads.domain.campaign.CampaignRepository;
 import com.unitel.laoads.domain.campaign.CampaignService;
 import com.unitel.laoads.domain.campaign.SchedulePlanner;
 import com.unitel.laoads.domain.settings.NotificationSettings;
+import com.unitel.laoads.domain.settings.SenderNumber;
+import com.unitel.laoads.domain.settings.SenderNumberRepository;
 import com.unitel.laoads.domain.settings.SettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Engine — khởi chạy lượt (run) của chiến dịch: chốt danh sách đối tượng, chia nhóm A/B + nhóm đối chứng,
@@ -44,6 +47,7 @@ public class CampaignRunner {
     private final CampaignHistoryRepository historyRepo;
     private final CampaignService campaignService;
     private final SettingsService settingsService;
+    private final SenderNumberRepository senderRepo;
     private final JdbcTemplate jdbc;
 
     @Transactional(readOnly = true)
@@ -206,7 +210,7 @@ public class CampaignRunner {
     private void createMessages(Campaign c, CampaignDefinition def, List<GroupRange> ranges, String targetFilter,
                                 long filterValue, Instant base) {
         NotificationSettings global = settingsService.notification();
-        LocalTime[] silent = silentWindow(def, global);
+        Map<String, SenderNumber> senders = SenderPolicy.byCode(senderRepo.findAll());
         for (GroupRange r : ranges) {
             if (r.control() || r.def() == null || r.def().actions() == null) {
                 continue;
@@ -221,6 +225,8 @@ public class CampaignRunner {
                 }
                 cumulative = r.def().sequential() ? cumulative + Math.max(0, a.delayMinutes()) : Math.max(0, a.delayMinutes());
                 Instant due = base.plus(Duration.ofMinutes(cumulative));
+                // khung giờ không gửi theo đầu số của từng hành động (chiến dịch > đầu số > chung)
+                LocalTime[] silent = SenderPolicy.silentWindow(def, senders.get(SenderPolicy.key(a.senderId())), global);
                 if (silent != null) {
                     due = SchedulePlanner.applySilentHours(due, silent[0], silent[1]);
                 }
@@ -244,16 +250,9 @@ public class CampaignRunner {
         }
     }
 
-    /** Khung giờ không gửi: của chiến dịch nếu bật, ngược lại mặc định hệ thống nếu bật; null = không chặn. */
+    /** Khung giờ không gửi khi hành động không gắn đầu số: của chiến dịch nếu bật, ngược lại mặc định hệ thống. */
     static LocalTime[] silentWindow(CampaignDefinition def, NotificationSettings global) {
-        var sh = def.schedule() == null ? null : def.schedule().silentHours();
-        if (sh != null && sh.enabled()) {
-            return new LocalTime[]{SchedulePlanner.parseTime(sh.from(), null), SchedulePlanner.parseTime(sh.to(), null)};
-        }
-        if (global.silentHoursEnabled()) {
-            return new LocalTime[]{global.silentFromTime(), global.silentToTime()};
-        }
-        return null;
+        return SenderPolicy.silentWindow(def, null, global);
     }
 
     private long nextVal(String sequence) {

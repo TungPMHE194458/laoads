@@ -48,6 +48,7 @@ public enum ErrorCode {
 
     // ===== Đợt 2–3: cấu hình gửi tin, tệp KH, chiến dịch, API sự kiện =====
     SENDER_CODE_DUPLICATE(409),
+    SENDER_IN_USE(409),
     GROUP_NAME_DUPLICATE(409),
     GROUP_IN_USE(409),
     SEGMENT_NAME_DUPLICATE(409),

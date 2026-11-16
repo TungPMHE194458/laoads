@@ -63,4 +63,15 @@ public record CampaignDefinition(List<ActionGroupDef> actionGroups, ScheduleDef 
     public List<ActionGroupDef> groups() {
         return actionGroups == null ? List.of() : actionGroups;
     }
+
+    /** Có hành động nào gửi bằng đầu số này không (so khớp mã, không phân biệt hoa/thường). */
+    public boolean usesSender(String senderCode) {
+        if (senderCode == null) {
+            return false;
+        }
+        return groups().stream()
+                .filter(g -> g.actions() != null)
+                .flatMap(g -> g.actions().stream())
+                .anyMatch(a -> a.senderId() != null && a.senderId().trim().equalsIgnoreCase(senderCode.trim()));
+    }
 }

@@ -1,9 +1,7 @@
 package com.unitel.laoads.domain.settings;
 
-import com.unitel.laoads.domain.common.ErrorCode;
 import com.unitel.laoads.domain.common.FieldViolation;
 import com.unitel.laoads.domain.common.LaoadsException;
-import com.unitel.laoads.domain.common.Texts;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,12 +11,14 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** Danh mục đầu số + cấu hình gửi tin. Đọc: mọi user đăng nhập; ghi: SUPER_ADMIN (kiểm tra ở controller). */
+/**
+ * Chính sách gửi tin chung (retry, hoàn tài nguyên, khung giờ không gửi, ngôn ngữ mặc định).
+ * Đọc: mọi user đăng nhập; ghi: SUPER_ADMIN (kiểm tra ở controller). Đầu số: xem {@link SenderNumberService}.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -26,61 +26,9 @@ public class SettingsService {
 
     static final String PREFIX = "notification.";
     private static final Pattern HH_MM = Pattern.compile("^([01]\\d|2[0-3]):[0-5]\\d$");
-    private static final Pattern SENDER_CODE = Pattern.compile("^[A-Za-z0-9_]{2,32}$");
     private static final Set<String> LANGUAGES = Set.of("LO", "EN", "VI");
 
-    private final SenderNumberRepository senderRepo;
     private final AppSettingRepository settingRepo;
-
-    // ───────────── Đầu số ─────────────
-
-    @Transactional(readOnly = true)
-    public List<SenderNumber> listSenders() {
-        return senderRepo.findAllByOrderByIdAsc();
-    }
-
-    @Transactional
-    public SenderNumber createSender(String code, SenderKind kind, String description, boolean enabled, String actor) {
-        String c = normalizeCode(code);
-        if (senderRepo.existsByCode(c)) {
-            throw new LaoadsException(ErrorCode.SENDER_CODE_DUPLICATE, "Đầu số đã tồn tại");
-        }
-        SenderNumber s = new SenderNumber();
-        s.setCode(c);
-        s.setKind(kind);
-        s.setDescription(Texts.trimToNull(description));
-        s.setEnabled(enabled);
-        s.setCreatedAt(Instant.now());
-        s.setCreatedBy(actor);
-        return senderRepo.save(s);
-    }
-
-    @Transactional
-    public SenderNumber updateSender(long id, String code, SenderKind kind, String description, boolean enabled,
-                                     String actor) {
-        SenderNumber s = senderRepo.findById(id).orElseThrow(() ->
-                LaoadsException.notFound("error.notFound.senderNumber", "Không tìm thấy đầu số", id));
-        String c = normalizeCode(code);
-        if (senderRepo.existsByCodeAndIdNot(c, id)) {
-            throw new LaoadsException(ErrorCode.SENDER_CODE_DUPLICATE, "Đầu số đã tồn tại");
-        }
-        s.setCode(c);
-        s.setKind(kind);
-        s.setDescription(Texts.trimToNull(description));
-        s.setEnabled(enabled);
-        s.setUpdatedAt(Instant.now());
-        s.setUpdatedBy(actor);
-        return s;
-    }
-
-    private static String normalizeCode(String code) {
-        String c = code == null ? "" : code.trim().toUpperCase(Locale.ROOT);
-        if (!SENDER_CODE.matcher(c).matches()) {
-            throw LaoadsException.validation(List.of(new FieldViolation("code", "error.validation.invalidValue",
-                    "Giá trị không hợp lệ")));
-        }
-        return c;
-    }
 
     // ───────────── Cấu hình gửi tin ─────────────
 

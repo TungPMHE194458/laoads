@@ -19,6 +19,8 @@ import com.unitel.laoads.domain.pricing.PriceQuoteItem;
 import com.unitel.laoads.domain.pricing.PriceQuoteService;
 import com.unitel.laoads.domain.segment.Segment;
 import com.unitel.laoads.domain.segment.SegmentRepository;
+import com.unitel.laoads.domain.settings.SenderNumber;
+import com.unitel.laoads.domain.settings.SenderNumberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -63,11 +65,14 @@ public class CampaignService {
     private static final Set<Status> DELETABLE = EnumSet.of(Status.DRAFT, Status.REJECTED, Status.CANCELLED);
     private static final Set<Status> CANCELLABLE =
             EnumSet.of(Status.PENDING_APPROVAL, Status.SCHEDULED, Status.RUNNING, Status.PAUSED);
+    /** Chiến dịch còn có thể gửi tin: gồm cả Nháp / Bị từ chối vì vẫn sửa và gửi duyệt lại được. */
+    private static final Set<Status> NOT_FINISHED = EnumSet.complementOf(EnumSet.of(Status.COMPLETED, Status.CANCELLED));
 
     private final CampaignRepository repo;
     private final CampaignHistoryRepository historyRepo;
     private final CampaignGroupRepository groupRepo;
     private final SegmentRepository segmentRepo;
+    private final SenderNumberRepository senderRepo;
     private final PriceQuoteService priceQuoteService;
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
@@ -100,6 +105,29 @@ public class CampaignService {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("DEFINITION_JSON hỏng ở chiến dịch #" + c.getId(), e);
         }
+    }
+
+    /**
+     * Mã các chiến dịch chưa kết thúc (mọi workspace) có hành động gửi bằng đầu số này — chặn xoá đầu số.
+     * Đầu số được tham chiếu bằng mã trong DEFINITION_JSON, không có khoá ngoại.
+     */
+    @Transactional(readOnly = true)
+    public List<String> codesUsingSender(String senderCode) {
+        return repo.findByStatusIn(NOT_FINISHED).stream()
+                .filter(c -> {
+                    if (c.getDefinitionJson() == null) {
+                        return false;
+                    }
+                    try {
+                        return definitionOf(c).usesSender(senderCode);
+                    } catch (IllegalStateException e) {
+                        log.warn("[SENDER] bỏ qua chiến dịch #{} khi kiểm tra đầu số: {}", c.getId(), e.getMessage());
+                        return false;
+                    }
+                })
+                .map(Campaign::getCode)
+                .sorted()
+                .toList();
     }
 
     /** Tên nhóm / tệp KH cho danh sách chiến dịch (tránh N+1). */
@@ -393,6 +421,9 @@ public class CampaignService {
             errors.add(new FieldViolation("actionGroups", "error.validation.noAction", "Cần ít nhất một hành động"));
         } else {
             validateGroups(def, errors);
+            if (strict) {
+                validateSenders(ws, def, errors);
+            }
             if (in.type() != Type.EVENT) {
                 validateSchedule(def.schedule(), errors);
             }
@@ -416,6 +447,45 @@ public class CampaignService {
         }
         int target = targetCount(in, segment, isdns);
         return new Validated(segment, isdns, target, channelsOf(def));
+    }
+
+    /**
+     * Khi gửi duyệt: hành động SMS phải chọn đầu số; đầu số đã chọn phải tồn tại, đang bật, hỗ trợ kênh của hành động
+     * và workspace được phép dùng (cấu hình ở trang Cấu hình gửi tin).
+     */
+    private void validateSenders(long ws, CampaignDefinition def, List<FieldViolation> errors) {
+        Map<String, SenderNumber> senders = null;
+        for (int gi = 0; gi < def.groups().size(); gi++) {
+            ActionGroupDef g = def.groups().get(gi);
+            if (g.isControl() || g.actions() == null) {
+                continue;
+            }
+            for (int ai = 0; ai < g.actions().size(); ai++) {
+                ActionDef a = g.actions().get(ai);
+                if (a.type() == null) {
+                    continue;
+                }
+                String path = "actionGroups[" + gi + "].actions[" + ai + "].senderId";
+                String code = a.senderId() == null || a.senderId().isBlank() ? null
+                        : a.senderId().trim().toUpperCase(Locale.ROOT);
+                if (code == null) {
+                    if (a.type() == ActionType.NOTIFICATION_SMS) {
+                        errors.add(new FieldViolation(path, "error.validation.senderRequired",
+                                "Hành động SMS cần chọn đầu số gửi"));
+                    }
+                    continue;
+                }
+                if (senders == null) {
+                    senders = senderRepo.findAll().stream().collect(Collectors.toMap(
+                            s -> s.getCode().toUpperCase(Locale.ROOT), s -> s, (x, y) -> x));
+                }
+                SenderNumber s = senders.get(code);
+                if (s == null || !s.isEnabled() || !s.allowedFor(ws) || !s.supports(a.channel())) {
+                    errors.add(new FieldViolation(path, "error.validation.senderUnavailable",
+                            "Đầu số " + code + " không dùng được cho hành động này", code));
+                }
+            }
+        }
     }
 
     private static void validateGroups(CampaignDefinition def, List<FieldViolation> errors) {

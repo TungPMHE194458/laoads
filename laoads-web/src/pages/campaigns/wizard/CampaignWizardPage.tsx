@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, FlaskConical, ListChecks, Plus, Rocket, Send, Users2, XCircle, Zap } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { CampaignDetail, CampaignInput, CampaignSchedule } from '@/api/types'
-import { useCampaign, useCampaignGroups, useCreateCampaignGroup, useNotificationSettings, useSaveCampaign, useSegments, useTestSend } from '@/features/campaign/api'
+import { useAvailableSenders, useCampaign, useCampaignGroups, useCreateCampaignGroup, useNotificationSettings, useSaveCampaign, useSegments, useTestSend } from '@/features/campaign/api'
 import { useActivePriceQuote } from '@/features/price/api'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Field, FormDialog } from '@/components/common/dialogs'
@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { fmtKip, fmtNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ActionsStep, newGroup, validateActions } from './ActionsStep'
-import { ACTION_CHANNEL, EVENT_TEMPLATES } from './actionMeta'
+import { ACTION_CHANNEL, EVENT_TEMPLATES, withDefaultSender } from './actionMeta'
 
 const STEPS = ['basics', 'audience', 'actions', 'schedule', 'goal', 'review'] as const
 type Step = (typeof STEPS)[number]
@@ -124,6 +124,10 @@ export default function CampaignWizardPage() {
   const save = useSaveCampaign()
   const testSend = useTestSend()
   const [testList, setTestList] = React.useState('')
+  // Hành động SMS chưa chọn đầu số dùng đầu số SMS đầu tiên workspace được dùng (điền khi kiểm tra / lưu / bắn thử)
+  const smsSenders = useAvailableSenders('SMS')
+  const defaultSms = smsSenders.data?.[0]?.code ?? null
+  const actionGroups = withDefaultSender(draft.actionGroups, defaultSms)
 
   const set = <K extends keyof CampaignInput>(k: K, v: CampaignInput[K]) => setDraft((d) => ({ ...d, [k]: v }))
   const setSchedule = (p: Partial<CampaignSchedule>) => setDraft((d) => ({ ...d, schedule: { ...d.schedule, ...p } }))
@@ -137,7 +141,7 @@ export default function CampaignWizardPage() {
   const validate = (s: Step): string | null => {
     if (s === 'basics') return draft.name.trim().length < 3 ? 'campaign.wizard.err.name' : null
     if (s === 'audience') return !draft.segmentId ? 'campaign.wizard.err.segment' : null
-    if (s === 'actions') return validateActions(draft.actionGroups)
+    if (s === 'actions') return validateActions(actionGroups)
     if (s === 'schedule') {
       if (draft.schedule.type !== 'NOW' && !draft.schedule.startAt) return 'campaign.wizard.err.start'
       if (draft.schedule.endAt && draft.schedule.startAt && draft.schedule.endAt <= draft.schedule.startAt) return 'campaign.wizard.err.endBeforeStart'
@@ -169,6 +173,7 @@ export default function CampaignWizardPage() {
     const channels = [...new Set(draft.actionGroups.flatMap((g) => g.actions.map((a) => ACTION_CHANNEL[a.type]).filter(Boolean)))] as CampaignInput['channels']
     const payload: CampaignInput = {
       ...draft,
+      actionGroups,
       channels,
       targetCount: target,
       startAt: draft.schedule.type === 'NOW' ? new Date().toISOString() : draft.schedule.startAt,
@@ -292,7 +297,7 @@ export default function CampaignWizardPage() {
                 </div>
               )}
 
-              {step === 'actions' && <ActionsStep groups={draft.actionGroups} onChange={(g) => set('actionGroups', g)} />}
+              {step === 'actions' && <ActionsStep groups={draft.actionGroups} defaultSms={defaultSms} onChange={(g) => set('actionGroups', g)} />}
 
               {step === 'schedule' && (
                 <div className="grid gap-6">
@@ -443,7 +448,7 @@ export default function CampaignWizardPage() {
                         variant="outline"
                         loading={testSend.isPending}
                         disabled={!testList.trim()}
-                        onClick={() => testSend.mutate({ id: editId ?? undefined, isdns: testList.split(/[\s,;]+/).filter(Boolean).slice(0, 10), actions: draft.actionGroups.find((g) => !g.isControl)?.actions })}
+                        onClick={() => testSend.mutate({ id: editId ?? undefined, isdns: testList.split(/[\s,;]+/).filter(Boolean).slice(0, 10), actions: actionGroups.find((g) => !g.isControl)?.actions })}
                       >
                         {t('campaign.wizard.sendTest')}
                       </Button>

@@ -534,12 +534,17 @@
         "amount": "Hành động ưu đãi cần số lượng lớn hơn 0.",
         "start": "Vui lòng chọn thời gian bắt đầu.",
         "endBeforeStart": "Thời gian kết thúc phải sau thời gian bắt đầu.",
-        "budget": "Ngân sách tối đa thấp hơn chi phí dự kiến."
+        "budget": "Ngân sách tối đa thấp hơn chi phí dự kiến.",
+        "sender": "Có hành động SMS chưa chọn đầu số gửi."
       },
       "trackLinks": "Theo dõi click link (thay link trong nội dung bằng link tracking)",
       "newGroup": "Tạo nhóm chiến dịch",
       "createGroup": "Tạo nhóm",
-      "groupCreated": "Đã tạo nhóm chiến dịch"
+      "groupCreated": "Đã tạo nhóm chiến dịch",
+      "senderNone": "Không chọn (gateway mặc định)",
+      "senderUnavailable": "không còn dùng được",
+      "senderUnavailableHint": "Đầu số này đã tắt, bị xoá hoặc workspace không còn được dùng — hãy chọn đầu số khác.",
+      "noSender": "Workspace chưa được cấp đầu số nào cho kênh này — liên hệ Super Admin."
     }
   },
   "approval": {
@@ -697,7 +702,8 @@
     "RESUME": "Tiếp tục",
     "CANCEL": "Huỷ",
     "EXPORT": "Xuất dữ liệu",
-    "CHANGE_PASSWORD": "Đổi mật khẩu"
+    "CHANGE_PASSWORD": "Đổi mật khẩu",
+    "TEST": "Kiểm tra"
   },
   "auditEntity": {
     "AUTH": "Đăng nhập",
@@ -753,8 +759,7 @@
   },
   "sending": {
     "desc": "Đầu số gửi tin, cơ chế gửi lại và khung giờ không làm phiền mặc định.",
-    "senders": "Đầu số & brandname",
-    "sendersDesc": "Danh mục đầu số Unitel dùng khi cấu hình hành động gửi SMS.",
+    "sendersDesc": "Danh mục đầu số / brandname Unitel dùng cho hành động gửi SMS và USSD. Bấm vào một dòng để cấu hình chi tiết.",
     "addSender": "Thêm đầu số",
     "code": "Đầu số / brandname",
     "kindLabel": "Loại",
@@ -770,7 +775,126 @@
     "retryInterval": "Khoảng cách giữa các lần (phút)",
     "refund": "Hoàn tài nguyên đã trừ khi gửi thất bại",
     "silentDefault": "Bật khung giờ không gửi mặc định",
-    "defaultLang": "Ngôn ngữ nội dung mặc định"
+    "defaultLang": "Ngôn ngữ nội dung mặc định",
+    "deleteSender": "Xoá đầu số",
+    "deleteTitle": "Xoá đầu số {{code}}?",
+    "deleteDesc": "Chiến dịch đã kết thúc vẫn giữ mã này trong lịch sử. Nếu còn chiến dịch chưa kết thúc dùng đầu số này, hệ thống sẽ từ chối. Khi đó hãy tắt đầu số thay vì xoá.",
+    "tabs": {
+      "senders": "Đầu số",
+      "policy": "Chính sách gửi chung"
+    },
+    "searchPh": "Tìm mã hoặc mô tả đầu số",
+    "allKinds": "Tất cả loại",
+    "allChannels": "Tất cả kênh",
+    "col": {
+      "code": "Đầu số",
+      "description": "Mô tả",
+      "channels": "Kênh",
+      "connection": "Kết nối",
+      "scope": "Phạm vi",
+      "today": "Hôm nay",
+      "policy": "Chính sách",
+      "enabled": "Bật"
+    },
+    "notConfigured": "Chưa cấu hình",
+    "policyCustom": "Riêng",
+    "policyDefault": "Mặc định",
+    "status": {
+      "enabled": "Đang bật",
+      "disabled": "Đang tắt"
+    },
+    "toggledOn": "Đã bật đầu số {{code}}",
+    "toggledOff": "Đã tắt đầu số {{code}}",
+    "policyOverrideNote": "Từng đầu số có thể ghi đè chính sách này trong tab Đầu số → Chính sách.",
+    "codeHint": "2–32 ký tự: chữ, số hoặc gạch dưới; tự viết hoa.",
+    "description": "Mô tả",
+    "channels": "Kênh sử dụng",
+    "channelsHint": "Brandname chỉ dùng cho SMS.",
+    "enabledLabel": "Đang bật",
+    "enabledHint": "Đầu số tắt sẽ không hiện khi tạo chiến dịch; tin của chiến dịch đang chạy dùng đầu số này được hoãn lại cho tới khi bật lại.",
+    "sentToday": "Đã gửi hôm nay",
+    "unlimited": "Không giới hạn",
+    "sheet": {
+      "newTitle": "Thêm đầu số",
+      "newDesc": "Khai báo đầu số và cấu hình gửi tin riêng cho đầu số.",
+      "created": "Đã thêm đầu số {{code}}",
+      "unsaved": "Có thay đổi chưa lưu",
+      "tab": {
+        "info": "Thông tin",
+        "connection": "Kết nối",
+        "scope": "Phạm vi",
+        "policy": "Chính sách"
+      }
+    },
+    "protocol": {
+      "NONE": "Chưa cấu hình",
+      "SMPP": "SMPP",
+      "HTTP": "HTTP API",
+      "NONE_desc": "Dùng gateway mặc định của hệ thống",
+      "SMPP_desc": "Kết nối SMSC qua SMPP 3.4 (bind transceiver)",
+      "HTTP_desc": "Gọi API HTTP của nhà cung cấp"
+    },
+    "conn": {
+      "host": "Host / IP SMSC",
+      "port": "Port",
+      "systemId": "System ID",
+      "systemIdHint": "Tối đa 15 ký tự.",
+      "systemType": "System type",
+      "password": "Mật khẩu",
+      "smppPasswordHint": "SMPP 3.4: tối đa 8 ký tự.",
+      "url": "URL API",
+      "username": "Tài khoản",
+      "token": "Mật khẩu / token",
+      "tps": "Tốc độ tối đa (tin/giây)",
+      "tpsHint": "Để trống = không giới hạn.",
+      "noneNote": "Đầu số gửi qua gateway mặc định của hệ thống. Chọn SMPP hoặc HTTP API để cấu hình kết nối riêng cho đầu số này.",
+      "lastTest": "Kiểm tra gần nhất",
+      "neverTested": "Chưa kiểm tra",
+      "test": "Kiểm tra kết nối",
+      "testCreateFirst": "Lưu đầu số trước rồi mới kiểm tra kết nối.",
+      "testSaveFirst": "Lưu thay đổi trước khi kiểm tra — hệ thống kiểm tra cấu hình đã lưu.",
+      "latency": "{{ms}} ms",
+      "simulatedNote": "Gateway gửi tin hiện đang chạy giả lập: cấu hình được lưu và kiểm tra kết nối thật, nhưng tin chỉ gửi qua cấu hình này khi có adapter thật.",
+      "passwordSaved": "Đã lưu — để trống để giữ nguyên",
+      "passwordWillClear": "Mật khẩu đã lưu sẽ bị xoá khi lưu.",
+      "undo": "Hoàn tác",
+      "clearPassword": "Xoá mật khẩu đã lưu"
+    },
+    "test": {
+      "OK": "Kết nối thành công",
+      "TIMEOUT": "Hết thời gian chờ",
+      "REFUSED": "Bị từ chối kết nối",
+      "UNKNOWN_HOST": "Không phân giải được host",
+      "AUTH_FAILED": "Sai tài khoản hoặc mật khẩu",
+      "REJECTED": "Gateway từ chối",
+      "PROTOCOL_ERROR": "Phản hồi sai giao thức",
+      "ERROR": "Lỗi kết nối"
+    },
+    "scope": {
+      "allShort": "Tất cả workspace",
+      "count": "{{count}} workspace",
+      "all": "Tất cả workspace",
+      "all_desc": "Mọi workspace hiện có và tạo sau này đều dùng được đầu số.",
+      "selected": "Chỉ workspace được chọn",
+      "selected_desc": "Chỉ các workspace đánh dấu bên dưới thấy đầu số khi tạo chiến dịch.",
+      "pick": "Workspace được dùng",
+      "selectedCount": "Đã chọn {{count}}",
+      "empty": "Chưa có workspace nào."
+    },
+    "pol": {
+      "note": "Để mặc định thì đầu số theo chính sách gửi chung. Thứ tự ưu tiên khung giờ không gửi: chiến dịch (nếu chiến dịch tự bật) → đầu số → chính sách chung.",
+      "inherit": "Theo chính sách chung: {{value}}",
+      "custom": "Riêng",
+      "globalSilentOff": "đang tắt",
+      "silentMode": {
+        "INHERIT": "Theo chính sách chung",
+        "CUSTOM": "Khung giờ riêng",
+        "OFF": "Không chặn giờ gửi"
+      },
+      "silentOffWarn": "Tin qua đầu số này có thể gửi cả ban đêm (trừ khi chiến dịch tự đặt khung giờ không gửi).",
+      "dailyLimit": "Giới hạn tin mỗi ngày",
+      "dailyLimitHint": "Để trống = không giới hạn. Vượt giới hạn, tin dời sang 00:00 ngày kế tiếp (giờ Lào)."
+    }
   },
   "adminDash": {
     "title": "Toàn hệ thống",

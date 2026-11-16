@@ -278,13 +278,30 @@ export function audit(actor: string, actionType: string, entityType: string, ent
 ].reverse().forEach(([a, t, e, id, s, w, d]) => audit(a as string, t as string, e as string, id as string | null, s as string, w as number | null, daysAgo(d as number, rint(8, 17))))
 
 // ── Cài đặt gửi tin ──
+const noGateway = (): SenderNumber['gateway'] => ({ protocol: 'NONE', host: null, port: null, systemType: null, url: null, username: null, hasPassword: false, tps: null, lastTest: null })
+const noPolicy = (): SenderNumber['policy'] => ({ retryMaxAttempts: null, retryIntervalMinutes: null, silentHoursEnabled: null, silentFrom: null, silentTo: null, dailyLimit: null })
+const senderMeta = (d: number) => ({ createdAt: daysAgo(d), createdBy: 'flyway', updatedAt: null, updatedBy: null })
 export const senders: SenderNumber[] = [
-  { id: 1, code: '118', kind: 'SHORTCODE', description: 'Đầu số CSKH chính', enabled: true },
-  { id: 2, code: '209', kind: 'SHORTCODE', description: 'Đầu số khuyến mãi', enabled: true },
-  { id: 3, code: 'UNITEL', kind: 'BRANDNAME', description: 'Brandname chính thức', enabled: true },
-  { id: 4, code: 'UNITEL_LOGS', kind: 'BRANDNAME', description: 'Thông báo hệ thống/kỹ thuật', enabled: false },
-  { id: 5, code: '1555', kind: 'SHORTCODE', description: 'Dịch vụ giá trị gia tăng', enabled: true },
+  {
+    id: 1, code: '118', kind: 'SHORTCODE', description: 'Đầu số CSKH chính', enabled: true, channels: ['SMS', 'USSD'], allWorkspaces: true, workspaceIds: [],
+    gateway: { protocol: 'SMPP', host: 'smsc1.unitel.com.la', port: 2775, systemType: 'CMT', url: null, username: 'laoads118', hasPassword: true, tps: 200, lastTest: { ok: true, code: 'OK', detail: 'bind_transceiver OK', latencyMs: 42, testedAt: daysAgo(2, 14) } },
+    policy: noPolicy(), sentToday: 12_840, ...senderMeta(120),
+  },
+  {
+    id: 2, code: '209', kind: 'SHORTCODE', description: 'Đầu số khuyến mãi', enabled: true, channels: ['SMS'], allWorkspaces: true, workspaceIds: [],
+    gateway: { protocol: 'HTTP', host: null, port: null, systemType: null, url: 'https://sms-api.unitel.com.la/v1/send', username: 'laoads', hasPassword: true, tps: 100, lastTest: { ok: false, code: 'AUTH_FAILED', detail: 'HTTP 401', latencyMs: 118, testedAt: daysAgo(1, 10) } },
+    policy: { retryMaxAttempts: 5, retryIntervalMinutes: 15, silentHoursEnabled: true, silentFrom: '20:00', silentTo: '08:00', dailyLimit: 50_000 }, sentToday: 3_210, ...senderMeta(120),
+  },
+  { id: 3, code: 'UNITEL', kind: 'BRANDNAME', description: 'Brandname chính thức', enabled: true, channels: ['SMS'], allWorkspaces: true, workspaceIds: [], gateway: noGateway(), policy: noPolicy(), sentToday: 0, ...senderMeta(120) },
+  { id: 4, code: 'UNITEL_LOGS', kind: 'BRANDNAME', description: 'Thông báo hệ thống/kỹ thuật', enabled: false, channels: ['SMS'], allWorkspaces: false, workspaceIds: [1], gateway: noGateway(), policy: noPolicy(), sentToday: 0, ...senderMeta(120) },
+  {
+    id: 5, code: '1555', kind: 'SHORTCODE', description: 'Dịch vụ giá trị gia tăng', enabled: true, channels: ['SMS', 'USSD'], allWorkspaces: false, workspaceIds: [1],
+    gateway: { protocol: 'SMPP', host: '127.0.0.1', port: 2776, systemType: null, url: null, username: 'vas1555', hasPassword: false, tps: 50, lastTest: null },
+    policy: { ...noPolicy(), silentHoursEnabled: false, dailyLimit: 20_000 }, sentToday: 950, ...senderMeta(60),
+  },
 ]
+/** Mật khẩu kết nối của mock — lưu riêng, không bao giờ trả về FE (giống BE). */
+export const senderPasswords: Record<number, string> = { 1: 'smpp118', 2: 'api-secret' }
 export const senderSeq = { v: 5 }
 export const notificationSettings: NotificationSettings = {
   retryMaxAttempts: 3,

@@ -24,6 +24,8 @@ tags:
   description: Thành viên workspace
 - name: price-quote
   description: Bảng giá (Quản lý chi phí)
+- name: sender-number
+  description: Đầu số gửi tin và cấu hình từng đầu số
 - name: segment
   description: Tệp khách hàng
 - name: auth
@@ -160,11 +162,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiResponseMemberDto"
   /v1/settings/sender-numbers/{id}:
+    get:
+      tags:
+      - sender-number
+      summary: Chi tiết đầu số
+      operationId: get_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSenderDto"
     put:
       tags:
-      - settings
-      summary: Sửa / bật / tắt đầu số
-      operationId: updateSender
+      - sender-number
+      summary: Sửa đầu số và cấu hình
+      description: gateway.password bỏ trống = giữ mật khẩu đã lưu.
+      operationId: update_1
       parameters:
       - name: id
         in: path
@@ -185,7 +216,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SenderNumberRequest"
+              $ref: "#/components/schemas/SenderRequest"
         required: true
       responses:
         "200":
@@ -193,7 +224,37 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseSenderNumberDto"
+                $ref: "#/components/schemas/ApiResponseSenderDto"
+    delete:
+      tags:
+      - sender-number
+      summary: Xoá đầu số
+      description: "Còn chiến dịch chưa kết thúc / huỷ (kể cả Nháp, Bị từ chối) dù\
+        ng đầu số → 409 SENDER_IN_USE; khi đó tắt đầu số thay vì xoá."
+      operationId: delete
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSenderDto"
   /v1/settings/notification:
     get:
       tags:
@@ -251,7 +312,7 @@ paths:
       tags:
       - price-quote
       summary: Chi tiết bảng giá
-      operationId: get_1
+      operationId: get_2
       parameters:
       - name: id
         in: path
@@ -280,7 +341,7 @@ paths:
       - price-quote
       summary: Sửa bảng giá — chỉ DRAFT
       description: Không phải DRAFT → 409 PRICE_QUOTE_NOT_DRAFT.
-      operationId: update_1
+      operationId: update_2
       parameters:
       - name: id
         in: path
@@ -315,7 +376,7 @@ paths:
       - price-quote
       summary: Xoá bảng giá — chỉ DRAFT
       description: Không phải DRAFT → 409 PRICE_QUOTE_NOT_DRAFT.
-      operationId: delete
+      operationId: delete_1
       parameters:
       - name: id
         in: path
@@ -344,7 +405,7 @@ paths:
       tags:
       - campaign
       summary: Chi tiết chiến dịch (cấu hình + lịch sử)
-      operationId: get_2
+      operationId: get_3
       parameters:
       - name: id
         in: path
@@ -380,7 +441,7 @@ paths:
       - campaign
       summary: Sửa chiến dịch Nháp / Bị từ chối
       description: Trạng thái khác → 409 CAMPAIGN_LOCKED.
-      operationId: update_2
+      operationId: update_3
       parameters:
       - name: id
         in: path
@@ -427,7 +488,7 @@ paths:
       tags:
       - campaign
       summary: Xoá chiến dịch Nháp / Bị từ chối / Đã huỷ
-      operationId: delete_1
+      operationId: delete_2
       parameters:
       - name: id
         in: path
@@ -505,7 +566,7 @@ paths:
       - campaign-group
       summary: Xoá nhóm trống
       description: Còn chiến dịch → 409 GROUP_IN_USE.
-      operationId: delete_2
+      operationId: delete_3
       parameters:
       - name: id
         in: path
@@ -542,7 +603,7 @@ paths:
       - admin-user
       summary: Cập nhật user
       description: Tự đổi systemRole của mình → 400 CANNOT_CHANGE_SELF.
-      operationId: update_3
+      operationId: update_4
       parameters:
       - name: id
         in: path
@@ -731,7 +792,7 @@ paths:
       tags:
       - workspace-api-key
       summary: Trạng thái API key (chỉ 4 ký tự cuối)
-      operationId: get_3
+      operationId: get_4
       parameters:
       - name: id
         in: path
@@ -836,9 +897,10 @@ paths:
   /v1/settings/sender-numbers:
     get:
       tags:
-      - settings
-      summary: Danh mục đầu số gửi SMS
-      operationId: senders
+      - sender-number
+      summary: Danh sách đầu số kèm cấu hình
+      description: Kèm số tin đã gửi hôm nay (giờ Lào).
+      operationId: list_1
       parameters:
       - name: Accept-Language
         in: header
@@ -855,13 +917,13 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseListSenderNumberDto"
+                $ref: "#/components/schemas/ApiResponseListSenderDto"
     post:
       tags:
-      - settings
+      - sender-number
       summary: Thêm đầu số
-      description: Trùng mã → 409 SENDER_CODE_DUPLICATE.
-      operationId: createSender
+      description: Trùng mã → 409 SENDER_CODE_DUPLICATE; dữ liệu sai → 400 VALIDATION_ERROR.
+      operationId: create
       parameters:
       - name: Accept-Language
         in: header
@@ -876,7 +938,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SenderNumberRequest"
+              $ref: "#/components/schemas/SenderRequest"
         required: true
       responses:
         "200":
@@ -884,13 +946,44 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseSenderNumberDto"
+                $ref: "#/components/schemas/ApiResponseSenderDto"
+  /v1/settings/sender-numbers/{id}/test-connection:
+    post:
+      tags:
+      - sender-number
+      summary: Kiểm tra kết nối gateway theo cấu hình đã lưu
+      description: "SMPP: bind_transceiver rồi unbind; HTTP: GET URL. Chưa cấu hì\
+        nh → 400 VALIDATION_ERROR."
+      operationId: testConnection
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTestResultDto"
   /v1/segments:
     get:
       tags:
       - segment
       summary: Danh sách tệp khách hàng
-      operationId: list_1
+      operationId: list_2
       parameters:
       - name: page
         in: query
@@ -957,7 +1050,7 @@ paths:
       - segment
       summary: Tạo tệp từ thuộc tính (QUERY) — build bất đồng bộ
       description: Trùng tên → 409 SEGMENT_NAME_DUPLICATE.
-      operationId: create
+      operationId: create_1
       parameters:
       - name: X-Workspace-Id
         in: header
@@ -1117,7 +1210,7 @@ paths:
       tags:
       - price-quote
       summary: Danh sách bảng giá (createdAt giảm dần)
-      operationId: list_2
+      operationId: list_3
       parameters:
       - name: page
         in: query
@@ -1160,7 +1253,7 @@ paths:
       tags:
       - price-quote
       summary: Tạo bảng giá DRAFT
-      operationId: create_1
+      operationId: create_2
       parameters:
       - name: Accept-Language
         in: header
@@ -1255,7 +1348,7 @@ paths:
       tags:
       - campaign
       summary: Danh sách chiến dịch
-      operationId: list_3
+      operationId: list_4
       parameters:
       - name: page
         in: query
@@ -1329,7 +1422,7 @@ paths:
       tags:
       - campaign
       summary: "Tạo chiến dịch (submit=true: gửi duyệt luôn)"
-      operationId: create_2
+      operationId: create_3
       parameters:
       - name: submit
         in: query
@@ -1634,7 +1727,7 @@ paths:
       tags:
       - campaign-group
       summary: Danh sách nhóm (kèm số chiến dịch / đang chạy)
-      operationId: list_4
+      operationId: list_5
       parameters:
       - name: X-Workspace-Id
         in: header
@@ -1664,7 +1757,7 @@ paths:
       - campaign-group
       summary: Tạo nhóm
       description: Trùng tên → 409 GROUP_NAME_DUPLICATE.
-      operationId: create_3
+      operationId: create_4
       parameters:
       - name: X-Workspace-Id
         in: header
@@ -1934,7 +2027,7 @@ paths:
       - admin-workspace
       summary: "Danh sách workspace (tìm theo code/tên), sắp xếp createdAt giảm dầ\
         n"
-      operationId: list_5
+      operationId: list_6
       parameters:
       - name: page
         in: query
@@ -1983,7 +2076,7 @@ paths:
       summary: Tạo workspace + gán OWNER
       description: Trùng code → 409 WORKSPACE_CODE_DUPLICATE; ownerUsername không
         tồn tại → 404 USER_NOT_FOUND.
-      operationId: create_4
+      operationId: create_5
       parameters:
       - name: Accept-Language
         in: header
@@ -2013,7 +2106,7 @@ paths:
       - admin-user
       summary: "Danh sách user — query tìm username/tên/email/SĐT, sắp xếp createdAt\
         \ giảm dần"
-      operationId: list_6
+      operationId: list_7
       parameters:
       - name: page
         in: query
@@ -2069,7 +2162,7 @@ paths:
       - admin-user
       summary: Tạo user
       description: Trùng username → 409 USERNAME_DUPLICATE.
-      operationId: create_5
+      operationId: create_6
       parameters:
       - name: Accept-Language
         in: header
@@ -2128,6 +2221,41 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
+  /v1/settings/sender-numbers/{id}/enabled:
+    patch:
+      tags:
+      - sender-number
+      summary: Bật / tắt đầu số
+      operationId: setEnabled
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnabledRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSenderDto"
   /v1/admin/workspaces/{id}/status:
     patch:
       tags:
@@ -2247,12 +2375,49 @@ paths:
       responses:
         "200":
           description: OK
+  /v1/settings/sender-numbers/available:
+    get:
+      tags:
+      - sender-number
+      summary: Đầu số workspace hiện tại được dùng
+      description: "Chỉ đầu số đang bật, trong phạm vi workspace và hỗ trợ kênh (bỏ\
+        \ trống = mọi kênh)."
+      operationId: available
+      parameters:
+      - name: channel
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListAvailableSenderDto"
   /v1/segments/{id}:
     get:
       tags:
       - segment
       summary: Chi tiết tệp khách hàng
-      operationId: get_4
+      operationId: get_5
       parameters:
       - name: id
         in: path
@@ -2600,7 +2765,7 @@ paths:
       tags:
       - campaign-approval
       summary: Chiến dịch chờ duyệt
-      operationId: list_7
+      operationId: list_8
       parameters:
       - name: page
         in: query
@@ -2681,7 +2846,7 @@ paths:
       summary: Tra cứu nhật ký
       description: "from/to: yyyy-MM-dd (giờ Lào, to tính hết ngày) hoặc ISO-8601.\
         \ actor tìm 'chứa'. workspaceId chỉ có tác dụng với SUPER_ADMIN."
-      operationId: list_8
+      operationId: list_9
       parameters:
       - name: page
         in: query
@@ -2866,7 +3031,7 @@ paths:
       - admin-dashboard
       summary: "Workspace hoạt động, tổng người dùng, chiến dịch, top workspace theo\
         \ số chiến dịch"
-      operationId: get_5
+      operationId: get_6
       parameters:
       - name: periodDays
         in: query
@@ -3120,7 +3285,48 @@ components:
         joinedAt:
           type: string
           format: date-time
-    SenderNumberRequest:
+    GatewayRequest:
+      type: object
+      properties:
+        protocol:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+          format: int32
+        systemType:
+          type: string
+        url:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        clearPassword:
+          type: boolean
+        tps:
+          type: integer
+          format: int32
+    PolicyDto:
+      type: object
+      properties:
+        retryMaxAttempts:
+          type: integer
+          format: int32
+        retryIntervalMinutes:
+          type: integer
+          format: int32
+        silentHoursEnabled:
+          type: boolean
+        silentFrom:
+          type: string
+        silentTo:
+          type: string
+        dailyLimit:
+          type: integer
+          format: int64
+    SenderRequest:
       type: object
       properties:
         code:
@@ -3138,16 +3344,31 @@ components:
           minLength: 0
         enabled:
           type: boolean
+        channels:
+          type: array
+          items:
+            type: string
+        allWorkspaces:
+          type: boolean
+        workspaceIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        gateway:
+          $ref: "#/components/schemas/GatewayRequest"
+        policy:
+          $ref: "#/components/schemas/PolicyDto"
       required:
       - code
       - kind
-    ApiResponseSenderNumberDto:
+    ApiResponseSenderDto:
       type: object
       properties:
         success:
           type: boolean
         data:
-          $ref: "#/components/schemas/SenderNumberDto"
+          $ref: "#/components/schemas/SenderDto"
         message:
           type: string
         statusCode:
@@ -3160,7 +3381,30 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ApiFieldError"
-    SenderNumberDto:
+    GatewayDto:
+      type: object
+      properties:
+        protocol:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+          format: int32
+        systemType:
+          type: string
+        url:
+          type: string
+        username:
+          type: string
+        hasPassword:
+          type: boolean
+        tps:
+          type: integer
+          format: int32
+        lastTest:
+          $ref: "#/components/schemas/TestResultDto"
+    SenderDto:
       type: object
       properties:
         id:
@@ -3177,6 +3421,58 @@ components:
           type: string
         enabled:
           type: boolean
+        channels:
+          type: array
+          items:
+            type: string
+        allWorkspaces:
+          type: boolean
+        workspaceIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        gateway:
+          $ref: "#/components/schemas/GatewayDto"
+        policy:
+          $ref: "#/components/schemas/PolicyDto"
+        sentToday:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
+    TestResultDto:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        code:
+          type: string
+          enum:
+          - OK
+          - TIMEOUT
+          - REFUSED
+          - UNKNOWN_HOST
+          - AUTH_FAILED
+          - REJECTED
+          - PROTOCOL_ERROR
+          - ERROR
+        detail:
+          type: string
+        latencyMs:
+          type: integer
+          format: int64
+        testedAt:
+          type: string
+          format: date-time
     NotificationSettings:
       type: object
       properties:
@@ -3815,6 +4111,25 @@ components:
           format: date-time
         key:
           type: string
+    ApiResponseTestResultDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/TestResultDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
     CreateQueryRequest:
       type: object
       properties:
@@ -4281,6 +4596,13 @@ components:
           minLength: 6
       required:
       - newPassword
+    EnabledRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+      required:
+      - enabled
     WorkspaceStatusRequest:
       type: object
       properties:
@@ -4368,7 +4690,7 @@ components:
           type: array
           items:
             type: string
-    ApiResponseListSenderNumberDto:
+    ApiResponseListSenderDto:
       type: object
       properties:
         success:
@@ -4376,7 +4698,7 @@ components:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/SenderNumberDto"
+            $ref: "#/components/schemas/SenderDto"
         message:
           type: string
         statusCode:
@@ -4389,6 +4711,46 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ApiFieldError"
+    ApiResponseListAvailableSenderDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AvailableSenderDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    AvailableSenderDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        kind:
+          type: string
+          enum:
+          - SHORTCODE
+          - BRANDNAME
+        description:
+          type: string
+        channels:
+          type: array
+          items:
+            type: string
     ApiResponseListSegmentDto:
       type: object
       properties:

@@ -5,6 +5,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cleanParams, download, request, requestPage } from '@/api/client'
 import type {
+  AvailableSender,
   CampaignAction,
   CampaignDetail,
   CampaignGroup,
@@ -12,6 +13,7 @@ import type {
   CampaignReport,
   CampaignSummary,
   ChannelStat,
+  ConnectionTestResult,
   DashboardSummary,
   NotificationSettings,
   PageQuery,
@@ -19,7 +21,9 @@ import type {
   SegmentAttribute,
   SegmentCondition,
   SegmentMember,
+  SenderChannel,
   SenderNumber,
+  SenderNumberInput,
   TimePoint,
 } from '@/api/types'
 import { useUiStore } from '@/stores/ui'
@@ -212,16 +216,58 @@ export function useDeleteSegments() {
   })
 }
 
-// ───── Cài đặt gửi tin ─────
+// ───── Cài đặt gửi tin: đầu số (Super Admin) ─────
+// ['settings','senders'] = danh sách + chi tiết (Super Admin); ['senders','available', ws, channel] = wizard
+const invalidateSenders = (qc: ReturnType<typeof useQueryClient>) =>
+  Promise.all([qc.invalidateQueries({ queryKey: ['settings', 'senders'] }), qc.invalidateQueries({ queryKey: ['senders', 'available'] })])
+
 export function useSenderNumbers() {
   return useQuery({ queryKey: ['settings', 'senders'], queryFn: () => request<SenderNumber[]>({ url: '/settings/sender-numbers' }) })
+}
+export function useSenderNumber(id: number | null | undefined) {
+  return useQuery({
+    queryKey: ['settings', 'senders', id],
+    queryFn: () => request<SenderNumber>({ url: `/settings/sender-numbers/${id}` }),
+    enabled: id != null,
+  })
 }
 export function useSaveSender() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: Partial<SenderNumber> & { id?: number }) =>
+    mutationFn: ({ id, body }: { id?: number; body: SenderNumberInput }) =>
       request<SenderNumber>({ url: id ? `/settings/sender-numbers/${id}` : '/settings/sender-numbers', method: id ? 'PUT' : 'POST', data: body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings', 'senders'] }),
+    onSuccess: () => invalidateSenders(qc),
+  })
+}
+export function useToggleSender() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
+      request<SenderNumber>({ url: `/settings/sender-numbers/${id}/enabled`, method: 'PATCH', data: { enabled } }),
+    onSuccess: () => invalidateSenders(qc),
+  })
+}
+/** Còn chiến dịch chưa kết thúc dùng đầu số → 409 SENDER_IN_USE (message nêu mã chiến dịch). */
+export function useDeleteSender() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => request<SenderNumber>({ url: `/settings/sender-numbers/${id}`, method: 'DELETE' }),
+    onSuccess: () => invalidateSenders(qc),
+  })
+}
+/** Kiểm tra cấu hình kết nối ĐÃ LƯU; BE lưu kết quả vào gateway.lastTest. */
+export function useTestSenderConnection() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => request<ConnectionTestResult>({ url: `/settings/sender-numbers/${id}/test-connection`, method: 'POST' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['settings', 'senders'] }),
+  })
+}
+/** Đầu số workspace hiện tại được dùng, đang bật, hỗ trợ kênh (bỏ trống = mọi kênh). */
+export function useAvailableSenders(channel?: SenderChannel) {
+  return useQuery({
+    queryKey: ['senders', 'available', useWs(), channel ?? null],
+    queryFn: () => request<AvailableSender[]>({ url: '/settings/sender-numbers/available', params: cleanParams({ channel }) }),
   })
 }
 export function useNotificationSettings() {

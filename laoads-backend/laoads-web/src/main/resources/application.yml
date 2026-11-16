@@ -106,6 +106,12 @@ laoads:
     dispatch-batch: 500
     # Gốc URL công khai để dựng link tracking /api/v1/t/{token}
     public-base-url: ${LAOADS_PUBLIC_BASE_URL:http://localhost:5173}
+    # Thời gian chờ tối đa khi "Kiểm tra kết nối" gateway của đầu số (SMPP bind / HTTP GET)
+    gateway-probe-timeout: PT5S
+  # Khoá mã hoá bí mật lưu trong DB (mật khẩu gateway của đầu số). Bỏ trống → suy ra từ JWT secret (có cảnh báo):
+  # khi đó đổi LAOADS_JWT_SECRET sẽ phải nhập lại mật khẩu gateway. uat/prod nên đặt riêng (≥ 32 ký tự).
+  secrets:
+    key: ${LAOADS_SECRETS_KEY:}
   # SSO VSA (CAS 2.0) — tắt mặc định
   vsa:
     enabled: ${LAOADS_VSA_ENABLED:false}

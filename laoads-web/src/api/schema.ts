@@ -49,11 +49,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        /** Sửa / bật / tắt đầu số */
-        put: operations["updateSender"];
+        /** Chi tiết đầu số */
+        get: operations["get_1"];
+        /**
+         * Sửa đầu số và cấu hình
+         * @description gateway.password bỏ trống = giữ mật khẩu đã lưu.
+         */
+        put: operations["update_1"];
         post?: never;
-        delete?: never;
+        /**
+         * Xoá đầu số
+         * @description Còn chiến dịch chưa kết thúc / huỷ (kể cả Nháp, Bị từ chối) dùng đầu số → 409 SENDER_IN_USE; khi đó tắt đầu số thay vì xoá.
+         */
+        delete: operations["delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -85,18 +93,18 @@ export interface paths {
             cookie?: never;
         };
         /** Chi tiết bảng giá */
-        get: operations["get_1"];
+        get: operations["get_2"];
         /**
          * Sửa bảng giá — chỉ DRAFT
          * @description Không phải DRAFT → 409 PRICE_QUOTE_NOT_DRAFT.
          */
-        put: operations["update_1"];
+        put: operations["update_2"];
         post?: never;
         /**
          * Xoá bảng giá — chỉ DRAFT
          * @description Không phải DRAFT → 409 PRICE_QUOTE_NOT_DRAFT.
          */
-        delete: operations["delete"];
+        delete: operations["delete_1"];
         options?: never;
         head?: never;
         patch?: never;
@@ -110,15 +118,15 @@ export interface paths {
             cookie?: never;
         };
         /** Chi tiết chiến dịch (cấu hình + lịch sử) */
-        get: operations["get_2"];
+        get: operations["get_3"];
         /**
          * Sửa chiến dịch Nháp / Bị từ chối
          * @description Trạng thái khác → 409 CAMPAIGN_LOCKED.
          */
-        put: operations["update_2"];
+        put: operations["update_3"];
         post?: never;
         /** Xoá chiến dịch Nháp / Bị từ chối / Đã huỷ */
-        delete: operations["delete_1"];
+        delete: operations["delete_2"];
         options?: never;
         head?: never;
         patch?: never;
@@ -139,7 +147,7 @@ export interface paths {
          * Xoá nhóm trống
          * @description Còn chiến dịch → 409 GROUP_IN_USE.
          */
-        delete: operations["delete_2"];
+        delete: operations["delete_3"];
         options?: never;
         head?: never;
         patch?: never;
@@ -157,7 +165,7 @@ export interface paths {
          * Cập nhật user
          * @description Tự đổi systemRole của mình → 400 CANNOT_CHANGE_SELF.
          */
-        put: operations["update_3"];
+        put: operations["update_4"];
         post?: never;
         delete?: never;
         options?: never;
@@ -217,7 +225,7 @@ export interface paths {
             cookie?: never;
         };
         /** Trạng thái API key (chỉ 4 ký tự cuối) */
-        get: operations["get_3"];
+        get: operations["get_4"];
         put?: never;
         /** Tạo / xoay vòng API key (key cũ hết hiệu lực ngay) — trả key đầy đủ đúng 1 lần */
         post: operations["rotate"];
@@ -235,14 +243,37 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Danh mục đầu số gửi SMS */
-        get: operations["senders"];
+        /**
+         * Danh sách đầu số kèm cấu hình
+         * @description Kèm số tin đã gửi hôm nay (giờ Lào).
+         */
+        get: operations["list_1"];
         put?: never;
         /**
          * Thêm đầu số
-         * @description Trùng mã → 409 SENDER_CODE_DUPLICATE.
+         * @description Trùng mã → 409 SENDER_CODE_DUPLICATE; dữ liệu sai → 400 VALIDATION_ERROR.
          */
-        post: operations["createSender"];
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/settings/sender-numbers/{id}/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kiểm tra kết nối gateway theo cấu hình đã lưu
+         * @description SMPP: bind_transceiver rồi unbind; HTTP: GET URL. Chưa cấu hình → 400 VALIDATION_ERROR.
+         */
+        post: operations["testConnection"];
         delete?: never;
         options?: never;
         head?: never;
@@ -257,13 +288,13 @@ export interface paths {
             cookie?: never;
         };
         /** Danh sách tệp khách hàng */
-        get: operations["list_1"];
+        get: operations["list_2"];
         put?: never;
         /**
          * Tạo tệp từ thuộc tính (QUERY) — build bất đồng bộ
          * @description Trùng tên → 409 SEGMENT_NAME_DUPLICATE.
          */
-        post: operations["create"];
+        post: operations["create_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -329,10 +360,10 @@ export interface paths {
             cookie?: never;
         };
         /** Danh sách bảng giá (createdAt giảm dần) */
-        get: operations["list_2"];
+        get: operations["list_3"];
         put?: never;
         /** Tạo bảng giá DRAFT */
-        post: operations["create_1"];
+        post: operations["create_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -387,10 +418,10 @@ export interface paths {
             cookie?: never;
         };
         /** Danh sách chiến dịch */
-        get: operations["list_3"];
+        get: operations["list_4"];
         put?: never;
         /** Tạo chiến dịch (submit=true: gửi duyệt luôn) */
-        post: operations["create_2"];
+        post: operations["create_3"];
         delete?: never;
         options?: never;
         head?: never;
@@ -524,13 +555,13 @@ export interface paths {
             cookie?: never;
         };
         /** Danh sách nhóm (kèm số chiến dịch / đang chạy) */
-        get: operations["list_4"];
+        get: operations["list_5"];
         put?: never;
         /**
          * Tạo nhóm
          * @description Trùng tên → 409 GROUP_NAME_DUPLICATE.
          */
-        post: operations["create_3"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -676,13 +707,13 @@ export interface paths {
             cookie?: never;
         };
         /** Danh sách workspace (tìm theo code/tên), sắp xếp createdAt giảm dần */
-        get: operations["list_5"];
+        get: operations["list_6"];
         put?: never;
         /**
          * Tạo workspace + gán OWNER
          * @description Trùng code → 409 WORKSPACE_CODE_DUPLICATE; ownerUsername không tồn tại → 404 USER_NOT_FOUND.
          */
-        post: operations["create_4"];
+        post: operations["create_5"];
         delete?: never;
         options?: never;
         head?: never;
@@ -697,13 +728,13 @@ export interface paths {
             cookie?: never;
         };
         /** Danh sách user — query tìm username/tên/email/SĐT, sắp xếp createdAt giảm dần */
-        get: operations["list_6"];
+        get: operations["list_7"];
         put?: never;
         /**
          * Tạo user
          * @description Trùng username → 409 USERNAME_DUPLICATE.
          */
-        post: operations["create_5"];
+        post: operations["create_6"];
         delete?: never;
         options?: never;
         head?: never;
@@ -725,6 +756,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/settings/sender-numbers/{id}/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Bật / tắt đầu số */
+        patch: operations["setEnabled"];
         trace?: never;
     };
     "/v1/admin/workspaces/{id}/status": {
@@ -798,6 +846,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/settings/sender-numbers/available": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Đầu số workspace hiện tại được dùng
+         * @description Chỉ đầu số đang bật, trong phạm vi workspace và hỗ trợ kênh (bỏ trống = mọi kênh).
+         */
+        get: operations["available"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/segments/{id}": {
         parameters: {
             query?: never;
@@ -806,7 +874,7 @@ export interface paths {
             cookie?: never;
         };
         /** Chi tiết tệp khách hàng */
-        get: operations["get_4"];
+        get: operations["get_5"];
         put?: never;
         post?: never;
         delete?: never;
@@ -982,7 +1050,7 @@ export interface paths {
             cookie?: never;
         };
         /** Chiến dịch chờ duyệt */
-        get: operations["list_7"];
+        get: operations["list_8"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1019,7 +1087,7 @@ export interface paths {
          * Tra cứu nhật ký
          * @description from/to: yyyy-MM-dd (giờ Lào, to tính hết ngày) hoặc ISO-8601. actor tìm 'chứa'. workspaceId chỉ có tác dụng với SUPER_ADMIN.
          */
-        get: operations["list_8"];
+        get: operations["list_9"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1090,7 +1158,7 @@ export interface paths {
             cookie?: never;
         };
         /** Workspace hoạt động, tổng người dùng, chiến dịch, top workspace theo số chiến dịch */
-        get: operations["get_5"];
+        get: operations["get_6"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1218,23 +1286,65 @@ export interface components {
             /** Format: date-time */
             joinedAt?: string;
         };
-        SenderNumberRequest: {
+        GatewayRequest: {
+            protocol?: string;
+            host?: string;
+            /** Format: int32 */
+            port?: number;
+            systemType?: string;
+            url?: string;
+            username?: string;
+            password?: string;
+            clearPassword?: boolean;
+            /** Format: int32 */
+            tps?: number;
+        };
+        PolicyDto: {
+            /** Format: int32 */
+            retryMaxAttempts?: number;
+            /** Format: int32 */
+            retryIntervalMinutes?: number;
+            silentHoursEnabled?: boolean;
+            silentFrom?: string;
+            silentTo?: string;
+            /** Format: int64 */
+            dailyLimit?: number;
+        };
+        SenderRequest: {
             code: string;
             /** @enum {string} */
             kind: "SHORTCODE" | "BRANDNAME";
             description?: string;
             enabled?: boolean;
+            channels?: string[];
+            allWorkspaces?: boolean;
+            workspaceIds?: number[];
+            gateway?: components["schemas"]["GatewayRequest"];
+            policy?: components["schemas"]["PolicyDto"];
         };
-        ApiResponseSenderNumberDto: {
+        ApiResponseSenderDto: {
             success?: boolean;
-            data?: components["schemas"]["SenderNumberDto"];
+            data?: components["schemas"]["SenderDto"];
             message?: string;
             statusCode?: string;
             metaData?: components["schemas"]["PageMeta"];
             requestId?: string;
             errors?: components["schemas"]["ApiFieldError"][];
         };
-        SenderNumberDto: {
+        GatewayDto: {
+            protocol?: string;
+            host?: string;
+            /** Format: int32 */
+            port?: number;
+            systemType?: string;
+            url?: string;
+            username?: string;
+            hasPassword?: boolean;
+            /** Format: int32 */
+            tps?: number;
+            lastTest?: components["schemas"]["TestResultDto"];
+        };
+        SenderDto: {
             /** Format: int64 */
             id?: number;
             code?: string;
@@ -1242,6 +1352,29 @@ export interface components {
             kind?: "SHORTCODE" | "BRANDNAME";
             description?: string;
             enabled?: boolean;
+            channels?: string[];
+            allWorkspaces?: boolean;
+            workspaceIds?: number[];
+            gateway?: components["schemas"]["GatewayDto"];
+            policy?: components["schemas"]["PolicyDto"];
+            /** Format: int64 */
+            sentToday?: number;
+            /** Format: date-time */
+            createdAt?: string;
+            createdBy?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            updatedBy?: string;
+        };
+        TestResultDto: {
+            ok?: boolean;
+            /** @enum {string} */
+            code?: "OK" | "TIMEOUT" | "REFUSED" | "UNKNOWN_HOST" | "AUTH_FAILED" | "REJECTED" | "PROTOCOL_ERROR" | "ERROR";
+            detail?: string;
+            /** Format: int64 */
+            latencyMs?: number;
+            /** Format: date-time */
+            testedAt?: string;
         };
         NotificationSettings: {
             /** Format: int32 */
@@ -1530,6 +1663,15 @@ export interface components {
             rotatedAt?: string;
             key?: string;
         };
+        ApiResponseTestResultDto: {
+            success?: boolean;
+            data?: components["schemas"]["TestResultDto"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
         CreateQueryRequest: {
             name: string;
             description?: string;
@@ -1732,6 +1874,9 @@ export interface components {
         ResetPasswordRequest: {
             newPassword: string;
         };
+        EnabledRequest: {
+            enabled: boolean;
+        };
         WorkspaceStatusRequest: {
             /** @enum {string} */
             status: "ACTIVE" | "LOCKED";
@@ -1769,14 +1914,32 @@ export interface components {
             role?: "OWNER" | "ADMIN" | "MEMBER";
             permissions?: string[];
         };
-        ApiResponseListSenderNumberDto: {
+        ApiResponseListSenderDto: {
             success?: boolean;
-            data?: components["schemas"]["SenderNumberDto"][];
+            data?: components["schemas"]["SenderDto"][];
             message?: string;
             statusCode?: string;
             metaData?: components["schemas"]["PageMeta"];
             requestId?: string;
             errors?: components["schemas"]["ApiFieldError"][];
+        };
+        ApiResponseListAvailableSenderDto: {
+            success?: boolean;
+            data?: components["schemas"]["AvailableSenderDto"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        AvailableSenderDto: {
+            /** Format: int64 */
+            id?: number;
+            code?: string;
+            /** @enum {string} */
+            kind?: "SHORTCODE" | "BRANDNAME";
+            description?: string;
+            channels?: string[];
         };
         ApiResponseListSegmentDto: {
             success?: boolean;
@@ -2190,7 +2353,31 @@ export interface operations {
             };
         };
     };
-    updateSender: {
+    get_1: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSenderDto"];
+                };
+            };
+        };
+    };
+    update_1: {
         parameters: {
             query?: never;
             header?: {
@@ -2203,7 +2390,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SenderNumberRequest"];
+                "application/json": components["schemas"]["SenderRequest"];
             };
         };
         responses: {
@@ -2213,7 +2400,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseSenderNumberDto"];
+                    "*/*": components["schemas"]["ApiResponseSenderDto"];
+                };
+            };
+        };
+    };
+    delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSenderDto"];
                 };
             };
         };
@@ -2266,7 +2477,7 @@ export interface operations {
             };
         };
     };
-    get_1: {
+    get_2: {
         parameters: {
             query?: never;
             header?: {
@@ -2290,7 +2501,7 @@ export interface operations {
             };
         };
     };
-    update_1: {
+    update_2: {
         parameters: {
             query?: never;
             header?: {
@@ -2318,7 +2529,7 @@ export interface operations {
             };
         };
     };
-    delete: {
+    delete_1: {
         parameters: {
             query?: never;
             header?: {
@@ -2342,7 +2553,7 @@ export interface operations {
             };
         };
     };
-    get_2: {
+    get_3: {
         parameters: {
             query?: never;
             header: {
@@ -2368,7 +2579,7 @@ export interface operations {
             };
         };
     };
-    update_2: {
+    update_3: {
         parameters: {
             query?: {
                 submit?: boolean;
@@ -2400,7 +2611,7 @@ export interface operations {
             };
         };
     };
-    delete_1: {
+    delete_2: {
         parameters: {
             query?: never;
             header: {
@@ -2456,7 +2667,7 @@ export interface operations {
             };
         };
     };
-    delete_2: {
+    delete_3: {
         parameters: {
             query?: never;
             header: {
@@ -2482,7 +2693,7 @@ export interface operations {
             };
         };
     };
-    update_3: {
+    update_4: {
         parameters: {
             query?: never;
             header?: {
@@ -2600,7 +2811,7 @@ export interface operations {
             };
         };
     };
-    get_3: {
+    get_4: {
         parameters: {
             query?: never;
             header: {
@@ -2678,7 +2889,7 @@ export interface operations {
             };
         };
     };
-    senders: {
+    list_1: {
         parameters: {
             query?: never;
             header?: {
@@ -2695,12 +2906,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListSenderNumberDto"];
+                    "*/*": components["schemas"]["ApiResponseListSenderDto"];
                 };
             };
         };
     };
-    createSender: {
+    create: {
         parameters: {
             query?: never;
             header?: {
@@ -2711,7 +2922,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SenderNumberRequest"];
+                "application/json": components["schemas"]["SenderRequest"];
             };
         };
         responses: {
@@ -2721,12 +2932,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseSenderNumberDto"];
+                    "*/*": components["schemas"]["ApiResponseSenderDto"];
                 };
             };
         };
     };
-    list_1: {
+    testConnection: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseTestResultDto"];
+                };
+            };
+        };
+    };
+    list_2: {
         parameters: {
             query?: {
                 page?: number;
@@ -2756,7 +2991,7 @@ export interface operations {
             };
         };
     };
-    create: {
+    create_1: {
         parameters: {
             query?: never;
             header: {
@@ -2874,7 +3109,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    list_3: {
         parameters: {
             query?: {
                 page?: number;
@@ -2900,7 +3135,7 @@ export interface operations {
             };
         };
     };
-    create_1: {
+    create_2: {
         parameters: {
             query?: never;
             header?: {
@@ -2977,7 +3212,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_4: {
         parameters: {
             query?: {
                 page?: number;
@@ -3008,7 +3243,7 @@ export interface operations {
             };
         };
     };
-    create_2: {
+    create_3: {
         parameters: {
             query?: {
                 submit?: boolean;
@@ -3229,7 +3464,7 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    list_5: {
         parameters: {
             query?: never;
             header: {
@@ -3253,7 +3488,7 @@ export interface operations {
             };
         };
     };
-    create_3: {
+    create_4: {
         parameters: {
             query?: never;
             header: {
@@ -3467,7 +3702,7 @@ export interface operations {
             };
         };
     };
-    list_5: {
+    list_6: {
         parameters: {
             query?: {
                 page?: number;
@@ -3494,7 +3729,7 @@ export interface operations {
             };
         };
     };
-    create_4: {
+    create_5: {
         parameters: {
             query?: never;
             header?: {
@@ -3520,7 +3755,7 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list_7: {
         parameters: {
             query?: {
                 page?: number;
@@ -3548,7 +3783,7 @@ export interface operations {
             };
         };
     };
-    create_5: {
+    create_6: {
         parameters: {
             query?: never;
             header?: {
@@ -3598,6 +3833,34 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    setEnabled: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnabledRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSenderDto"];
                 };
             };
         };
@@ -3702,7 +3965,33 @@ export interface operations {
             };
         };
     };
-    get_4: {
+    available: {
+        parameters: {
+            query?: {
+                channel?: string;
+            };
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListAvailableSenderDto"];
+                };
+            };
+        };
+    };
+    get_5: {
         parameters: {
             query?: never;
             header: {
@@ -3955,7 +4244,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_8: {
         parameters: {
             query?: {
                 page?: number;
@@ -4006,7 +4295,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_9: {
         parameters: {
             query?: {
                 page?: number;
@@ -4115,7 +4404,7 @@ export interface operations {
             };
         };
     };
-    get_5: {
+    get_6: {
         parameters: {
             query?: {
                 periodDays?: number;

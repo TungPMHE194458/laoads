@@ -48,6 +48,7 @@ npm install            # .npmrc sets legacy-peer-deps (openapi-typescript peers 
 npm run dev            # :5173, VITE_API_MODE=hybrid by default, /api proxied to :8095
 npm run dev:mock       # everything mocked — no BE/VPN needed (demo accounts on the login page)
 npm run build          # tsc -b && vite build
+npm run build:mock     # same, but VITE_API_MODE=mock (from .env.mock): a static demo bundle that needs no BE
 npm run lint           # 0 errors expected; ~13 react-refresh "only-export-components" warnings are accepted (shadcn-style files)
 node scripts/check-i18n.mjs   # every t('key') must exist in vi/en/lo — run after adding strings
 npm run gen:api        # ../docs/openapi.yaml → src/api/schema.ts
@@ -60,7 +61,7 @@ There is no test runner in the FE. Verify UI changes by running `dev:mock` and l
 - A green build is not proof: check `vite preview` in a real browser and look for React Router ErrorBoundary errors, not only uncaught ones.
 - Don't run two Vite dev servers on the same `node_modules/.vite` cache: that also produces "Invalid hook call".
 
-The Vite dev proxy strips the `Origin` header on `/api` (same-origin via proxy) — otherwise the BE's CORS filter 403s whenever Vite auto-increments to a port outside the whitelist (BOC hit this as troubleshooting #3).
+The Vite dev proxy strips the `Origin` header on `/api` (same-origin via proxy) — otherwise the BE's CORS filter 403s whenever Vite auto-increments to a port outside the whitelist (BOC hit this as troubleshooting #3). The proxy target is `VITE_PROXY_TARGET` (default `http://localhost:8095`). `VITE_API_BASE_URL` left blank means same-origin `/api/v1` (Vite proxy in dev, nginx in Docker). To override either, copy `.env.example` to the gitignored `.env.local`.
 
 ### API modes (`VITE_API_MODE`) — the most important FE concept
 - `mock`: MSW mocks **core + campaign + pending** handlers, so the UI runs with no BE.
@@ -103,7 +104,7 @@ Reuses BOC's backend infrastructure — see BOC's CLAUDE.md "Critical: schema sh
 
 ```bash
 docker compose -f ../docker-compose.dev.yml up -d   # local Oracle XE 11.2 (healthy in ~40s on a fresh volume); `down -v` wipes it
-./mvnw clean verify                              # build + 127 unit tests (no DB needed)
+./mvnw clean verify                              # build + 156 unit tests (no DB needed)
 ./mvnw -pl laoads-web -am spring-boot:run        # dev profile, :8095/api, local DB — non-web modules set spring-boot.run.skip, so -am is safe
 ./mvnw -pl laoads-web -am test -Dtest=ClassName#method -Dsurefire.failIfNoSpecifiedTests=false   # single test; swap the module
 .\start-dev.ps1                                  # Windows; loads gitignored .env.local.ps1, starts the local DB container, runs dev
@@ -124,6 +125,7 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
 | `LAOADS_ENGINE_GATEWAY` / `_CONVERSION` / `_SIMULATE_ENGAGEMENT` | default `simulated` / `simulated` / `true`. These are the **simulation adapters**; set them to something else only once real adapters exist |
 | `LAOADS_PUBLIC_BASE_URL` | base URL for tracking links `/api/v1/t/{token}` (default `http://localhost:5173`) |
 | `LAOADS_JWT_SECRET` | ≥ 32 bytes; only the dev profile has a default |
+| `LAOADS_SECRETS_KEY` | key for `SecretCipher` (AES-GCM) that encrypts sender gateway passwords in the DB. If blank it is derived from the JWT secret with a startup WARN, and rotating the JWT secret then means re-entering every gateway password; set it separately in uat/prod |
 | `LAOADS_CORS_ALLOWED_ORIGINS` | required in prod (dev allows localhost:5173–5175) |
 | `LAOADS_VSA_ENABLED` / `_CAS_URL` / `_SERVICE_URL` | VSA off by default |
 | `SERVER_PORT` | dev default **8095** — 8091 is permanently taken on the dev machine by an unrelated Java app |
@@ -152,9 +154,14 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
   It only enriches the 4 base users and BSD/BCD while they still carry seed values, and it writes the audit history once (`REQUEST_ID = 'mock-seed'`). Campaign and segment data come from `DevEngineDataSeeder` (see "Campaign engine" below). To re-seed from scratch, run `docker compose -f docker-compose.dev.yml down -v`.
 - The read-only Hikari pool is configured (for future OCS/segment reads) but not used yet.
 
-### Campaign engine (đợt 2–3, `V3__campaign_engine.sql`)
+### Campaign engine (đợt 2–3, `V3__campaign_engine.sql`, sender config `V4__sender_config.sql`)
 - **Packages**:
-  - `domain.settings`: sender numbers and notification settings (retry, refund, silent hours) stored as key/value in `LADS_APP_SETTING`.
+  - `domain.settings`:
+    - `SettingsService` holds the global sending policy (retry, refund, silent hours, default language) as key/value rows in `LADS_APP_SETTING`.
+    - `SenderNumberService` manages sender numbers and each one's own config (`/admin/sending`, all SUPER_ADMIN): channels SMS/USSD, workspace scope (`LADS_SENDER_WORKSPACE`), gateway connection SMPP/HTTP, and a policy override where `null` means "use the global policy".
+    - The gateway password is write-only and encrypted with `domain.common.SecretCipher`.
+    - "Test connection" goes through the `ConnectionProbe` port. `infra.gateway.GatewayConnectionProbe` does a real SMPP `bind_transceiver` + `unbind` or an HTTP `GET`, and it only ever tests the *saved* config.
+    - Campaigns reference a sender by **code** inside `DEFINITION_JSON`, with no FK. Deleting a sender is therefore blocked (409 `SENDER_IN_USE`) while any campaign that isn't COMPLETED or CANCELLED uses it, DRAFT and REJECTED included. Submitting a campaign validates its senders.
   - `domain.segment`: segments. `SegmentQueryBuilder` builds QUERY segments with a column whitelist from `SegmentAttributeCatalog` and bind parameters only. `IsdnFileParser` reads .xlsx/.xls/.csv; it reads only the first sheet, and it takes numeric cells through `BigDecimal` because Excel's General format turns a 13-digit 856… number into `8.56E+12`. `IsdnFileTemplate` builds the downloadable template (`GET /segments/import/template`) to match: a header-only `ISDN` sheet with a Text-formatted column and no sample rows (samples would be imported as real recipients), plus a localized instructions sheet from `segment.template.*` in `messages*.properties`. Members are written in JDBC batches to `LADS_SEGMENT_MEMBER`.
   - `domain.campaign`: CRUD, lifecycle, approvals and groups. Nested config (action groups, schedule, goal, budget) is JSON in `DEFINITION_JSON`, in exactly the FE shape (`CampaignDefinition`). `SchedulePlanner` handles NOW / ONCE / RECURRING and silent hours in Asia/Vientiane.
   - `domain.engine`: `CampaignRunner`, `MessageDispatcher`, `EngineMaintenance`, tracking, test send, events, API keys.
@@ -165,6 +172,12 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
   - Approve sets `NEXT_RUN_AT`. `startRun` materializes targets with one `INSERT … SELECT` from segment members. A/B and control buckets come from `MOD(ORA_HASH(isdn||':'||campaignId),100)`.
   - One `LADS_CAMPAIGN_MESSAGE` row is written per action. In a sequential chain, delays accumulate and `PREV_MESSAGE_ID` links each message to the previous one.
   - `MessageDispatcher` calls the gateway **outside** any transaction. It retries with refund, skips on stop-on-goal or end time, auto-pauses at max budget, and rewrites URLs into `LADS_TRACKING_LINK`.
+  - Per-sender rules live in `engine.SenderPolicy`, shared by `CampaignRunner` and `MessageDispatcher`:
+    - Silent hours: the campaign's own window wins, then the sender's override, then the global window.
+    - Retry: the sender's override, else the global setting.
+    - `dailyLimit`: once reached, messages move to 00:00 the next Laos day. Counting uses `LADS_CAMPAIGN_MESSAGE.SENDER_CODE`, which the dispatcher writes.
+    - `tps`: an in-memory `SenderThrottle` token bucket. Messages over the limit get their `DUE_AT` spread out at the TPS rate.
+    - A sender that is disabled or out of scope while a campaign runs gets its messages postponed 10 minutes, not failed.
   - `EngineMaintenance` closes runs, completes campaigns (a goal produces a `CAMPAIGN_OUTCOME` segment), refreshes counters and uplift, and measures conversions.
 - **Simulation**: `MessageGateway` and `ConversionSource` are domain ports. `infra.simulation` provides `SimulatedMessageGateway`, `SimulatedConversionSource` and `EngagementSimulator` (DLR, opens, clicks). **No SMS, WhatsApp, Email, USSD, OCS or BI connection is real yet.** Real adapters replace these beans through the `laoads.engine.*` properties.
 - **Timestamps**: they are UTC wall time. JDBC code must bind and read through `engine.Utc`, the same as `AuditWriter`. SQL "now" is `SYS_EXTRACT_UTC(SYSTIMESTAMP)`. Laos-day bucketing uses `+ INTERVAL '7' HOUR` (Laos has no DST).

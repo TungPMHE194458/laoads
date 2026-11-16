@@ -3,15 +3,105 @@
  * nên chỉ nạp ở VITE_API_MODE=mock (chạy UI không cần BE). Shape phải khớp BE thật.
  */
 import { http, HttpResponse } from 'msw'
-import type { CampaignDetail, CampaignInput, CampaignStatus, Channel, ChannelStat, NotificationSettings, SegmentCondition, SenderNumber, TimePoint } from '@/api/types'
-import { CHANNELS } from '@/api/types'
-import { activeUnitPrice, audit, campaigns, campaignSeq, groups, notificationSettings, rand, refreshGroupCounts, segmentAttributes, segments, segmentSeq, senders, senderSeq, users, workspaces } from '../db'
+import type {
+  AvailableSender,
+  CampaignDetail,
+  CampaignInput,
+  CampaignStatus,
+  Channel,
+  ChannelStat,
+  ConnectionTestResult,
+  NotificationSettings,
+  SegmentCondition,
+  SenderChannel,
+  SenderNumber,
+  SenderNumberInput,
+  TimePoint,
+} from '@/api/types'
+import { CHANNELS, SENDER_CHANNELS } from '@/api/types'
+import { activeUnitPrice, audit, campaigns, campaignSeq, groups, notificationSettings, rand, refreshGroupCounts, segmentAttributes, segments, segmentSeq, senderPasswords, senders, senderSeq, users, workspaces } from '../db'
 import { currentUser, fail, guard, includes, ok, paged, q, workspaceId } from '../utils'
 
 const B = '*/api/v1'
 const apiKeys: Record<number, { configured: boolean; hint: string | null; rotatedAt: string | null; key: string | null }> = {}
 const wsOf = (r: Request) => workspaceId(r) ?? 1
 const actor = (r: Request) => currentUser(r)?.username ?? 'unknown'
+
+// ───── Đầu số: kiểm tra + ghi giống BE ─────
+type FieldErr = { field: string; message: string }
+const invalid = (errors: FieldErr[]) =>
+  HttpResponse.json({ success: false, data: null, message: 'Dữ liệu nhập không hợp lệ', statusCode: 'VALIDATION_ERROR', errors }, { status: 400 })
+const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/
+const blank = (v: string | null | undefined) => !v || !v.trim()
+
+function validateSender(b: SenderNumberInput, hadPassword: boolean): FieldErr[] {
+  const e: FieldErr[] = []
+  const bad = (field: string, message = 'Giá trị không hợp lệ') => e.push({ field, message })
+  if (!/^[A-Za-z0-9_]{2,32}$/.test((b.code ?? '').trim())) bad('code')
+  if (b.kind !== 'SHORTCODE' && b.kind !== 'BRANDNAME') bad('kind')
+  if ((b.description ?? '').length > 255) bad('description', 'Tối đa 255 ký tự')
+  const ch = b.channels ?? []
+  if (!ch.length || ch.some((c) => c !== 'SMS' && c !== 'USSD')) bad('channels', 'Chọn ít nhất một kênh')
+  else if (b.kind === 'BRANDNAME' && ch.includes('USSD')) bad('channels', 'Brandname chỉ dùng cho SMS')
+  if (!b.allWorkspaces && !(b.workspaceIds ?? []).length) bad('workspaceIds', 'Chọn ít nhất một workspace')
+  const g = b.gateway
+  const pwd = g.password ?? ''
+  if (g.protocol === 'SMPP') {
+    if (blank(g.host) || (g.host ?? '').length > 255) bad('gateway.host')
+    if (g.port == null || g.port < 1 || g.port > 65535) bad('gateway.port', 'Giá trị phải từ 1 đến 65535')
+    if (blank(g.username) || (g.username ?? '').length > 15) bad('gateway.username', 'system_id bắt buộc, tối đa 15 ký tự')
+    if (pwd.length > 8) bad('gateway.password', 'Mật khẩu SMPP tối đa 8 ký tự')
+    if (!pwd && (!hadPassword || g.clearPassword)) bad('gateway.password', 'Cần mật khẩu SMPP')
+    if ((g.systemType ?? '').length > 12) bad('gateway.systemType', 'Tối đa 12 ký tự')
+  } else if (g.protocol === 'HTTP') {
+    if (!/^https?:\/\/\S+$/.test(g.url ?? '') || (g.url ?? '').length > 1000) bad('gateway.url', 'URL phải bắt đầu bằng http:// hoặc https://')
+    if ((g.username ?? '').length > 128) bad('gateway.username', 'Tối đa 128 ký tự')
+    if (pwd.length > 256) bad('gateway.password', 'Tối đa 256 ký tự')
+  } else if (g.protocol !== 'NONE') bad('gateway.protocol')
+  if (g.protocol !== 'NONE' && g.tps != null && (g.tps < 1 || g.tps > 10000)) bad('gateway.tps', 'Giá trị phải từ 1 đến 10000')
+  const p = b.policy
+  if (p.retryMaxAttempts != null && (p.retryMaxAttempts < 0 || p.retryMaxAttempts > 10)) bad('policy.retryMaxAttempts', 'Giá trị phải từ 0 đến 10')
+  if (p.retryIntervalMinutes != null && (p.retryIntervalMinutes < 1 || p.retryIntervalMinutes > 1440)) bad('policy.retryIntervalMinutes', 'Giá trị phải từ 1 đến 1440')
+  if (p.silentHoursEnabled === true) {
+    if (!HH_MM.test(p.silentFrom ?? '')) bad('policy.silentFrom', 'Giờ phải có dạng HH:mm')
+    if (!HH_MM.test(p.silentTo ?? '')) bad('policy.silentTo', 'Giờ phải có dạng HH:mm')
+  }
+  if (p.dailyLimit != null && (p.dailyLimit < 1 || p.dailyLimit > 100_000_000)) bad('policy.dailyLimit', 'Giá trị phải từ 1 đến 100000000')
+  return e
+}
+
+/** Ghi input đã hợp lệ vào bản ghi mock (mật khẩu lưu riêng ở senderPasswords). */
+function applySender(s: SenderNumber, b: SenderNumberInput) {
+  s.kind = b.kind
+  s.description = blank(b.description) ? null : b.description!.trim()
+  s.enabled = b.enabled
+  s.channels = SENDER_CHANNELS.filter((c) => b.channels.includes(c))
+  s.allWorkspaces = b.allWorkspaces
+  s.workspaceIds = b.allWorkspaces ? [] : [...new Set(b.workspaceIds)]
+  const g = b.gateway
+  if (g.protocol === 'NONE' || g.clearPassword) delete senderPasswords[s.id]
+  if (g.protocol !== 'NONE' && g.password) senderPasswords[s.id] = g.password
+  s.gateway = {
+    protocol: g.protocol,
+    host: g.protocol === 'SMPP' ? g.host?.trim() ?? null : null,
+    port: g.protocol === 'SMPP' ? g.port : null,
+    systemType: g.protocol === 'SMPP' && !blank(g.systemType) ? g.systemType!.trim() : null,
+    url: g.protocol === 'HTTP' ? g.url?.trim() ?? null : null,
+    username: g.protocol !== 'NONE' && !blank(g.username) ? g.username!.trim() : null,
+    hasPassword: s.id in senderPasswords,
+    tps: g.protocol !== 'NONE' ? g.tps : null,
+    lastTest: g.protocol === s.gateway.protocol ? s.gateway.lastTest : null,
+  }
+  const p = b.policy
+  s.policy = {
+    retryMaxAttempts: p.retryMaxAttempts,
+    retryIntervalMinutes: p.retryIntervalMinutes,
+    silentHoursEnabled: p.silentHoursEnabled,
+    silentFrom: p.silentHoursEnabled === true ? p.silentFrom : null,
+    silentTo: p.silentHoursEnabled === true ? p.silentTo : null,
+    dailyLimit: p.dailyLimit,
+  }
+}
 
 // Chuỗi thời gian ổn định theo seed riêng cho mỗi campaign
 function series(days: number, base: number, seedN: number): TimePoint[] {
@@ -349,24 +439,127 @@ export const campaignHandlers = [
     return ok(s, 201)
   }),
 
-  // ───── Cài đặt gửi tin ─────
-  http.get(`${B}/settings/sender-numbers`, () => ok(senders)),
+  // ───── Cài đặt gửi tin: đầu số (giống BE — danh sách/chi tiết/ghi chỉ Super Admin) ─────
+  // `available` phải đăng ký trước `:id`
+  http.get(`${B}/settings/sender-numbers/available`, ({ request }) => {
+    const g = guard(request, 'CAMPAIGN_VIEW')
+    if (g) return g
+    const ws = wsOf(request)
+    const channel = new URL(request.url).searchParams.get('channel') as SenderChannel | null
+    const list: AvailableSender[] = senders
+      .filter((s) => s.enabled && (s.allWorkspaces || s.workspaceIds.includes(ws)) && (!channel || s.channels.includes(channel)))
+      .map(({ id, code, kind, description, channels }) => ({ id, code, kind, description, channels }))
+    return ok(list)
+  }),
+  http.get(`${B}/settings/sender-numbers`, ({ request }) => guard(request, 'SUPER_ADMIN') ?? ok(senders)),
+  http.get(`${B}/settings/sender-numbers/:id`, ({ request, params }) => {
+    const g = guard(request, 'SUPER_ADMIN')
+    if (g) return g
+    const s = senders.find((x) => x.id === Number(params.id))
+    return s ? ok(s) : fail(404, 'NOT_FOUND', `Không tìm thấy đầu số (id=${params.id})`)
+  }),
   http.post(`${B}/settings/sender-numbers`, async ({ request }) => {
     const g = guard(request, 'SUPER_ADMIN')
     if (g) return g
-    const b = (await request.json()) as Omit<SenderNumber, 'id'>
-    if (senders.some((s) => s.code === b.code)) return fail(409, 'CONFLICT', 'Đầu số đã tồn tại')
-    const s = { ...b, id: ++senderSeq.v }
+    const b = (await request.json()) as SenderNumberInput
+    const errors = validateSender(b, false)
+    if (errors.length) return invalid(errors)
+    const code = b.code.trim().toUpperCase()
+    if (senders.some((s) => s.code === code)) return fail(409, 'SENDER_CODE_DUPLICATE', 'Đầu số đã tồn tại')
+    const s: SenderNumber = {
+      id: ++senderSeq.v,
+      code,
+      kind: b.kind,
+      description: null,
+      enabled: b.enabled,
+      channels: [],
+      allWorkspaces: true,
+      workspaceIds: [],
+      gateway: { protocol: 'NONE', host: null, port: null, systemType: null, url: null, username: null, hasPassword: false, tps: null, lastTest: null },
+      policy: b.policy,
+      sentToday: 0,
+      createdAt: new Date().toISOString(),
+      createdBy: actor(request),
+      updatedAt: null,
+      updatedBy: null,
+    }
+    applySender(s, b)
     senders.push(s)
-    return ok(s, 201)
+    audit(actor(request), 'CREATE', 'SENDER_NUMBER', String(s.id), `Thêm đầu số ${s.code}`, null)
+    return ok(s)
   }),
   http.put(`${B}/settings/sender-numbers/:id`, async ({ request, params }) => {
     const g = guard(request, 'SUPER_ADMIN')
     if (g) return g
     const s = senders.find((x) => x.id === Number(params.id))
-    if (!s) return fail(404, 'NOT_FOUND', 'Không tìm thấy đầu số')
-    Object.assign(s, await request.json())
+    if (!s) return fail(404, 'NOT_FOUND', `Không tìm thấy đầu số (id=${params.id})`)
+    const b = (await request.json()) as SenderNumberInput
+    const errors = validateSender(b, s.gateway.hasPassword)
+    if (errors.length) return invalid(errors)
+    const code = b.code.trim().toUpperCase()
+    if (senders.some((x) => x.code === code && x.id !== s.id)) return fail(409, 'SENDER_CODE_DUPLICATE', 'Đầu số đã tồn tại')
+    // Đổi kết nối thì kết quả kiểm tra cũ không còn đúng
+    const connChanged = (['protocol', 'host', 'port', 'systemType', 'url', 'username'] as const).some((k) => (b.gateway[k] ?? null) !== s.gateway[k]) || !!b.gateway.password || !!b.gateway.clearPassword
+    s.code = code
+    applySender(s, b)
+    if (connChanged) s.gateway.lastTest = null
+    s.updatedAt = new Date().toISOString()
+    s.updatedBy = actor(request)
+    audit(actor(request), 'UPDATE', 'SENDER_NUMBER', String(s.id), `Cập nhật đầu số ${s.code}`, null)
     return ok(s)
+  }),
+  http.patch(`${B}/settings/sender-numbers/:id/enabled`, async ({ request, params }) => {
+    const g = guard(request, 'SUPER_ADMIN')
+    if (g) return g
+    const s = senders.find((x) => x.id === Number(params.id))
+    if (!s) return fail(404, 'NOT_FOUND', `Không tìm thấy đầu số (id=${params.id})`)
+    s.enabled = !!((await request.json()) as { enabled: boolean }).enabled
+    s.updatedAt = new Date().toISOString()
+    s.updatedBy = actor(request)
+    audit(actor(request), 'UPDATE', 'SENDER_NUMBER', String(s.id), `${s.enabled ? 'Bật' : 'Tắt'} đầu số ${s.code}`, null)
+    return ok(s)
+  }),
+  // Giống BE: chiến dịch chưa kết thúc / huỷ (kể cả Nháp, Bị từ chối) còn dùng đầu số → 409 SENDER_IN_USE
+  http.delete(`${B}/settings/sender-numbers/:id`, ({ request, params }) => {
+    const g = guard(request, 'SUPER_ADMIN')
+    if (g) return g
+    const idx = senders.findIndex((x) => x.id === Number(params.id))
+    if (idx < 0) return fail(404, 'NOT_FOUND', 'Không tìm thấy đầu số')
+    const code = senders[idx].code.toUpperCase()
+    const used = campaigns
+      .filter((c) => c.status !== 'COMPLETED' && c.status !== 'CANCELLED')
+      .filter((c) => c.actionGroups.some((grp) => (grp.actions ?? []).some((a) => a.senderId?.trim().toUpperCase() === code)))
+      .map((c) => c.code)
+      .sort()
+    if (used.length) {
+      const preview = used.slice(0, 5).join(', ') + (used.length > 5 ? ` (+${used.length - 5})` : '')
+      return fail(409, 'SENDER_IN_USE', `Đầu số đang được dùng ở chiến dịch ${preview}. Hãy tắt đầu số thay vì xoá`)
+    }
+    const [removed] = senders.splice(idx, 1)
+    delete senderPasswords[removed.id]
+    audit(actor(request), 'DELETE', 'SENDER_NUMBER', String(removed.id), `Xoá đầu số ${removed.code}`, null)
+    return ok(removed)
+  }),
+  // Kiểm tra cấu hình ĐÃ LƯU. Mock: host localhost/127.* → REFUSED, host có "invalid" → UNKNOWN_HOST,
+  // thiếu mật khẩu → AUTH_FAILED, còn lại OK.
+  http.post(`${B}/settings/sender-numbers/:id/test-connection`, async ({ request, params }) => {
+    const g = guard(request, 'SUPER_ADMIN')
+    if (g) return g
+    const s = senders.find((x) => x.id === Number(params.id))
+    if (!s) return fail(404, 'NOT_FOUND', `Không tìm thấy đầu số (id=${params.id})`)
+    const gw = s.gateway
+    if (gw.protocol === 'NONE') return invalid([{ field: 'gateway.protocol', message: 'Đầu số chưa cấu hình kết nối' }])
+    await new Promise((r) => setTimeout(r, 600))
+    const target = gw.protocol === 'SMPP' ? gw.host ?? '' : (() => { try { return new URL(gw.url ?? '').hostname } catch { return '' } })()
+    const latencyMs = 20 + Math.round(rand() * 120)
+    let result: ConnectionTestResult
+    if (/^(localhost|127\.)/.test(target)) result = { ok: false, code: 'REFUSED', detail: `Connection refused: ${target}${gw.port ? ':' + gw.port : ''}`, latencyMs: null, testedAt: new Date().toISOString() }
+    else if (target.includes('invalid')) result = { ok: false, code: 'UNKNOWN_HOST', detail: target, latencyMs: null, testedAt: new Date().toISOString() }
+    else if (!gw.hasPassword) result = { ok: false, code: 'AUTH_FAILED', detail: gw.protocol === 'SMPP' ? 'command_status=0x0000000E' : 'HTTP 401', latencyMs, testedAt: new Date().toISOString() }
+    else result = { ok: true, code: 'OK', detail: gw.protocol === 'SMPP' ? 'bind_transceiver OK' : 'HTTP 200', latencyMs, testedAt: new Date().toISOString() }
+    gw.lastTest = result
+    audit(actor(request), 'TEST', 'SENDER_NUMBER', String(s.id), `Kiểm tra kết nối đầu số ${s.code}: ${result.code}`, null)
+    return ok(result)
   }),
   http.get(`${B}/settings/notification`, () => ok(notificationSettings)),
   http.put(`${B}/settings/notification`, async ({ request }) => {
