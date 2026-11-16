@@ -57,7 +57,11 @@ public enum ErrorCode {
     CAMPAIGN_LOCKED(409),
     INVALID_TRANSITION(409),
     FILE_INVALID(400),
-    API_KEY_INVALID(401);
+    API_KEY_INVALID(401),
+
+    // ===== Audience API (OCS / BCCS3) =====
+    AUDIENCE_NOT_CONFIGURED(400),
+    AUDIENCE_UNAVAILABLE(503);
 
     private final int httpStatus;
 

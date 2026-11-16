@@ -2,10 +2,11 @@ import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Database, FileSpreadsheet, Plus, Sparkles, Trash2, UsersRound, Zap } from 'lucide-react'
+import { Database, FileSpreadsheet, Loader2, Plus, RotateCcw, ServerCog, Sparkles, Trash2, UsersRound, Zap } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { Segment, SegmentStatus, SegmentType } from '@/api/types'
-import { useDeleteSegments, useSegments } from '@/features/campaign/api'
+import { useDeleteSegments, useRetrySegment, useSegments } from '@/features/campaign/api'
+import { RETRYABLE_SEGMENT_TYPES } from '@/features/campaign/audience'
 import { useCan } from '@/features/auth/permissions'
 import { PageHeader } from '@/components/common/PageHeader'
 import { DataTable, type Column } from '@/components/common/DataTable'
@@ -18,7 +19,7 @@ import { Select } from '@/components/ui/select'
 import { fmtDateTime, fmtNumber } from '@/lib/format'
 import { CreateSegmentDialog } from './CreateSegmentDialog'
 
-export const SEGMENT_ICON: Record<SegmentType, typeof Database> = { QUERY: Database, FILE: FileSpreadsheet, EVENT: Zap, CAMPAIGN_OUTCOME: Sparkles }
+export const SEGMENT_ICON: Record<SegmentType, typeof Database> = { QUERY: Database, FILE: FileSpreadsheet, EVENT: Zap, CAMPAIGN_OUTCOME: Sparkles, AUDIENCE: ServerCog }
 
 export default function SegmentsPage() {
   const { t } = useTranslation()
@@ -33,6 +34,7 @@ export default function SegmentsPage() {
   const [confirm, setConfirm] = React.useState(false)
   const list = useSegments({ page, size: 10, query, type, status })
   const del = useDeleteSegments()
+  const retry = useRetrySegment()
   const createOpen = sp.get('create') === '1'
   const setCreate = (o: boolean) => {
     const n = new URLSearchParams(sp)
@@ -60,15 +62,62 @@ export default function SegmentsPage() {
             </span>
             <div className="min-w-0">
               <div className="truncate font-medium">{s.name}</div>
-              <div className="truncate text-xs text-muted-foreground">{s.description ?? s.fileName ?? '—'}</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {s.description ?? s.fileName ?? (s.audience ? `${t(`segmentSource.${s.source}`)} · ${s.audience.tableName}` : '—')}
+              </div>
             </div>
           </div>
         )
       },
     },
     { key: 'type', header: t('segment.type'), cell: (s) => <span className="text-[13px]">{t(`segmentType.${s.type}`)}</span> },
-    { key: 'count', header: t('segment.count'), align: 'right', cell: (s) => <span className="font-medium tabular">{s.status === 'BUILDING' ? '…' : fmtNumber(s.totalUsers)}</span> },
-    { key: 'status', header: t('common.status'), cell: (s) => <SegmentStatusBadge status={s.status} /> },
+    {
+      key: 'count',
+      header: t('segment.count'),
+      align: 'right',
+      cell: (s) =>
+        s.status === 'BUILDING' ? (
+          // tệp AUDIENCE nạp dần: hiện số đã nạp tới lúc này
+          <span className="inline-flex items-center gap-1.5 font-medium tabular text-muted-foreground" title={t('segment.loadingSoFar')}>
+            <Loader2 className="size-3.5 animate-spin" />
+            {s.totalUsers > 0 ? fmtNumber(s.totalUsers) : '…'}
+          </span>
+        ) : (
+          <span className="font-medium tabular">{fmtNumber(s.totalUsers)}</span>
+        ),
+    },
+    {
+      key: 'status',
+      header: t('common.status'),
+      cell: (s) => (
+        <div className="flex max-w-60 flex-col items-start gap-1">
+          <SegmentStatusBadge status={s.status} />
+          {s.status === 'FAILED' && s.errorMessage && (
+            <span className="line-clamp-2 text-xs text-danger" title={s.errorMessage}>
+              {s.errorMessage}
+            </span>
+          )}
+          {s.status === 'FAILED' && RETRYABLE_SEGMENT_TYPES.includes(s.type) && can('SEGMENT_MANAGE') && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7"
+              loading={retry.isPending && retry.variables === s.id}
+              onClick={(e) => {
+                e.stopPropagation()
+                retry.mutate(s.id, {
+                  onSuccess: () => toast.success(t('segment.retryStarted')),
+                  onError: (er) => toast.error(errorMessage(er)),
+                })
+              }}
+            >
+              <RotateCcw />
+              {t('segment.retry')}
+            </Button>
+          )}
+        </div>
+      ),
+    },
     { key: 'used', header: t('segment.usedBy'), align: 'right', cell: (s) => <span className="text-[13px] tabular">{s.referencedBy}</span> },
     { key: 'created', header: t('common.createdAt'), cell: (s) => <span className="text-[13px] tabular text-foreground/80">{fmtDateTime(s.createdAt)}<span className="block text-xs text-muted-foreground">{s.createdBy}</span></span> },
   ]
@@ -105,7 +154,7 @@ export default function SegmentsPage() {
             <>
               <SearchInput value={query} onChange={(v) => refilter(() => setQuery(v))} placeholder={t('segment.searchPh')} />
               <div className="ml-auto flex gap-2">
-                <Select className="w-44" value={type} onValueChange={(v) => refilter(() => setType(v))} allLabel={t('segment.allTypes')} options={(['QUERY', 'FILE', 'EVENT', 'CAMPAIGN_OUTCOME'] as SegmentType[]).map((x) => ({ value: x, label: t(`segmentType.${x}`) }))} />
+                <Select className="w-44" value={type} onValueChange={(v) => refilter(() => setType(v))} allLabel={t('segment.allTypes')} options={(['QUERY', 'FILE', 'AUDIENCE', 'EVENT', 'CAMPAIGN_OUTCOME'] as SegmentType[]).map((x) => ({ value: x, label: t(`segmentType.${x}`) }))} />
                 <Select className="w-40" value={status} onValueChange={(v) => refilter(() => setStatus(v))} allLabel={t('common.allStatus')} options={(['BUILDING', 'READY', 'FAILED', 'ARCHIVED'] as SegmentStatus[]).map((x) => ({ value: x, label: t(`segmentStatus.${x}`) }))} />
               </div>
             </>

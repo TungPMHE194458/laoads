@@ -386,8 +386,49 @@ export interface AdminDashboard {
   periodDays: number
 }
 
-export type SegmentType = 'FILE' | 'QUERY' | 'EVENT' | 'CAMPAIGN_OUTCOME'
+export type SegmentType = 'FILE' | 'QUERY' | 'EVENT' | 'CAMPAIGN_OUTCOME' | 'AUDIENCE'
 export type SegmentStatus = 'BUILDING' | 'READY' | 'FAILED' | 'ARCHIVED'
+export type SegmentSource = 'OCS' | 'DWH' | 'FILE' | 'CAMPAIGN' | 'EVENT' | 'BCCS3'
+
+// ───── Audience API (OCS Audience / BCCS3 Audience) — tệp KH loại AUDIENCE ─────
+export type AudienceSource = 'OCS' | 'BCCS3'
+export const AUDIENCE_SOURCES: AudienceSource[] = ['OCS', 'BCCS3']
+export type AudienceDataType = 'BOOLEAN' | 'INT' | 'LONG' | 'DOUBLE' | 'DATE' | 'STRING'
+export type AudienceOperator = 'IS' | 'NOT' | 'LIKE' | 'NOT_LIKE' | 'GREATER_THAN' | 'GREATER_EQUAL_THAN' | 'LESS_THAN' | 'LESS_EQUAL_THAN'
+export interface AudienceSourceInfo {
+  source: AudienceSource
+  /** false = chưa cấu hình URL / API key → không chọn được */
+  configured: boolean
+  mode: 'simulated' | 'http'
+}
+export interface AudienceColumn {
+  name: string
+  dataType: AudienceDataType
+}
+export interface AudienceSelectedColumn {
+  columnName: string
+  dataType: AudienceDataType
+  /** Chữ HOA; đúng 1 cột mang 'PHONE' (số thuê bao) */
+  targetField: string
+}
+export interface AudienceCondition {
+  columnName: string
+  operator: AudienceOperator
+  dataType: AudienceDataType
+  /** Nối với điều kiện kế tiếp; điều kiện cuối không cần */
+  logicalOperator?: 'AND' | 'OR' | null
+  /** Luôn là chuỗi: DATE "YYYY-MM-DD", BOOLEAN "true"/"false" */
+  value: string
+}
+export interface AudienceRequest {
+  tableName: string
+  selectedColumns: AudienceSelectedColumn[]
+  conditions: AudienceCondition[]
+}
+export interface AudienceVerifyResult {
+  valid: boolean
+  message: string | null
+}
 export interface SegmentCondition {
   field: string
   operator: 'EQ' | 'NEQ' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'BETWEEN' | 'IN' | 'IS_NULL'
@@ -400,11 +441,16 @@ export interface Segment {
   name: string
   description: string | null
   type: SegmentType
-  source: 'OCS' | 'DWH' | 'FILE' | 'CAMPAIGN' | 'EVENT'
+  source: SegmentSource
   status: SegmentStatus
+  /** Tệp đang BUILDING (AUDIENCE): số thuê bao đã nạp tới thời điểm hiện tại */
   totalUsers: number
   fileName: string | null
   conditions: SegmentCondition[]
+  /** Chỉ tệp AUDIENCE: request gửi Audience API (BE luôn trả, null với loại khác) */
+  audience?: AudienceRequest | null
+  /** Số dòng NDJSON đã xử lý (offset để chạy tiếp với OCS); loại khác = 0 */
+  importedRows?: number
   referencedBy: number
   /** Lý do build thất bại (status FAILED) */
   errorMessage?: string | null

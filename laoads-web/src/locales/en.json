@@ -28,7 +28,8 @@
     "updatedAt": "Updated",
     "view": "View details",
     "viewAll": "View all",
-    "done": "Done"
+    "done": "Done",
+    "loading": "Loading…"
   },
   "errors": {
     "network": "Cannot reach the server. Check your network or the backend.",
@@ -158,7 +159,8 @@
     "FILE": "From file",
     "QUERY": "From attributes",
     "EVENT": "Event based",
-    "CAMPAIGN_OUTCOME": "From campaign outcome"
+    "CAMPAIGN_OUTCOME": "From campaign outcome",
+    "AUDIENCE": "From OCS / BCCS3"
   },
   "priceStatus": {
     "DRAFT": "Draft",
@@ -610,7 +612,56 @@
     "notReadyDesc": "Still processing, or building failed.",
     "invalidRows": "Skipped {{n}} rows that are not valid subscriber numbers",
     "downloadTemplate": "Download template",
-    "templateHint": "Fill subscriber numbers into the isdn column of the template."
+    "templateHint": "Fill subscriber numbers into the isdn column of the template.",
+    "loadingSoFar": "Loading — subscribers loaded so far",
+    "retry": "Retry",
+    "retryStarted": "Rebuilding the segment",
+    "buildFailed": "Segment build failed",
+    "aud": {
+      "tab": "From OCS / BCCS3",
+      "note": "Pull subscribers straight from OCS (Hive) or BCCS3 through the Audience API. Data loads in the background; the segment stays \"Building\" until it finishes.",
+      "step": {
+        "source": "1. Data source",
+        "table": "2. Table",
+        "columns": "3. Columns to fetch",
+        "conditions": "4. Filters"
+      },
+      "sourceDesc": {
+        "OCS": "OCS subscriber data (Hive). Resumes from where it stopped if interrupted.",
+        "BCCS3": "BCCS3 sales transactions (MySQL). Reloads from the start if interrupted."
+      },
+      "simulated": "Simulated",
+      "notConfigured": "Not configured",
+      "tablePh": "Choose a table",
+      "loadFailed": "Could not load data from the source. Try again later.",
+      "columnsHint": "Pick exactly one column as the phone number",
+      "colTake": "Fetch",
+      "colName": "Column",
+      "colType": "Type",
+      "colPhone": "Phone number",
+      "conditionsHint": "Leave empty to take the whole table",
+      "noConditions": "No filters — the whole table will be fetched.",
+      "join": "Join with next",
+      "operator": "Operator",
+      "valuePh": "Value",
+      "verify": "Verify",
+      "valid": "The request is valid — you can create the segment.",
+      "invalid": "The request is not valid.",
+      "created": "Segment created — data is loading in the background",
+      "fixErrors": "Please fix the highlighted errors",
+      "table": "Table",
+      "importedRows": "Rows processed",
+      "selectedColumns": "Columns fetched",
+      "phoneTag": "phone",
+      "err": {
+        "source": "Choose a data source",
+        "table": "Choose a table",
+        "phone": "Pick exactly one phone number column",
+        "column": "Choose a column",
+        "operator": "This operator doesn't apply to the column's data type",
+        "value": "The value doesn't match the column's data type"
+      }
+    }
   },
   "workspace": {
     "name": "Workspace name",
@@ -929,5 +980,23 @@
     "copied": "Copied",
     "copyFailed": "Copy failed, select and copy it manually",
     "usage": "Call POST /api/v1/events with header X-Api-Key and body {\"eventType\": \"SIM_ACTIVATION_D0\", \"isdn\": \"2055512345\"}."
+  },
+  "segmentSource": {
+    "OCS": "OCS",
+    "DWH": "Data warehouse (BI)",
+    "FILE": "File",
+    "CAMPAIGN": "Campaign outcome",
+    "EVENT": "Event",
+    "BCCS3": "BCCS3"
+  },
+  "audienceOp": {
+    "IS": "equals (=)",
+    "NOT": "not equal (≠)",
+    "LIKE": "contains",
+    "NOT_LIKE": "does not contain",
+    "GREATER_THAN": "greater than (>)",
+    "GREATER_EQUAL_THAN": "greater or equal (≥)",
+    "LESS_THAN": "less than (<)",
+    "LESS_EQUAL_THAN": "less or equal (≤)"
   }
 }

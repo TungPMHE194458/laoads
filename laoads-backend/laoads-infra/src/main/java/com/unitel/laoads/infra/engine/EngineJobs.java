@@ -3,6 +3,7 @@ package com.unitel.laoads.infra.engine;
 import com.unitel.laoads.domain.engine.CampaignRunner;
 import com.unitel.laoads.domain.engine.EngineMaintenance;
 import com.unitel.laoads.domain.engine.MessageDispatcher;
+import com.unitel.laoads.domain.segment.AudienceSegmentImporter;
 import com.unitel.laoads.domain.segment.SegmentService;
 import com.unitel.laoads.infra.bootstrap.DatabaseBootstrap;
 import com.unitel.laoads.infra.simulation.EngagementSimulator;
@@ -27,18 +28,21 @@ public class EngineJobs {
 
     private final DatabaseBootstrap db;
     private final SegmentService segmentService;
+    private final AudienceSegmentImporter audienceImporter;
     private final CampaignRunner runner;
     private final MessageDispatcher dispatcher;
     private final EngineMaintenance maintenance;
     private final ObjectProvider<EngagementSimulator> simulator;
     private final int batch;
 
-    public EngineJobs(DatabaseBootstrap db, SegmentService segmentService, CampaignRunner runner,
+    public EngineJobs(DatabaseBootstrap db, SegmentService segmentService, AudienceSegmentImporter audienceImporter,
+                      CampaignRunner runner,
                       MessageDispatcher dispatcher, EngineMaintenance maintenance,
                       ObjectProvider<EngagementSimulator> simulator,
                       @Value("${laoads.engine.dispatch-batch:500}") int batch) {
         this.db = db;
         this.segmentService = segmentService;
+        this.audienceImporter = audienceImporter;
         this.runner = runner;
         this.dispatcher = dispatcher;
         this.maintenance = maintenance;
@@ -53,6 +57,20 @@ public class EngineJobs {
         }
         for (Long id : safe(segmentService::pendingQueryBuilds, java.util.List.<Long>of())) {
             run("build tệp #" + id, () -> segmentService.buildQuerySegment(id));
+        }
+    }
+
+    /**
+     * Nạp tệp AUDIENCE từ Audience API (OCS / BCCS3). Stream có thể kéo dài nhiều phút nên chạy job riêng
+     * (pool lập lịch 6 luồng) để không chặn build tệp QUERY hay gửi tin.
+     */
+    @Scheduled(fixedDelay = 5000, initialDelay = 18000)
+    public void buildAudienceSegments() {
+        if (!db.isMigrated()) {
+            return;
+        }
+        for (Long id : safe(segmentService::pendingAudienceBuilds, java.util.List.<Long>of())) {
+            run("nạp tệp AUDIENCE #" + id, () -> audienceImporter.build(id));
         }
     }
 

@@ -6,8 +6,12 @@ import com.unitel.laoads.api.common.CurrentUser;
 import com.unitel.laoads.api.common.PageParams;
 import com.unitel.laoads.api.common.WorkspaceContext;
 import com.unitel.laoads.api.common.WorkspaceScoped;
+import com.unitel.laoads.domain.audience.Audience;
+import com.unitel.laoads.domain.audience.AudienceRequests;
+import com.unitel.laoads.domain.audience.AudienceService;
 import com.unitel.laoads.domain.audit.Auditable;
 import com.unitel.laoads.domain.common.ErrorCode;
+import com.unitel.laoads.domain.common.FieldViolation;
 import com.unitel.laoads.domain.common.Isdns;
 import com.unitel.laoads.domain.common.LaoadsException;
 import com.unitel.laoads.domain.common.Times;
@@ -22,6 +26,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
@@ -66,7 +71,33 @@ public class SegmentController {
     public record SegmentDto(Long id, String name, String description, SegmentEnums.Type type, SegmentEnums.Source source,
                              SegmentEnums.Status status, int totalUsers, String fileName, List<SegmentCondition> conditions,
                              int referencedBy, String errorMessage, OffsetDateTime createdAt, String createdBy,
-                             OffsetDateTime updatedAt, Integer invalidRows) {
+                             OffsetDateTime updatedAt, Integer invalidRows, Audience.Request audience, long importedRows) {
+    }
+
+    // ───── Audience API (OCS / BCCS3) — đầu vào dạng chuỗi để báo lỗi theo từng trường ─────
+
+    public record AudienceColumnDto(String columnName, String dataType, String targetField) {
+    }
+
+    public record AudienceConditionDto(String columnName, String operator, String dataType, String logicalOperator,
+                                       String value) {
+    }
+
+    public record AudienceRequestDto(String tableName, List<AudienceColumnDto> selectedColumns,
+                                     List<AudienceConditionDto> conditions) {
+
+        AudienceRequests.RawRequest raw() {
+            return new AudienceRequests.RawRequest(tableName,
+                    selectedColumns == null ? null : selectedColumns.stream().map(c -> c == null ? null
+                            : new AudienceRequests.RawColumn(c.columnName(), c.dataType(), c.targetField())).toList(),
+                    conditions == null ? null : conditions.stream().map(c -> c == null ? null
+                            : new AudienceRequests.RawCondition(c.columnName(), c.operator(), c.dataType(),
+                            c.logicalOperator(), c.value())).toList());
+        }
+    }
+
+    public record CreateAudienceRequest(@NotBlank @Size(max = 255) String name, @Size(max = 1000) String description,
+                                        @NotNull String source, @NotNull AudienceRequestDto request) {
     }
 
     public record AttributeDto(String field, String group, String dataType, List<String> options) {
@@ -89,6 +120,7 @@ public class SegmentController {
     private static final int TEMPLATE_LINES = 5; // segment.template.line1..5 trong messages*.properties
 
     private final SegmentService service;
+    private final AudienceService audienceService;
     private final WorkspaceContext workspaceContext;
     private final MessageSource messages;
 
@@ -194,6 +226,60 @@ public class SegmentController {
                 .body(body);
     }
 
+    // ───────────── Audience API (OCS / BCCS3) ─────────────
+
+    @GetMapping("/segments/audience/sources")
+    @PreAuthorize("@perm.has('CAMPAIGN_VIEW')")
+    @Operation(summary = "Nguồn Audience API (OCS, BCCS3): đã cấu hình chưa, chạy thật hay giả lập")
+    public ApiResponse<List<Audience.SourceInfo>> audienceSources() {
+        return ApiResponse.ok(audienceService.sources());
+    }
+
+    @GetMapping("/segments/audience/{source}/tables")
+    @PreAuthorize("@perm.has('SEGMENT_MANAGE')")
+    @Operation(summary = "Danh sách bảng của nguồn", description = "Chưa cấu hình → 400 AUDIENCE_NOT_CONFIGURED; "
+            + "mất kết nối / API key sai → 503 AUDIENCE_UNAVAILABLE.")
+    public ApiResponse<List<String>> audienceTables(@PathVariable String source) {
+        return ApiResponse.ok(audienceService.tables(source(source)));
+    }
+
+    @GetMapping("/segments/audience/{source}/tables/{table}/columns")
+    @PreAuthorize("@perm.has('SEGMENT_MANAGE')")
+    @Operation(summary = "Cột của bảng (kiểu đã chuẩn hoá BOOLEAN / INT / LONG / DOUBLE / DATE / STRING)")
+    public ApiResponse<List<Audience.Column>> audienceColumns(@PathVariable String source, @PathVariable String table) {
+        return ApiResponse.ok(audienceService.columns(source(source), table));
+    }
+
+    @PostMapping("/segments/audience/{source}/verify")
+    @PreAuthorize("@perm.has('SEGMENT_MANAGE')")
+    @Operation(summary = "Kiểm tra request audience", description = "Sai cục bộ (thiếu cột PHONE, operator không hợp kiểu…) "
+            + "→ 400 VALIDATION_ERROR; service đánh giá → 200 {valid, message}.")
+    public ApiResponse<Audience.VerifyResult> audienceVerify(@PathVariable String source,
+                                                             @RequestBody AudienceRequestDto request) {
+        return ApiResponse.ok(audienceService.verify(source(source), request == null ? null : request.raw()));
+    }
+
+    @PostMapping("/segments/audience")
+    @PreAuthorize("@perm.has('SEGMENT_MANAGE')")
+    @Operation(summary = "Tạo tệp từ Audience API (AUDIENCE) — nạp bất đồng bộ bằng stream NDJSON",
+            description = "Trùng tên → 409 SEGMENT_NAME_DUPLICATE; service từ chối request → 400 VALIDATION_ERROR (field request).")
+    @Auditable(actionType = "CREATE", entityType = "SEGMENT", entityId = "#result.id", workspaceId = "#workspaceHeader",
+            summary = "'Tạo tệp KH \"' + #result.name + '\" từ ' + #result.source")
+    public ApiResponse<SegmentDto> createAudience(@Valid @RequestBody CreateAudienceRequest req) {
+        return ApiResponse.ok(dto(service.createAudience(ws(), req.name(), req.description(), source(req.source()),
+                req.request().raw(), CurrentUser.require().username()), 0, null));
+    }
+
+    @PostMapping("/segments/{id}/retry")
+    @PreAuthorize("@perm.has('SEGMENT_MANAGE')")
+    @Operation(summary = "Chạy lại tệp lỗi (AUDIENCE / QUERY)",
+            description = "OCS nạp tiếp từ offset đã xử lý, BCCS3 nạp lại từ đầu. Không phải tệp FAILED → 409 INVALID_TRANSITION.")
+    @Auditable(actionType = "UPDATE", entityType = "SEGMENT", entityId = "#id", workspaceId = "#workspaceHeader",
+            summary = "'Chạy lại tệp KH \"' + #result.name + '\"'")
+    public ApiResponse<SegmentDto> retry(@PathVariable Long id) {
+        return ApiResponse.ok(dto(service.retry(ws(), id, CurrentUser.require().username()), 0, null));
+    }
+
     @PostMapping("/segments/bulk-delete")
     @PreAuthorize("@perm.has('SEGMENT_MANAGE')")
     @Operation(summary = "Xoá nhiều tệp (bỏ qua tệp đang được chiến dịch dùng)")
@@ -206,7 +292,18 @@ public class SegmentController {
     private SegmentDto dto(Segment s, int refs, Integer invalidRows) {
         return new SegmentDto(s.getId(), s.getName(), s.getDescription(), s.getType(), s.getSource(), s.getStatus(),
                 s.getTotalUsers(), s.getFileName(), service.conditionsOf(s), refs, s.getErrorMessage(),
-                Times.toOffset(s.getCreatedAt()), s.getCreatedBy(), Times.toOffset(s.getUpdatedAt()), invalidRows);
+                Times.toOffset(s.getCreatedAt()), s.getCreatedBy(), Times.toOffset(s.getUpdatedAt()), invalidRows,
+                s.getType() == SegmentEnums.Type.AUDIENCE ? service.audienceOf(s) : null,
+                s.getImportedRows() == null ? 0 : s.getImportedRows());
+    }
+
+    private static Audience.Source source(String raw) {
+        try {
+            return Audience.Source.valueOf(raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw LaoadsException.validation(List.of(new FieldViolation("source", "error.validation.invalidValue",
+                    "Giá trị không hợp lệ")));
+        }
     }
 
     private long ws() {

@@ -15,7 +15,11 @@ const SRC = path.join(root, 'src')
 const DYNAMIC = {
   campaignStatus: ['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED', 'RUNNING', 'PAUSED', 'COMPLETED', 'REJECTED', 'CANCELLED'],
   segmentStatus: ['BUILDING', 'READY', 'FAILED', 'ARCHIVED'],
-  segmentType: ['FILE', 'QUERY', 'EVENT', 'CAMPAIGN_OUTCOME'],
+  segmentType: ['FILE', 'QUERY', 'EVENT', 'CAMPAIGN_OUTCOME', 'AUDIENCE'],
+  segmentSource: ['OCS', 'DWH', 'FILE', 'CAMPAIGN', 'EVENT', 'BCCS3'],
+  audienceOp: ['IS', 'NOT', 'LIKE', 'NOT_LIKE', 'GREATER_THAN', 'GREATER_EQUAL_THAN', 'LESS_THAN', 'LESS_EQUAL_THAN'],
+  'segment.aud.sourceDesc': ['OCS', 'BCCS3'],
+  'segment.aud.err': ['source', 'table', 'phone', 'column', 'operator', 'value'],
   priceStatus: ['DRAFT', 'LOCKED', 'ENDED'],
   activeStatus: ['ACTIVE', 'LOCKED', 'REVOKED'],
   role: ['SUPER_ADMIN', 'USER', 'OWNER', 'ADMIN', 'MEMBER'],

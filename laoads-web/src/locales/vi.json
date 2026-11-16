@@ -28,7 +28,8 @@
     "updatedAt": "Cập nhật",
     "view": "Xem chi tiết",
     "viewAll": "Xem tất cả",
-    "done": "Xong"
+    "done": "Xong",
+    "loading": "Đang tải…"
   },
   "errors": {
     "network": "Không kết nối được máy chủ. Kiểm tra mạng hoặc BE.",
@@ -158,7 +159,8 @@
     "FILE": "Từ file",
     "QUERY": "Từ thuộc tính",
     "EVENT": "Theo sự kiện",
-    "CAMPAIGN_OUTCOME": "Từ kết quả chiến dịch"
+    "CAMPAIGN_OUTCOME": "Từ kết quả chiến dịch",
+    "AUDIENCE": "Từ OCS / BCCS3"
   },
   "priceStatus": {
     "DRAFT": "Nháp",
@@ -610,7 +612,56 @@
     "notReadyDesc": "Hệ thống đang xử lý hoặc tạo tệp thất bại.",
     "invalidRows": "Đã bỏ qua {{n}} dòng không phải số thuê bao hợp lệ",
     "downloadTemplate": "Tải file mẫu",
-    "templateHint": "Điền số thuê bao vào cột isdn của file mẫu."
+    "templateHint": "Điền số thuê bao vào cột isdn của file mẫu.",
+    "loadingSoFar": "Đang nạp — số thuê bao đã nạp tới lúc này",
+    "retry": "Thử lại",
+    "retryStarted": "Đã bắt đầu build lại tệp",
+    "buildFailed": "Build tệp thất bại",
+    "aud": {
+      "tab": "Từ OCS / BCCS3",
+      "note": "Lấy thuê bao trực tiếp từ OCS (Hive) hoặc BCCS3 qua Audience API. Dữ liệu được nạp nền; tệp ở trạng thái \"Đang build\" tới khi nạp xong.",
+      "step": {
+        "source": "1. Nguồn dữ liệu",
+        "table": "2. Bảng",
+        "columns": "3. Cột lấy về",
+        "conditions": "4. Điều kiện lọc"
+      },
+      "sourceDesc": {
+        "OCS": "Dữ liệu thuê bao OCS (Hive). Chạy tiếp được từ vị trí đã nạp nếu bị gián đoạn.",
+        "BCCS3": "Giao dịch bán hàng BCCS3 (MySQL). Nạp lại từ đầu nếu bị gián đoạn."
+      },
+      "simulated": "Giả lập",
+      "notConfigured": "Chưa cấu hình",
+      "tablePh": "Chọn bảng dữ liệu",
+      "loadFailed": "Không tải được dữ liệu từ nguồn. Thử lại sau.",
+      "columnsHint": "Chọn đúng một cột làm số thuê bao",
+      "colTake": "Lấy",
+      "colName": "Cột",
+      "colType": "Kiểu",
+      "colPhone": "Số thuê bao",
+      "conditionsHint": "Để trống = lấy toàn bộ bảng",
+      "noConditions": "Không có điều kiện — lấy toàn bộ dữ liệu của bảng.",
+      "join": "Nối điều kiện",
+      "operator": "Toán tử",
+      "valuePh": "Giá trị",
+      "verify": "Kiểm tra",
+      "valid": "Request hợp lệ — có thể tạo tệp.",
+      "invalid": "Request không hợp lệ.",
+      "created": "Đã tạo tệp — dữ liệu đang được nạp nền",
+      "fixErrors": "Vui lòng sửa các lỗi được đánh dấu",
+      "table": "Bảng dữ liệu",
+      "importedRows": "Số dòng đã xử lý",
+      "selectedColumns": "Cột lấy về",
+      "phoneTag": "số thuê bao",
+      "err": {
+        "source": "Chọn nguồn dữ liệu",
+        "table": "Chưa chọn bảng",
+        "phone": "Cần chọn đúng một cột số thuê bao",
+        "column": "Chưa chọn cột",
+        "operator": "Toán tử không áp dụng cho kiểu dữ liệu của cột",
+        "value": "Giá trị không đúng kiểu dữ liệu"
+      }
+    }
   },
   "workspace": {
     "name": "Tên workspace",
@@ -929,5 +980,23 @@
     "copied": "Đã sao chép",
     "copyFailed": "Không sao chép được, hãy chọn và sao chép thủ công",
     "usage": "Gọi POST /api/v1/events với header X-Api-Key và body {\"eventType\": \"SIM_ACTIVATION_D0\", \"isdn\": \"2055512345\"}."
+  },
+  "segmentSource": {
+    "OCS": "OCS",
+    "DWH": "Kho dữ liệu (BI)",
+    "FILE": "File",
+    "CAMPAIGN": "Kết quả chiến dịch",
+    "EVENT": "Sự kiện",
+    "BCCS3": "BCCS3"
+  },
+  "audienceOp": {
+    "IS": "bằng (=)",
+    "NOT": "khác (≠)",
+    "LIKE": "chứa",
+    "NOT_LIKE": "không chứa",
+    "GREATER_THAN": "lớn hơn (>)",
+    "GREATER_EQUAL_THAN": "lớn hơn hoặc bằng (≥)",
+    "LESS_THAN": "nhỏ hơn (<)",
+    "LESS_EQUAL_THAN": "nhỏ hơn hoặc bằng (≤)"
   }
 }

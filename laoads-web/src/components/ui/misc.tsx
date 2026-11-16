@@ -132,18 +132,21 @@ function RadioCard({
   description,
   icon,
   className,
+  disabled,
 }: {
   value: string
   title: React.ReactNode
   description?: React.ReactNode
   icon?: React.ReactNode
   className?: string
+  disabled?: boolean
 }) {
   return (
     <RadioPrimitive.Item
       value={value}
+      disabled={disabled}
       className={cn(
-        'group relative flex w-full cursor-pointer items-start gap-3 rounded-xl border bg-card p-4 text-left outline-none transition hover:border-brand-300 focus-visible:ring-[3px] focus-visible:ring-ring data-[state=checked]:border-brand-500 data-[state=checked]:bg-accent/60 data-[state=checked]:shadow-[0_0_0_1px_var(--brand-500)]',
+        'group relative flex w-full cursor-pointer items-start gap-3 rounded-xl border bg-card p-4 text-left outline-none transition hover:border-brand-300 focus-visible:ring-[3px] focus-visible:ring-ring data-[state=checked]:border-brand-500 data-[state=checked]:bg-accent/60 data-[state=checked]:shadow-[0_0_0_1px_var(--brand-500)] data-[disabled]:cursor-not-allowed data-[disabled]:opacity-55 data-[disabled]:hover:border-border',
         className,
       )}
     >

@@ -19,13 +19,57 @@ import type {
   TimePoint,
 } from '@/api/types'
 import { CHANNELS, SENDER_CHANNELS } from '@/api/types'
-import { activeUnitPrice, audit, campaigns, campaignSeq, groups, notificationSettings, rand, refreshGroupCounts, segmentAttributes, segments, segmentSeq, senderPasswords, senders, senderSeq, users, workspaces } from '../db'
+import type { AudienceRequest, AudienceSource, Segment } from '@/api/types'
+import { activeUnitPrice, audienceCatalog, audit, campaigns, campaignSeq, groups, notificationSettings, rand, refreshGroupCounts, segmentAttributes, segments, segmentSeq, senderPasswords, senders, senderSeq, users, workspaces } from '../db'
 import { currentUser, fail, guard, includes, ok, paged, q, workspaceId } from '../utils'
+import { validateAudience } from '@/features/campaign/audience'
 
 const B = '*/api/v1'
 const apiKeys: Record<number, { configured: boolean; hint: string | null; rotatedAt: string | null; key: string | null }> = {}
 const wsOf = (r: Request) => workspaceId(r) ?? 1
 const actor = (r: Request) => currentUser(r)?.username ?? 'unknown'
+
+// ───── Audience API (OCS / BCCS3): kiểm tra + mô phỏng nạp nền giống BE ─────
+const AUD_ERR: Record<string, string> = {
+  table: 'Chưa chọn bảng',
+  phone: 'Cần đúng một cột số thuê bao (PHONE)',
+  column: 'Chưa chọn cột',
+  operator: 'Toán tử không áp dụng cho kiểu dữ liệu của cột',
+  value: 'Giá trị không đúng kiểu dữ liệu',
+}
+const isAudienceSource = (v: unknown): v is AudienceSource => v === 'OCS' || v === 'BCCS3'
+/** Lỗi cục bộ (400, field path request.*) — cùng luật với BE. */
+function audienceErrors(req: AudienceRequest): FieldErr[] {
+  return Object.entries(validateAudience(req)).map(([field, code]) => ({ field, message: AUD_ERR[code] ?? 'Giá trị không hợp lệ' }))
+}
+/** Service đối chiếu metadata thật: bảng / cột / kiểu dữ liệu phải khớp catalog (200, valid=false nếu sai). */
+function audienceMismatch(source: AudienceSource, req: AudienceRequest): string | null {
+  const cols = audienceCatalog[source][req.tableName]
+  if (!cols) return `Bảng ${req.tableName} không tồn tại`
+  for (const c of [...req.selectedColumns, ...req.conditions]) {
+    const col = cols.find((x) => x.name === c.columnName)
+    if (!col) return `Cột ${c.columnName} không có trong bảng ${req.tableName}`
+    if (col.dataType !== c.dataType) return `Cột ${c.columnName} có kiểu ${col.dataType}, không phải ${c.dataType}`
+  }
+  return null
+}
+/** Mô phỏng job nền stream NDJSON: totalUsers / importedRows tăng dần rồi READY. */
+function simulateAudienceBuild(s: Segment, startFrom = 0) {
+  const target = 20_000 + Math.round(rand() * 140_000)
+  let rows = startFrom
+  const step = Math.ceil((target - startFrom) / 8)
+  const timer = setInterval(() => {
+    rows = Math.min(target, rows + step)
+    s.importedRows = rows
+    s.totalUsers = Math.round(rows * 0.985) // bỏ số trùng / không hợp lệ
+    if (rows >= target) {
+      clearInterval(timer)
+      s.status = 'READY'
+      s.errorMessage = null
+      s.updatedAt = new Date().toISOString()
+    }
+  }, 800)
+}
 
 // ───── Đầu số: kiểm tra + ghi giống BE ─────
 type FieldErr = { field: string; message: string }
@@ -353,6 +397,100 @@ export const campaignHandlers = [
 
   // ───── Tệp khách hàng ─────
   http.get(`${B}/segment-attributes`, () => ok(segmentAttributes)),
+
+  // ───── Audience API (OCS / BCCS3) ─────
+  http.get(`${B}/segments/audience/sources`, ({ request }) => {
+    const g = guard(request, 'CAMPAIGN_VIEW')
+    if (g) return g
+    return ok([
+      { source: 'OCS', configured: true, mode: 'simulated' },
+      { source: 'BCCS3', configured: true, mode: 'simulated' },
+    ])
+  }),
+  http.get(`${B}/segments/audience/:source/tables`, ({ request, params }) => {
+    const g = guard(request, 'SEGMENT_MANAGE')
+    if (g) return g
+    if (!isAudienceSource(params.source)) return fail(400, 'AUDIENCE_NOT_CONFIGURED', 'Nguồn dữ liệu chưa được cấu hình')
+    return ok(Object.keys(audienceCatalog[params.source]))
+  }),
+  http.get(`${B}/segments/audience/:source/tables/:table/columns`, ({ request, params }) => {
+    const g = guard(request, 'SEGMENT_MANAGE')
+    if (g) return g
+    if (!isAudienceSource(params.source)) return fail(400, 'AUDIENCE_NOT_CONFIGURED', 'Nguồn dữ liệu chưa được cấu hình')
+    const cols = audienceCatalog[params.source][String(params.table)]
+    return cols ? ok(cols) : fail(503, 'AUDIENCE_UNAVAILABLE', `Bảng ${String(params.table)} không tồn tại ở nguồn ${params.source}`)
+  }),
+  http.post(`${B}/segments/audience/:source/verify`, async ({ request, params }) => {
+    const g = guard(request, 'SEGMENT_MANAGE')
+    if (g) return g
+    if (!isAudienceSource(params.source)) return fail(400, 'AUDIENCE_NOT_CONFIGURED', 'Nguồn dữ liệu chưa được cấu hình')
+    const req = (await request.json()) as AudienceRequest
+    const errs = audienceErrors(req)
+    if (errs.length) return invalid(errs)
+    const mismatch = audienceMismatch(params.source, req)
+    return ok({ valid: !mismatch, message: mismatch })
+  }),
+  http.post(`${B}/segments/audience`, async ({ request }) => {
+    const g = guard(request, 'SEGMENT_MANAGE')
+    if (g) return g
+    const b = (await request.json()) as { name: string; description?: string | null; source: AudienceSource; request: AudienceRequest }
+    if (!isAudienceSource(b.source)) return fail(400, 'AUDIENCE_NOT_CONFIGURED', 'Nguồn dữ liệu chưa được cấu hình')
+    const errs = audienceErrors(b.request)
+    if (errs.length) return invalid(errs)
+    const mismatch = audienceMismatch(b.source, b.request)
+    if (mismatch) return invalid([{ field: 'request', message: mismatch }])
+    const name = (b.name ?? '').trim()
+    if (!name) return invalid([{ field: 'name', message: 'Không được để trống' }])
+    if (segments.some((x) => x.workspaceId === wsOf(request) && x.name.trim().toLowerCase() === name.toLowerCase())) return fail(409, 'SEGMENT_NAME_DUPLICATE', 'Tên tệp khách hàng đã tồn tại trong workspace')
+    const s = {
+      workspaceId: wsOf(request),
+      id: ++segmentSeq.v,
+      name,
+      description: b.description?.trim() || null,
+      type: 'AUDIENCE' as const,
+      source: b.source,
+      status: 'BUILDING' as Segment['status'],
+      totalUsers: 0,
+      fileName: null,
+      conditions: [],
+      audience: b.request,
+      importedRows: 0,
+      errorMessage: null as string | null,
+      referencedBy: 0,
+      createdAt: new Date().toISOString(),
+      createdBy: actor(request),
+      updatedAt: null as string | null,
+    }
+    segments.unshift(s)
+    simulateAudienceBuild(s)
+    audit(actor(request), 'CREATE', 'SEGMENT', String(s.id), `Tạo tệp KH "${s.name}" từ ${b.source} (${b.request.tableName})`, s.workspaceId)
+    return ok(s)
+  }),
+  http.post(`${B}/segments/:id/retry`, ({ request, params }) => {
+    const g = guard(request, 'SEGMENT_MANAGE')
+    if (g) return g
+    const s = segments.find((x) => x.id === Number(params.id) && x.workspaceId === wsOf(request))
+    if (!s) return fail(404, 'NOT_FOUND', 'Không tìm thấy tệp khách hàng')
+    if (s.status !== 'FAILED' || (s.type !== 'AUDIENCE' && s.type !== 'QUERY')) return fail(409, 'INVALID_TRANSITION', 'Không thể thực hiện thao tác ở trạng thái hiện tại')
+    s.status = 'BUILDING'
+    s.errorMessage = null
+    if (s.type === 'AUDIENCE') {
+      // OCS chạy tiếp từ offset đã nạp; BCCS3 không có offset → nạp lại từ đầu
+      const from = s.source === 'OCS' ? (s.importedRows ?? 0) : 0
+      if (s.source !== 'OCS') {
+        s.importedRows = 0
+        s.totalUsers = 0
+      }
+      simulateAudienceBuild(s, from)
+    } else {
+      setTimeout(() => {
+        s.status = 'READY'
+        s.totalUsers = 48_000 + Math.round(rand() * 160_000)
+      }, 4000)
+    }
+    audit(actor(request), 'UPDATE', 'SEGMENT', String(s.id), `Build lại tệp KH "${s.name}"`, s.workspaceId)
+    return ok(s)
+  }),
   http.get(`${B}/segments`, ({ request }) => {
     const g = guard(request, 'CAMPAIGN_VIEW')
     if (g) return g

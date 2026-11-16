@@ -6,9 +6,10 @@ public final class SegmentEnums {
     private SegmentEnums() {
     }
 
-    public enum Type { FILE, QUERY, EVENT, CAMPAIGN_OUTCOME }
+    /** AUDIENCE: kéo từ Audience API (OCS / BCCS3) bằng stream NDJSON. */
+    public enum Type { FILE, QUERY, EVENT, CAMPAIGN_OUTCOME, AUDIENCE }
 
     public enum Status { BUILDING, READY, FAILED, ARCHIVED }
 
-    public enum Source { OCS, DWH, FILE, CAMPAIGN, EVENT }
+    public enum Source { OCS, DWH, FILE, CAMPAIGN, EVENT, BCCS3 }
 }

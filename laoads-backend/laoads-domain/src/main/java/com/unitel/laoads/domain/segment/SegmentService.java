@@ -3,6 +3,9 @@ package com.unitel.laoads.domain.segment;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.unitel.laoads.domain.audience.Audience;
+import com.unitel.laoads.domain.audience.AudienceRequests;
+import com.unitel.laoads.domain.audience.AudienceService;
 import com.unitel.laoads.domain.common.ErrorCode;
 import com.unitel.laoads.domain.common.FieldViolation;
 import com.unitel.laoads.domain.common.LaoadsException;
@@ -53,6 +56,7 @@ public class SegmentService {
     private final SegmentRepository repo;
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
+    private final AudienceService audienceService;
 
     // ───────────── Đọc ─────────────
 
@@ -170,6 +174,64 @@ public class SegmentService {
                 + "AND CONVERTED = 0", s.getId(), campaignId);
         s.setTotalUsers(count);
         return s;
+    }
+
+    /**
+     * Tệp AUDIENCE: kiểm tra request (cục bộ + verify phía service) rồi tạo tệp BUILDING; job nền
+     * ({@link AudienceSegmentImporter}) stream NDJSON và nạp số thuê bao.
+     */
+    @Transactional
+    public Segment createAudience(long workspaceId, String name, String description, Audience.Source source,
+                                  AudienceRequests.RawRequest raw, String actor) {
+        String n = requireName(workspaceId, name);
+        Audience.Request request = audienceService.requireValid(source, raw);
+        Segment s = newSegment(workspaceId, n, description, Type.AUDIENCE, Source.valueOf(source.name()), actor);
+        s.setStatus(Status.BUILDING);
+        s.setAudienceJson(toJson(request));
+        s.setImportedRows(0L);
+        s = repo.save(s);
+        log.info("[SEGMENT] {} tạo tệp AUDIENCE #{} '{}' từ {} bảng {} — chờ nạp", actor, s.getId(), n, source,
+                request.tableName());
+        return s;
+    }
+
+    /** Request Audience của tệp AUDIENCE (null với loại khác). */
+    public Audience.Request audienceOf(Segment s) {
+        if (s.getAudienceJson() == null || s.getAudienceJson().isBlank()) {
+            return null;
+        }
+        try {
+            return mapper.readValue(s.getAudienceJson(), Audience.Request.class);
+        } catch (JsonProcessingException e) {
+            log.warn("[SEGMENT] AUDIENCE_JSON hỏng ở tệp #{}: {}", s.getId(), e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Chạy lại tệp FAILED loại AUDIENCE / QUERY. OCS nạp tiếp từ số dòng đã xử lý (offset);
+     * BCCS3 không có offset nên nạp lại từ đầu. Loại / trạng thái khác → 409 INVALID_TRANSITION.
+     */
+    @Transactional
+    public Segment retry(long workspaceId, long id, String actor) {
+        Segment s = get(workspaceId, id);
+        if (s.getStatus() != Status.FAILED || (s.getType() != Type.AUDIENCE && s.getType() != Type.QUERY)) {
+            throw new LaoadsException(ErrorCode.INVALID_TRANSITION, "Chỉ chạy lại được tệp lỗi loại AUDIENCE hoặc QUERY");
+        }
+        if (s.getType() == Type.AUDIENCE && s.getSource() != Source.OCS) {
+            s.setImportedRows(0L);
+        }
+        s.setStatus(Status.BUILDING);
+        s.setErrorMessage(null);
+        s.setUpdatedAt(Instant.now());
+        s.setUpdatedBy(actor);
+        log.info("[SEGMENT] {} chạy lại tệp {} #{} (offset {})", actor, s.getType(), id, s.getImportedRows());
+        return s;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Long> pendingAudienceBuilds() {
+        return repo.findTop20ByStatusAndTypeOrderByIdAsc(Status.BUILDING, Type.AUDIENCE).stream().map(Segment::getId).toList();
     }
 
     // ───────────── Build tệp QUERY (job nền) ─────────────

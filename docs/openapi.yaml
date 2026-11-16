@@ -1012,6 +1012,7 @@ paths:
           - QUERY
           - EVENT
           - CAMPAIGN_OUTCOME
+          - AUDIENCE
       - name: status
         in: query
         required: false
@@ -1074,6 +1075,44 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateQueryRequest"
         required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSegmentDto"
+  /v1/segments/{id}/retry:
+    post:
+      tags:
+      - segment
+      summary: Chạy lại tệp lỗi (AUDIENCE / QUERY)
+      description: "OCS nạp tiếp từ offset đã xử lý, BCCS3 nạp lại từ đầu. Không phả\
+        i tệp FAILED → 409 INVALID_TRANSITION."
+      operationId: retry
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
       responses:
         "200":
           description: OK
@@ -1205,6 +1244,87 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseBulkDeleteResult"
+  /v1/segments/audience:
+    post:
+      tags:
+      - segment
+      summary: Tạo tệp từ Audience API (AUDIENCE) — nạp bất đồng bộ bằng stream NDJSON
+      description: Trùng tên → 409 SEGMENT_NAME_DUPLICATE; service từ chối request
+        → 400 VALIDATION_ERROR (field request).
+      operationId: createAudience
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAudienceRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSegmentDto"
+  /v1/segments/audience/{source}/verify:
+    post:
+      tags:
+      - segment
+      summary: Kiểm tra request audience
+      description: "Sai cục bộ (thiếu cột PHONE, operator không hợp kiểu…) → 400 VALIDATION_ERROR;\
+        \ service đánh giá → 200 {valid, message}."
+      operationId: audienceVerify
+      parameters:
+      - name: source
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AudienceRequestDto"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVerifyResult"
   /v1/price-quotes:
     get:
       tags:
@@ -2530,6 +2650,115 @@ paths:
               schema:
                 type: string
                 format: byte
+  /v1/segments/audience/{source}/tables:
+    get:
+      tags:
+      - segment
+      summary: Danh sách bảng của nguồn
+      description: Chưa cấu hình → 400 AUDIENCE_NOT_CONFIGURED; mất kết nối / API
+        key sai → 503 AUDIENCE_UNAVAILABLE.
+      operationId: audienceTables
+      parameters:
+      - name: source
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListString"
+  /v1/segments/audience/{source}/tables/{table}/columns:
+    get:
+      tags:
+      - segment
+      summary: Cột của bảng (kiểu đã chuẩn hoá BOOLEAN / INT / LONG / DOUBLE / DATE
+        / STRING)
+      operationId: audienceColumns
+      parameters:
+      - name: source
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: table
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListColumn"
+  /v1/segments/audience/sources:
+    get:
+      tags:
+      - segment
+      summary: "Nguồn Audience API (OCS, BCCS3): đã cấu hình chưa, chạy thật hay giả\
+        \ lập"
+      operationId: audienceSources
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSourceInfo"
   /v1/segment-attributes:
     get:
       tags:
@@ -4198,6 +4427,7 @@ components:
           - QUERY
           - EVENT
           - CAMPAIGN_OUTCOME
+          - AUDIENCE
         source:
           type: string
           enum:
@@ -4206,6 +4436,7 @@ components:
           - FILE
           - CAMPAIGN
           - EVENT
+          - BCCS3
         status:
           type: string
           enum:
@@ -4238,6 +4469,11 @@ components:
         invalidRows:
           type: integer
           format: int32
+        audience:
+          $ref: "#/components/schemas/Request"
+        importedRows:
+          type: integer
+          format: int64
     EstimateRequest:
       type: object
       properties:
@@ -4315,6 +4551,86 @@ components:
           type: integer
           format: int64
         reason:
+          type: string
+    AudienceColumnDto:
+      type: object
+      properties:
+        columnName:
+          type: string
+        dataType:
+          type: string
+        targetField:
+          type: string
+    AudienceConditionDto:
+      type: object
+      properties:
+        columnName:
+          type: string
+        operator:
+          type: string
+        dataType:
+          type: string
+        logicalOperator:
+          type: string
+        value:
+          type: string
+    AudienceRequestDto:
+      type: object
+      properties:
+        tableName:
+          type: string
+        selectedColumns:
+          type: array
+          items:
+            $ref: "#/components/schemas/AudienceColumnDto"
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AudienceConditionDto"
+    CreateAudienceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 0
+        description:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        source:
+          type: string
+        request:
+          $ref: "#/components/schemas/AudienceRequestDto"
+      required:
+      - name
+      - request
+      - source
+    ApiResponseVerifyResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/VerifyResult"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    VerifyResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        message:
           type: string
     EventRequest:
       type: object
@@ -4772,6 +5088,95 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ApiFieldError"
+    ApiResponseListString:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    ApiResponseListColumn:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Column"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    Column:
+      type: object
+      properties:
+        name:
+          type: string
+        dataType:
+          type: string
+          enum:
+          - BOOLEAN
+          - INT
+          - LONG
+          - DOUBLE
+          - DATE
+          - STRING
+    ApiResponseListSourceInfo:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceInfo"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    SourceInfo:
+      type: object
+      properties:
+        source:
+          type: string
+          enum:
+          - OCS
+          - BCCS3
+        configured:
+          type: boolean
+        mode:
+          type: string
     ApiResponseListAttributeDto:
       type: object
       properties:

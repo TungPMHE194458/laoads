@@ -43,7 +43,7 @@ spring:
   task:
     scheduling:
       pool:
-        size: 4
+        size: 6
   jpa:
     open-in-view: false
     hibernate:
@@ -108,6 +108,22 @@ laoads:
     public-base-url: ${LAOADS_PUBLIC_BASE_URL:http://localhost:5173}
     # Thời gian chờ tối đa khi "Kiểm tra kết nối" gateway của đầu số (SMPP bind / HTTP GET)
     gateway-probe-timeout: PT5S
+  # Audience API (tài liệu "Tài liệu API tích hợp"): tệp KH lấy từ OCS Audience (Hive) / BCCS3 Audience (MySQL).
+  # client = simulated (mặc định: dựng dữ liệu từ LADS_SUBSCRIBER) | http (gọi thật, cần URL + API key từng nguồn).
+  # base-url đã gồm prefix endpoint. API key chỉ đặt qua biến môi trường.
+  audience:
+    client: ${LAOADS_AUDIENCE_CLIENT:simulated}
+    api-key-header: ${LAOADS_AUDIENCE_API_KEY_HEADER:x-api-key}
+    connect-timeout: PT5S
+    request-timeout: PT30S
+    # stream NDJSON: quá thời gian này không có dòng mới thì ngắt (tệp FAILED, OCS chạy lại được từ offset)
+    stream-idle-timeout: ${LAOADS_AUDIENCE_STREAM_IDLE_TIMEOUT:PT120S}
+    ocs:
+      base-url: ${LAOADS_AUDIENCE_OCS_URL:http://localhost:8081/api/v1/internal}
+      api-key: ${LAOADS_AUDIENCE_OCS_API_KEY:}
+    bccs3:
+      base-url: ${LAOADS_AUDIENCE_BCCS3_URL:http://localhost:8082/api/v1/internal/bbcs3}
+      api-key: ${LAOADS_AUDIENCE_BCCS3_API_KEY:}
   # Khoá mã hoá bí mật lưu trong DB (mật khẩu gateway của đầu số). Bỏ trống → suy ra từ JWT secret (có cảnh báo):
   # khi đó đổi LAOADS_JWT_SECRET sẽ phải nhập lại mật khẩu gateway. uat/prod nên đặt riêng (≥ 32 ký tự).
   secrets:

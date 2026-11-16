@@ -301,6 +301,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/segments/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chạy lại tệp lỗi (AUDIENCE / QUERY)
+         * @description OCS nạp tiếp từ offset đã xử lý, BCCS3 nạp lại từ đầu. Không phải tệp FAILED → 409 INVALID_TRANSITION.
+         */
+        post: operations["retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/segments/import": {
         parameters: {
             query?: never;
@@ -346,6 +366,46 @@ export interface paths {
         put?: never;
         /** Xoá nhiều tệp (bỏ qua tệp đang được chiến dịch dùng) */
         post: operations["bulkDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/audience": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Tạo tệp từ Audience API (AUDIENCE) — nạp bất đồng bộ bằng stream NDJSON
+         * @description Trùng tên → 409 SEGMENT_NAME_DUPLICATE; service từ chối request → 400 VALIDATION_ERROR (field request).
+         */
+        post: operations["createAudience"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/audience/{source}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kiểm tra request audience
+         * @description Sai cục bộ (thiếu cột PHONE, operator không hợp kiểu…) → 400 VALIDATION_ERROR; service đánh giá → 200 {valid, message}.
+         */
+        post: operations["audienceVerify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -915,6 +975,60 @@ export interface paths {
          * @description Sheet 1 chỉ có tiêu đề isdn (cột định dạng Text); sheet 2 là hướng dẫn theo Accept-Language.
          */
         get: operations["importTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/audience/{source}/tables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Danh sách bảng của nguồn
+         * @description Chưa cấu hình → 400 AUDIENCE_NOT_CONFIGURED; mất kết nối / API key sai → 503 AUDIENCE_UNAVAILABLE.
+         */
+        get: operations["audienceTables"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/audience/{source}/tables/{table}/columns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cột của bảng (kiểu đã chuẩn hoá BOOLEAN / INT / LONG / DOUBLE / DATE / STRING) */
+        get: operations["audienceColumns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/audience/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Nguồn Audience API (OCS, BCCS3): đã cấu hình chưa, chạy thật hay giả lập */
+        get: operations["audienceSources"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1700,9 +1814,9 @@ export interface components {
             name?: string;
             description?: string;
             /** @enum {string} */
-            type?: "FILE" | "QUERY" | "EVENT" | "CAMPAIGN_OUTCOME";
+            type?: "FILE" | "QUERY" | "EVENT" | "CAMPAIGN_OUTCOME" | "AUDIENCE";
             /** @enum {string} */
-            source?: "OCS" | "DWH" | "FILE" | "CAMPAIGN" | "EVENT";
+            source?: "OCS" | "DWH" | "FILE" | "CAMPAIGN" | "EVENT" | "BCCS3";
             /** @enum {string} */
             status?: "BUILDING" | "READY" | "FAILED" | "ARCHIVED";
             /** Format: int32 */
@@ -1719,6 +1833,9 @@ export interface components {
             updatedAt?: string;
             /** Format: int32 */
             invalidRows?: number;
+            audience?: components["schemas"]["Request"];
+            /** Format: int64 */
+            importedRows?: number;
         };
         EstimateRequest: {
             conditions?: components["schemas"]["SegmentCondition"][];
@@ -1755,6 +1872,42 @@ export interface components {
             /** Format: int64 */
             id?: number;
             reason?: string;
+        };
+        AudienceColumnDto: {
+            columnName?: string;
+            dataType?: string;
+            targetField?: string;
+        };
+        AudienceConditionDto: {
+            columnName?: string;
+            operator?: string;
+            dataType?: string;
+            logicalOperator?: string;
+            value?: string;
+        };
+        AudienceRequestDto: {
+            tableName?: string;
+            selectedColumns?: components["schemas"]["AudienceColumnDto"][];
+            conditions?: components["schemas"]["AudienceConditionDto"][];
+        };
+        CreateAudienceRequest: {
+            name: string;
+            description?: string;
+            source: string;
+            request: components["schemas"]["AudienceRequestDto"];
+        };
+        ApiResponseVerifyResult: {
+            success?: boolean;
+            data?: components["schemas"]["VerifyResult"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        VerifyResult: {
+            valid?: boolean;
+            message?: string;
         };
         EventRequest: {
             eventType?: string;
@@ -1949,6 +2102,44 @@ export interface components {
             metaData?: components["schemas"]["PageMeta"];
             requestId?: string;
             errors?: components["schemas"]["ApiFieldError"][];
+        };
+        ApiResponseListString: {
+            success?: boolean;
+            data?: string[];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        ApiResponseListColumn: {
+            success?: boolean;
+            data?: components["schemas"]["Column"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        Column: {
+            name?: string;
+            /** @enum {string} */
+            dataType?: "BOOLEAN" | "INT" | "LONG" | "DOUBLE" | "DATE" | "STRING";
+        };
+        ApiResponseListSourceInfo: {
+            success?: boolean;
+            data?: components["schemas"]["SourceInfo"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        SourceInfo: {
+            /** @enum {string} */
+            source?: "OCS" | "BCCS3";
+            configured?: boolean;
+            mode?: string;
         };
         ApiResponseListAttributeDto: {
             success?: boolean;
@@ -2967,7 +3158,7 @@ export interface operations {
                 page?: number;
                 size?: number;
                 query?: string;
-                type?: "FILE" | "QUERY" | "EVENT" | "CAMPAIGN_OUTCOME";
+                type?: "FILE" | "QUERY" | "EVENT" | "CAMPAIGN_OUTCOME" | "AUDIENCE";
                 status?: "BUILDING" | "READY" | "FAILED" | "ARCHIVED";
             };
             header: {
@@ -3007,6 +3198,32 @@ export interface operations {
                 "application/json": components["schemas"]["CreateQueryRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSegmentDto"];
+                };
+            };
+        };
+    };
+    retry: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
@@ -3105,6 +3322,64 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseBulkDeleteResult"];
+                };
+            };
+        };
+    };
+    createAudience: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAudienceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSegmentDto"];
+                };
+            };
+        };
+    };
+    audienceVerify: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                source: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AudienceRequestDto"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVerifyResult"];
                 };
             };
         };
@@ -4066,6 +4341,83 @@ export interface operations {
                 };
                 content: {
                     "*/*": string;
+                };
+            };
+        };
+    };
+    audienceTables: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                source: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListString"];
+                };
+            };
+        };
+    };
+    audienceColumns: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                source: string;
+                table: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListColumn"];
+                };
+            };
+        };
+    };
+    audienceSources: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListSourceInfo"];
                 };
             };
         };

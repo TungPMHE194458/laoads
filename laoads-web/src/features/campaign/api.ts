@@ -5,6 +5,11 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { cleanParams, download, request, requestPage } from '@/api/client'
 import type {
+  AudienceColumn,
+  AudienceRequest,
+  AudienceSource,
+  AudienceSourceInfo,
+  AudienceVerifyResult,
   AvailableSender,
   CampaignAction,
   CampaignDetail,
@@ -161,6 +166,8 @@ export function useSegments(q: SegmentQuery) {
     queryKey: ['segments', useWs(), q],
     queryFn: () => requestPage<Segment>({ url: '/segments', params: cleanParams({ ...q }) }),
     placeholderData: keepPreviousData,
+    // Còn tệp đang build (job nền nạp dữ liệu) → tự làm mới để thấy tiến độ / trạng thái
+    refetchInterval: (query) => (query.state.data?.items.some((s) => s.status === 'BUILDING') ? 3000 : false),
   })
 }
 export function useSegment(id: number | null) {
@@ -168,6 +175,7 @@ export function useSegment(id: number | null) {
     queryKey: ['segment', id],
     queryFn: () => request<Segment>({ url: `/segments/${id}` }),
     enabled: id != null && Number.isFinite(id),
+    refetchInterval: (query) => (query.state.data?.status === 'BUILDING' ? 3000 : false),
   })
 }
 export function useSegmentMembers(id: number | null, page: number) {
@@ -212,6 +220,56 @@ export function useDeleteSegments() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (ids: number[]) => request<{ deleted: number; failed: { id: number; reason: string }[] }>({ url: '/segments/bulk-delete', method: 'POST', data: { ids } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['segments'] }),
+  })
+}
+/** Tệp FAILED (AUDIENCE / QUERY) → build lại; OCS chạy tiếp từ offset đã nạp, BCCS3 nạp lại từ đầu. */
+export function useRetrySegment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => request<Segment>({ url: `/segments/${id}/retry`, method: 'POST' }),
+    onSuccess: (s) => {
+      qc.invalidateQueries({ queryKey: ['segments'] })
+      qc.invalidateQueries({ queryKey: ['segment', s.id] })
+    },
+  })
+}
+
+// ───── Audience API (OCS / BCCS3) — tạo tệp KH loại AUDIENCE ─────
+export function useAudienceSources() {
+  return useQuery({
+    queryKey: ['audience', useWs(), 'sources'],
+    queryFn: () => request<AudienceSourceInfo[]>({ url: '/segments/audience/sources' }),
+    staleTime: 60_000,
+  })
+}
+export function useAudienceTables(source: AudienceSource | null) {
+  return useQuery({
+    queryKey: ['audience', useWs(), source, 'tables'],
+    queryFn: () => request<string[]>({ url: `/segments/audience/${source}/tables` }),
+    enabled: !!source,
+    staleTime: 60_000,
+  })
+}
+export function useAudienceColumns(source: AudienceSource | null, table: string | null) {
+  return useQuery({
+    queryKey: ['audience', useWs(), source, 'tables', table, 'columns'],
+    queryFn: () => request<AudienceColumn[]>({ url: `/segments/audience/${source}/tables/${encodeURIComponent(table!)}/columns` }),
+    enabled: !!source && !!table,
+    staleTime: 60_000,
+  })
+}
+export function useVerifyAudience() {
+  return useMutation({
+    mutationFn: ({ source, request: body }: { source: AudienceSource; request: AudienceRequest }) =>
+      request<AudienceVerifyResult>({ url: `/segments/audience/${source}/verify`, method: 'POST', data: body }),
+  })
+}
+export function useCreateAudienceSegment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { name: string; description?: string | null; source: AudienceSource; request: AudienceRequest }) =>
+      request<Segment>({ url: '/segments/audience', method: 'POST', data: body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['segments'] }),
   })
 }

@@ -1,10 +1,19 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Calculator, Download, FileSpreadsheet, Filter, Plus, Trash2, UploadCloud } from 'lucide-react'
-import { errorMessage } from '@/api/client'
+import { Calculator, Download, FileSpreadsheet, Filter, Plus, ServerCog, Trash2, UploadCloud } from 'lucide-react'
+import { ApiError, errorMessage } from '@/api/client'
 import type { SegmentCondition } from '@/api/types'
-import { downloadSegmentTemplate, useCreateSegment, useEstimateSegment, useSegmentAttributes } from '@/features/campaign/api'
+import {
+  downloadSegmentTemplate,
+  useAudienceColumns,
+  useCreateAudienceSegment,
+  useCreateSegment,
+  useEstimateSegment,
+  useSegmentAttributes,
+  useVerifyAudience,
+} from '@/features/campaign/api'
+import { type AudienceDraft, EMPTY_DRAFT, toAudienceRequest, validateAudience } from '@/features/campaign/audience'
 import { Field } from '@/components/common/dialogs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,15 +22,23 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/misc'
 import { fmtNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { AudienceBuilder } from './AudienceBuilder'
 
 const OPS: SegmentCondition['operator'][] = ['EQ', 'NEQ', 'GT', 'GTE', 'LT', 'LTE', 'BETWEEN', 'IN', 'IS_NULL']
+type CreateTab = 'QUERY' | 'FILE' | 'AUDIENCE'
 
 export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { t } = useTranslation()
   const attrs = useSegmentAttributes()
   const estimate = useEstimateSegment()
   const create = useCreateSegment()
-  const [tab, setTab] = React.useState<'QUERY' | 'FILE'>('QUERY')
+  const createAudience = useCreateAudienceSegment()
+  const verify = useVerifyAudience()
+  const [tab, setTab] = React.useState<CreateTab>('QUERY')
+  const [aud, setAud] = React.useState<AudienceDraft>(EMPTY_DRAFT)
+  // field path của BE → thông điệp đã dịch
+  const [audErrors, setAudErrors] = React.useState<Record<string, string>>({})
+  const audColumns = useAudienceColumns(aud.source, aud.table)
   const [name, setName] = React.useState('')
   const [desc, setDesc] = React.useState('')
   const [conds, setConds] = React.useState<SegmentCondition[]>([{ field: 'act_status', operator: 'EQ', value: '00', join: 'AND' }])
@@ -57,8 +74,62 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
     }
   }
 
+  const changeAud = (d: AudienceDraft) => {
+    setAud(d)
+    setAudErrors({})
+    verify.reset()
+    setErr(null)
+  }
+  const serverErrors = (e: unknown) =>
+    e instanceof ApiError && e.errors.length ? Object.fromEntries(e.errors.map((x) => [x.field, x.message])) : null
+  /** Kiểm tra cục bộ trước khi gọi BE; trả request nếu hợp lệ. */
+  const audienceRequest = () => {
+    if (!aud.source) {
+      setErr(t('segment.aud.err.source'))
+      return null
+    }
+    const req = toAudienceRequest(aud, audColumns.data)
+    const local = validateAudience(req)
+    if (Object.keys(local).length) {
+      setAudErrors(Object.fromEntries(Object.entries(local).map(([f, code]) => [f, t(`segment.aud.err.${code}`)])))
+      setErr(t('segment.aud.fixErrors'))
+      return null
+    }
+    return { source: aud.source, request: req }
+  }
+  const runVerify = () => {
+    setErr(null)
+    const r = audienceRequest()
+    if (!r) return
+    verify.mutate(r, {
+      onError: (e) => {
+        const fe = serverErrors(e)
+        if (fe) setAudErrors(fe)
+        setErr(errorMessage(e))
+      },
+    })
+  }
+
   const submit = () => {
     if (!name.trim()) return setErr(t('segment.nameRequired'))
+    if (tab === 'AUDIENCE') {
+      const r = audienceRequest()
+      if (!r) return
+      return createAudience.mutate(
+        { name: name.trim(), description: desc.trim() || null, ...r },
+        {
+          onSuccess: () => {
+            toast.success(t('segment.aud.created'))
+            onOpenChange(false)
+          },
+          onError: (e) => {
+            const fe = serverErrors(e)
+            if (fe) setAudErrors(fe)
+            setErr(errorMessage(e))
+          },
+        },
+      )
+    }
     if (tab === 'QUERY' && !conds.every((c) => c.field && (c.operator === 'IS_NULL' || c.value !== ''))) return setErr(t('segment.condInvalid'))
     if (tab === 'FILE' && !file) return setErr(t('segment.fileRequired'))
     create.mutate(
@@ -91,7 +162,13 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
             <Input value={desc} onChange={(e) => setDesc(e.target.value)} />
           </Field>
         </div>
-        <Tabs value={tab} onValueChange={(v) => setTab(v as 'QUERY' | 'FILE')}>
+        <Tabs
+          value={tab}
+          onValueChange={(v) => {
+            setTab(v as CreateTab)
+            setErr(null)
+          }}
+        >
           <TabsList>
             <TabsTrigger value="QUERY">
               <Filter />
@@ -100,6 +177,10 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
             <TabsTrigger value="FILE">
               <FileSpreadsheet />
               {t('segment.fromFile')}
+            </TabsTrigger>
+            <TabsTrigger value="AUDIENCE">
+              <ServerCog />
+              {t('segment.aud.tab')}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="QUERY" className="mt-4">
@@ -183,13 +264,17 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
               </Button>
             </div>
           </TabsContent>
+          <TabsContent value="AUDIENCE" className="mt-4">
+            <p className="mb-3 text-xs text-muted-foreground">{t('segment.aud.note')}</p>
+            <AudienceBuilder draft={aud} onChange={changeAud} errors={audErrors} verifyResult={verify.data ?? null} verifying={verify.isPending} onVerify={runVerify} />
+          </TabsContent>
         </Tabs>
         {err && <p className="rounded-lg border border-danger/20 bg-danger-soft px-3 py-2 text-sm text-danger">{err}</p>}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={submit} loading={create.isPending}>
+          <Button onClick={submit} loading={create.isPending || createAudience.isPending}>
             {t('segment.createBtn')}
           </Button>
         </DialogFooter>

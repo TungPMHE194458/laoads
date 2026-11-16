@@ -4,6 +4,8 @@
  */
 import type {
   ActionType,
+  AudienceColumn,
+  AudienceSource,
   AuditLog,
   CampaignDetail,
   CampaignGroup,
@@ -142,8 +144,77 @@ export const segments: (Segment & { workspaceId: number })[] = [
   { workspaceId: 1, id: 7, name: 'Xem LaoTV > 2GB/tháng', description: null, type: 'QUERY', source: 'OCS', status: 'FAILED', totalUsers: 0, fileName: null, conditions: [{ field: 'laostv_total_volume', operator: 'GT', value: '2048', join: 'AND' }], referencedBy: 0, createdAt: daysAgo(4), createdBy: 'member_bsd', updatedAt: daysAgo(4) },
   { workspaceId: 1, id: 8, name: 'Danh sách test nội bộ', description: 'ISDN nhân viên dùng bắn thử', type: 'FILE', source: 'FILE', status: 'ARCHIVED', totalUsers: 24, fileName: 'test_isdn.xlsx', conditions: [], referencedBy: 0, createdAt: daysAgo(70), createdBy: 'owner_bsd', updatedAt: daysAgo(20) },
   { workspaceId: 2, id: 9, name: 'Khách hàng doanh nghiệp – Fiber', description: null, type: 'FILE', source: 'FILE', status: 'READY', totalUsers: 1_530, fileName: 'enterprise_fiber.xlsx', conditions: [], referencedBy: 0, createdAt: daysAgo(9), createdBy: 'noy.s', updatedAt: null },
+  {
+    workspaceId: 1, id: 10, name: 'OCS – thuê bao 4G nạp tiền > 50K', description: null, type: 'AUDIENCE', source: 'OCS', status: 'READY', totalUsers: 86_412, fileName: null, conditions: [],
+    audience: {
+      tableName: 'all_report_stl_new',
+      selectedColumns: [
+        { columnName: 'isdn', dataType: 'STRING', targetField: 'PHONE' },
+        { columnName: 'province', dataType: 'STRING', targetField: 'PROVINCE' },
+        { columnName: 'topup_amount_30d', dataType: 'LONG', targetField: 'TOPUP_AMOUNT_30D' },
+      ],
+      conditions: [
+        { columnName: 'infras_data_4g', operator: 'IS', dataType: 'BOOLEAN', logicalOperator: 'AND', value: 'true' },
+        { columnName: 'topup_amount_30d', operator: 'GREATER_THAN', dataType: 'LONG', logicalOperator: null, value: '50000' },
+      ],
+    },
+    importedRows: 86_530, referencedBy: 0, createdAt: daysAgo(3), createdBy: 'admin_bsd', updatedAt: daysAgo(3),
+  },
+  {
+    workspaceId: 1, id: 11, name: 'BCCS3 – SIM bán tại cửa hàng Viêng Chăn', description: 'Giao dịch bán SIM tháng 11', type: 'AUDIENCE', source: 'BCCS3', status: 'FAILED', totalUsers: 12_000, fileName: null, conditions: [],
+    errorMessage: 'Mất kết nối tới BCCS3 Audience khi đang nạp (đã nạp 12.000 dòng)',
+    audience: {
+      tableName: 'sale_tran',
+      selectedColumns: [
+        { columnName: 'isdn', dataType: 'STRING', targetField: 'PHONE' },
+        { columnName: 'shop_code', dataType: 'STRING', targetField: 'SHOP_CODE' },
+      ],
+      conditions: [
+        { columnName: 'shop_code', operator: 'LIKE', dataType: 'STRING', logicalOperator: 'AND', value: 'VTE' },
+        { columnName: 'sale_date', operator: 'GREATER_EQUAL_THAN', dataType: 'DATE', logicalOperator: null, value: '2026-11-01' },
+      ],
+    },
+    importedRows: 12_000, referencedBy: 0, createdAt: daysAgo(1), createdBy: 'member_bsd', updatedAt: daysAgo(1),
+  },
 ]
-export const segmentSeq = { v: 9 }
+export const segmentSeq = { v: 11 }
+
+// ── Audience API (OCS Audience / BCCS3 Audience) — catalog mẫu cho chế độ mock ──
+export const audienceCatalog: Record<AudienceSource, Record<string, AudienceColumn[]>> = {
+  OCS: {
+    all_report_stl_new: [
+      { name: 'isdn', dataType: 'STRING' },
+      { name: 'province', dataType: 'STRING' },
+      { name: 'act_status', dataType: 'STRING' },
+      { name: 'age', dataType: 'INT' },
+      { name: 'infras_data_4g', dataType: 'BOOLEAN' },
+      { name: 'g_volume', dataType: 'DOUBLE' },
+      { name: 'topup_amount_30d', dataType: 'LONG' },
+      { name: 'active_date', dataType: 'DATE' },
+    ],
+    subscriber_daily: [
+      { name: 'phone_number', dataType: 'STRING' },
+      { name: 'package_code', dataType: 'STRING' },
+      { name: 'balance_basic', dataType: 'DOUBLE' },
+      { name: 'report_date', dataType: 'DATE' },
+    ],
+  },
+  BCCS3: {
+    sale_tran: [
+      { name: 'isdn', dataType: 'STRING' },
+      { name: 'shop_code', dataType: 'STRING' },
+      { name: 'sale_date', dataType: 'DATE' },
+      { name: 'amount', dataType: 'DOUBLE' },
+      { name: 'is_new_sim', dataType: 'BOOLEAN' },
+    ],
+    sale_tran_general: [
+      { name: 'msisdn', dataType: 'STRING' },
+      { name: 'staff_code', dataType: 'STRING' },
+      { name: 'trans_type', dataType: 'INT' },
+      { name: 'created_date', dataType: 'DATE' },
+    ],
+  },
+}
 
 // ── Nhóm chiến dịch ──
 export const groups: (CampaignGroup & { workspaceId: number })[] = [

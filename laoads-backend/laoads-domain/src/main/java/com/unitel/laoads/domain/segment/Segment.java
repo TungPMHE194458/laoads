@@ -61,6 +61,15 @@ public class Segment {
     @Column(name = "CONDITIONS_JSON")
     private String conditionsJson;
 
+    /** Tệp AUDIENCE: request gửi Audience API (bảng, cột lấy, điều kiện) — xem domain.audience.AudienceRequest. */
+    @Lob
+    @Column(name = "AUDIENCE_JSON")
+    private String audienceJson;
+
+    /** Tệp AUDIENCE: số dòng NDJSON đã xử lý = offset để nạp tiếp (OCS). */
+    @Column(name = "IMPORTED_ROWS", nullable = false)
+    private Long importedRows = 0L;
+
     @Column(name = "ERROR_MESSAGE", length = 1000)
     private String errorMessage;
 

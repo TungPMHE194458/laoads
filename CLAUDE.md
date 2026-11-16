@@ -15,12 +15,17 @@ laoads/
 │   ├── DANH_GIA_KE_THUA_BOC.md    ← what was inherited from BOC + roadmap
 │   ├── openapi.yaml               ← springdoc export, input of FE `gen:api`
 │   ├── LaoAds_Thong_tin_ha_tang_go_live.xlsx  ← go-live infra/config checklist — GITIGNORED, keep in sync (see Deployment)
-│   └── requirements/              ← source requirements (*.docx/*.xlsx) — GITIGNORED
+│   └── requirements/              ← source requirements + partner integration specs (*.docx/*.xlsx/*.pdf) — GITIGNORED
 ├── docker-compose.dev.yml         ← local Oracle XE for dev only
 └── docker-compose.yml             ← deployment only (not for local dev)
 ```
 
-`docs/requirements/` (SRS_LAOADS ~67MB, project-management sheet, a Telco BSS rebuild proposal, a BI data-flow doc, an xlsx template) holds the **source requirements** and is gitignored (along with any `*.docx`/`*.xlsx` under `docs/` or the root) — the PM sheet contains a VSA ticket URL and a password-like string. Never commit them. To read them, convert to text in a scratch dir (python-docx / openpyxl); the SRS has no Word heading styles, so grep numbered lines (`^3\.2\.1`) to navigate.
+`docs/requirements/` holds the **source requirements** and is gitignored. Every document file belongs there, never in the repo root:
+- SRS_LAOADS (~67MB), the project-management sheet, a Telco BSS rebuild proposal, a BI data-flow doc and an xlsx template.
+- The Audience API integration specs: `Tài liệu API tích hợp.docx` and `Import vào Postman cho OCS Audience và BBCS3 Audience.docx`, with internal IPs and DB users. See "Audience API" below.
+- Reference docs that belong to other systems: the UTMS sizing and server-request forms, and the Viettel Post NOC SMS-alert SRS (`.pdf`).
+
+The folder is ignored (along with any `*.docx`/`*.xlsx` under `docs/` or the root) — the PM sheet contains a VSA ticket URL and a password-like string. Never commit them. To read them, convert to text in a scratch dir (python-docx / openpyxl); the SRS has no Word heading styles, so grep numbered lines (`^3\.2\.1`) to navigate.
 
 **All in-product text, comments-where-needed and commit messages are Vietnamese**; identifiers stay English. Commit messages must NOT include a `Co-Authored-By` line (user preference).
 
@@ -104,7 +109,7 @@ Reuses BOC's backend infrastructure — see BOC's CLAUDE.md "Critical: schema sh
 
 ```bash
 docker compose -f ../docker-compose.dev.yml up -d   # local Oracle XE 11.2 (healthy in ~40s on a fresh volume); `down -v` wipes it
-./mvnw clean verify                              # build + 156 unit tests (no DB needed)
+./mvnw clean verify                              # build + 169 unit tests (no DB needed)
 ./mvnw -pl laoads-web -am spring-boot:run        # dev profile, :8095/api, local DB — non-web modules set spring-boot.run.skip, so -am is safe
 ./mvnw -pl laoads-web -am test -Dtest=ClassName#method -Dsurefire.failIfNoSpecifiedTests=false   # single test; swap the module
 .\start-dev.ps1                                  # Windows; loads gitignored .env.local.ps1, starts the local DB container, runs dev
@@ -126,6 +131,10 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
 | `LAOADS_PUBLIC_BASE_URL` | base URL for tracking links `/api/v1/t/{token}` (default `http://localhost:5173`) |
 | `LAOADS_JWT_SECRET` | ≥ 32 bytes; only the dev profile has a default |
 | `LAOADS_SECRETS_KEY` | key for `SecretCipher` (AES-GCM) that encrypts sender gateway passwords in the DB. If blank it is derived from the JWT secret with a startup WARN, and rotating the JWT secret then means re-entering every gateway password; set it separately in uat/prod |
+| `LAOADS_AUDIENCE_CLIENT` | `simulated` (default, catalog built from `LADS_SUBSCRIBER`) or `http` (real Audience API) |
+| `LAOADS_AUDIENCE_OCS_URL` / `_OCS_API_KEY` | OCS Audience base URL **including** the `/api/v1/internal` prefix (default `http://localhost:8081/api/v1/internal`) and its API key. A source without URL + key shows as "not configured" in the UI |
+| `LAOADS_AUDIENCE_BCCS3_URL` / `_BCCS3_API_KEY` | BCCS3 Audience base URL including `/api/v1/internal/bbcs3` (default `http://localhost:8082/api/v1/internal/bbcs3`) and its API key |
+| `LAOADS_AUDIENCE_API_KEY_HEADER` / `_STREAM_IDLE_TIMEOUT` | default `x-api-key` / `PT120S`. A stream with no new line for that long is cut; the segment goes FAILED and, for OCS, resumes from its offset on retry |
 | `LAOADS_CORS_ALLOWED_ORIGINS` | required in prod (dev allows localhost:5173–5175) |
 | `LAOADS_VSA_ENABLED` / `_CAS_URL` / `_SERVICE_URL` | VSA off by default |
 | `SERVER_PORT` | dev default **8095** — 8091 is permanently taken on the dev machine by an unrelated Java app |
@@ -166,7 +175,18 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
   - `domain.campaign`: CRUD, lifecycle, approvals and groups. Nested config (action groups, schedule, goal, budget) is JSON in `DEFINITION_JSON`, in exactly the FE shape (`CampaignDefinition`). `SchedulePlanner` handles NOW / ONCE / RECURRING and silent hours in Asia/Vientiane.
   - `domain.engine`: `CampaignRunner`, `MessageDispatcher`, `EngineMaintenance`, tracking, test send, events, API keys.
   - `domain.report`: campaign report, workspace dashboard and Super Admin dashboard.
-  - `infra.engine.EngineJobs`: `@Scheduled` jobs, gated on `DatabaseBootstrap.isMigrated()`, on a scheduling pool of 4 threads.
+  - `infra.engine.EngineJobs`: `@Scheduled` jobs, gated on `DatabaseBootstrap.isMigrated()`, on a scheduling pool of 6 threads. Audience imports run in their own job, so a long stream doesn't block QUERY builds or dispatch.
+- **Audience API** (`V5__audience_segment.sql`, specs in `docs/requirements/`):
+  - Two partner services expose the same API. OCS Audience reads Hive; BCCS3 Audience reads MySQL, is built by Tinasoft and runs at SDC.
+  - The flow is catalog tables → columns → `audiences/verify` → `audiences/stream` (NDJSON), authenticated with header `x-api-key`.
+  - LaoAds uses it for segments of type `AUDIENCE` (source `OCS` | `BCCS3`), created with `POST /segments/audience`.
+  - `domain.audience`:
+    - `AudienceRequests` enforces the spec rules: exactly one `targetField` `PHONE`, operator allowed for the data type, a middle condition's `logicalOperator` defaults to AND, the last one is dropped, and `conditions` is always an array.
+    - `AudienceService` proxies the catalog and verify calls and maps `AudienceException` to 400 `AUDIENCE_NOT_CONFIGURED` / 503 `AUDIENCE_UNAVAILABLE`.
+  - `segment.AudienceSegmentImporter` streams the rows, normalizes phones through `Isdns`, and inserts in batches of 1000 with `NOT EXISTS`, because `LADS_SEGMENT_MEMBER` has a PK.
+  - Each batch commits its members **and** `IMPORTED_ROWS` in the same transaction, so a retry of an OCS segment resumes at `offset = IMPORTED_ROWS`. BCCS3 has no offset and restarts from zero.
+  - `infra.audience.HttpAudienceClient` is the real client. A watchdog cuts a stalled stream. `infra.simulation.SimulatedAudienceClient` is the dev default: OCS `all_report_stl_new` and BCCS3 `sale_tran` over `LADS_SUBSCRIBER`.
+  - **Service Lake** in the same spec is a JAR that LaoAds builds and hands over to the Data Lake team. It isn't part of this repo yet.
 - **Data flow**:
   - `LADS_SUBSCRIBER` is the **staging table for BI extracts** (`all_report_stl_new`). QUERY segments run against it.
   - Approve sets `NEXT_RUN_AT`. `startRun` materializes targets with one `INSERT … SELECT` from segment members. A/B and control buckets come from `MOD(ORA_HASH(isdn||':'||campaignId),100)`.
@@ -179,7 +199,7 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
     - `tps`: an in-memory `SenderThrottle` token bucket. Messages over the limit get their `DUE_AT` spread out at the TPS rate.
     - A sender that is disabled or out of scope while a campaign runs gets its messages postponed 10 minutes, not failed.
   - `EngineMaintenance` closes runs, completes campaigns (a goal produces a `CAMPAIGN_OUTCOME` segment), refreshes counters and uplift, and measures conversions.
-- **Simulation**: `MessageGateway` and `ConversionSource` are domain ports. `infra.simulation` provides `SimulatedMessageGateway`, `SimulatedConversionSource` and `EngagementSimulator` (DLR, opens, clicks). **No SMS, WhatsApp, Email, USSD, OCS or BI connection is real yet.** Real adapters replace these beans through the `laoads.engine.*` properties.
+- **Simulation**: `MessageGateway` and `ConversionSource` are domain ports. `infra.simulation` provides `SimulatedMessageGateway`, `SimulatedConversionSource`, `EngagementSimulator` (DLR, opens, clicks) and `SimulatedAudienceClient`. **No SMS, WhatsApp, Email, USSD, OCS or BI connection is real yet.** Real adapters replace these beans through the `laoads.engine.*` properties.
 - **Timestamps**: they are UTC wall time. JDBC code must bind and read through `engine.Utc`, the same as `AuditWriter`. SQL "now" is `SYS_EXTRACT_UTC(SYSTIMESTAMP)`. Laos-day bucketing uses `+ INTERVAL '7' HOUR` (Laos has no DST).
 - **Public endpoints** (`SecurityConfig.PUBLIC_PATHS`):
   - `GET /v1/t/{token}`: tracking redirect.
