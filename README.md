@@ -38,7 +38,7 @@ cd laoads-backend
 
 # FE
 cd laoads-web
-npm run dev                                     # hybrid: BE thật + mock phần BE đợt 1 chưa có
+npm run dev                                     # hybrid: mọi màn hình gọi BE thật
 ```
 Profile dev **chỉ** chạy với DB localhost: không đọc `BOC_DB_*`, và `DevDatabaseGuard` chặn start nếu `LAOADS_DB_URL` trỏ ra ngoài
 (trừ khi đặt `LAOADS_DEV_ALLOW_REMOTE_DB=true`). DB dùng chung với BOC chỉ dành cho uat/prod.
@@ -46,14 +46,14 @@ Xoá sạch DB local: `docker compose -f docker-compose.dev.yml down -v`.
 
 DB local tự có **mock data** (chỉ profile dev): 20 người dùng (tài khoản mock mới dùng mật khẩu `member`; `tran.minh`, `ngo.linh` bị khoá),
 workspace BSD / BCD / MKT / VAS (VAS bị khoá), thành viên (có trường hợp đã gỡ), bảng giá Q3/2026 (hết hiệu lực) → Q4/2026 (đang áp dụng)
-→ Q1/2027 (nháp), ~100 dòng nhật ký. Chiến dịch / tệp KH vẫn do MSW mock vì BE chưa có. Tắt: `LAOADS_DEV_MOCK_DATA=false`.
+→ Q1/2027 (nháp), ~100 dòng nhật ký; thêm 30.000 thuê bao giả, 4 tệp KH, 3 nhóm và 8 chiến dịch đủ mọi trạng thái (chiến dịch đã duyệt chạy thật qua gateway giả lập). Tắt: `LAOADS_DEV_MOCK_DATA=false`.
 
 ## Chế độ API của FE (`VITE_API_MODE`)
 
 | Mode | Gọi BE thật | Mock (MSW) |
 |---|---|---|
 | `mock` | — | toàn bộ |
-| `hybrid` (mặc định dev) | auth, workspace, thành viên, quản trị, bảng giá, nhật ký | dashboard, chiến dịch, phê duyệt, tệp KH, cấu hình gửi tin |
+| `hybrid` (mặc định dev) | toàn bộ | chỉ endpoint trong `handlers/pending.ts` (hiện trống) |
 | `real` (mặc định Docker) | toàn bộ | — |
 
 ## Phạm vi hiện tại

@@ -1,6 +1,6 @@
 /*
- * Kiểu dữ liệu API. Phần "Core" bám đúng docs/API_CONTRACT_V1.md (BE đợt 1 đã có).
- * Phần "Pending BE" là shape FE đề xuất theo SRS — hiện được MSW mock (src/mocks).
+ * Kiểu dữ liệu API. Phần "Core" bám docs/API_CONTRACT_V1.md §1–8 (BE đợt 1).
+ * Phần chiến dịch / tệp KH / dashboard bám §9 (BE đợt 2–3); chế độ mock dùng handlers/campaign.ts.
  * Khi BE export openapi.yaml → `npm run gen:api` sinh src/api/schema.ts; chuyển dần sang dùng schema.
  */
 

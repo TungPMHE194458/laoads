@@ -29,8 +29,8 @@ laoads/
 - **Envelope** (kept from the old LaoAds SRS, *not* BOC's ProblemDetail): `{ success, data, message, statusCode, metaData?, requestId?, errors? }`. Paging: page index from **0**, `metaData = { totalPages, currentPage, pageSize, totalItems }`.
 - Headers: `Authorization: Bearer`, **`X-Workspace-Id`** (required on workspace-scoped endpoints; missing → 400 `WORKSPACE_REQUIRED`), `Accept-Language: vi|en|lo` (picks `message` language).
 - Expired access token → 401 `TOKEN_EXPIRED` (FE refreshes once). Wrong old password on change-password → **400** `WRONG_PASSWORD` (not 401, so the FE doesn't auto-logout).
-- After a BE API change, export springdoc → `docs/openapi.yaml`, then `npm run gen:api` in `laoads-web` regenerates `src/api/schema.ts` (generated — never hand-edit, lint-ignored). `schema.ts` has been generated but **nothing imports it yet**: FE code uses the hand-kept `src/api/types.ts` ("Core" = contract, "Pending BE" = SRS-shaped proposal served by the mocks), so update `types.ts` too.
-- §7 price quotes (`/price-quotes`) are **global, not workspace-scoped**: any logged-in user reads, only SUPER_ADMIN writes. Lifecycle DRAFT → lock → LOCKED → ENDED (when another quote is locked); only DRAFT may be edited/deleted (`PRICE_QUOTE_NOT_DRAFT` 409). §9 lists what the BE doesn't have yet.
+- After a BE API change, export springdoc → `docs/openapi.yaml`, then `npm run gen:api` in `laoads-web` regenerates `src/api/schema.ts` (generated — never hand-edit, lint-ignored). `schema.ts` has been generated but **nothing imports it yet**: FE code uses the hand-kept `src/api/types.ts`, so update `types.ts` too. It has two sections: "Core" = contract §1–8, and the campaign / segment / dashboard section = §9. Both match the real BE. The second section was first written as an SRS-shaped proposal and the BE was later built to it.
+- §7 price quotes (`/price-quotes`) are **global, not workspace-scoped**: any logged-in user reads, only SUPER_ADMIN writes. Lifecycle DRAFT → lock → LOCKED → ENDED (when another quote is locked); only DRAFT may be edited/deleted (`PRICE_QUOTE_NOT_DRAFT` 409). §9 is the endpoint table for the đợt 2–3 modules (campaigns, approvals, segments, groups, sending settings, dashboards, API key, tracking/events).
 
 ## Authorization model (both sides must agree)
 
@@ -148,7 +148,7 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
   - Price quotes Q3/2026 ENDED → Q4/2026 LOCKED → Q1/2027 DRAFT.
   - About 100 backdated audit rows written in the BE's real `@Auditable` summary format.
 
-  It only enriches the 4 base users and BSD/BCD while they still carry seed values, and it writes the audit history once (`REQUEST_ID = 'mock-seed'`). Campaigns and segments have no tables yet, so they stay in MSW. To re-seed from scratch, run `docker compose -f docker-compose.dev.yml down -v`.
+  It only enriches the 4 base users and BSD/BCD while they still carry seed values, and it writes the audit history once (`REQUEST_ID = 'mock-seed'`). Campaign and segment data come from `DevEngineDataSeeder` (see "Campaign engine" below). To re-seed from scratch, run `docker compose -f docker-compose.dev.yml down -v`.
 - The read-only Hikari pool is configured (for future OCS/segment reads) but not used yet.
 
 ### Campaign engine (đợt 2–3, `V3__campaign_engine.sql`)
@@ -175,4 +175,4 @@ Modules (`com.unitel.laoads`): `laoads-domain` (entities, services, `PermissionE
 
 ## Deployment
 
-`docker-compose.yml` is deployment only, and it never includes the dev DB (that lives in `docker-compose.dev.yml`). It builds `laoads-be` (prod profile, :8080 in container, host `LAOADS_BE_PORT` default 8391) and `laoads-fe` (nginx :80, host `LAOADS_FE_PORT` default 8392; `VITE_API_MODE` is a **build arg** from `LAOADS_FE_API_MODE`, default `real`; proxies `/api/` → `laoads-be:8080`, `client_max_body_size 25m`, 300s read timeout for Excel imports). Spring's multipart limit is still 10MB (`application.yml`), so raise it alongside nginx when large imports land. Unitel servers have no internet: build locally, `docker save | gzip`, ship, `docker load` (BOC's `scripts/deploy_prod.py` is the reference for a scripted version). Prod env lives in a gitignored `.env.prod`.
+`docker-compose.yml` is deployment only, and it never includes the dev DB (that lives in `docker-compose.dev.yml`). It builds `laoads-be` (prod profile, :8080 in container, host `LAOADS_BE_PORT` default 8391) and `laoads-fe` (nginx :80, host `LAOADS_FE_PORT` default 8392; `VITE_API_MODE` is a **build arg** from `LAOADS_FE_API_MODE`, default `real`; proxies `/api/` → `laoads-be:8080`, `client_max_body_size 25m`, 300s read timeout for Excel imports). Spring's multipart limit (`application.yml`) is also 25MB. Change the two together. Unitel servers have no internet: build locally, `docker save | gzip`, ship, `docker load` (BOC's `scripts/deploy_prod.py` is the reference for a scripted version). Prod env lives in a gitignored `.env.prod`.
