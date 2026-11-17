@@ -2,10 +2,11 @@ import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { CircleAlert, Loader2, RotateCcw, UsersRound } from 'lucide-react'
+import { CircleAlert, FileUp, Loader2, RotateCcw, UsersRound } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { SegmentMember } from '@/api/types'
-import { useRetrySegment, useSegment, useSegmentMembers } from '@/features/campaign/api'
+import { useAppendSegment, useRetrySegment, useSegment, useSegmentMembers } from '@/features/campaign/api'
+import { SearchInput } from '@/components/common/SearchInput'
 import { OPERATOR_SYMBOL, PHONE_TARGET, RETRYABLE_SEGMENT_TYPES } from '@/features/campaign/audience'
 import { useCan } from '@/features/auth/permissions'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -25,8 +26,19 @@ export default function SegmentDetailPage() {
   const sid = Number(id)
   const seg = useSegment(Number.isFinite(sid) ? sid : null)
   const [page, setPage] = React.useState(0)
-  const members = useSegmentMembers(seg.data?.status === 'READY' ? sid : null, page)
+  const [query, setQuery] = React.useState('')
+  const members = useSegmentMembers(seg.data?.status === 'READY' ? sid : null, page, query)
   const retry = useRetrySegment()
+  const append = useAppendSegment(sid)
+  const fileRef = React.useRef<HTMLInputElement>(null)
+  // "Import thêm dữ liệu" (laoads.com): chọn file → BE bỏ số đã có trong tệp, báo số mới / trùng / dòng sai
+  const onAppendFile = (file: File | undefined) => {
+    if (!file) return
+    append.mutate(file, {
+      onSuccess: (r) => toast.success(t('segment.appendDone', { added: fmtNumber(r.added), dup: fmtNumber(r.duplicates), invalid: fmtNumber(r.invalidRows) })),
+      onError: (e) => toast.error(errorMessage(e)),
+    })
+  }
   const can = useCan()
   const s = seg.data
 
@@ -152,7 +164,47 @@ export default function SegmentDetailPage() {
               <EmptyState icon={<Loader2 className="animate-spin" />} title={t('segment.notReady')} description={t('segment.notReadyDesc')} />
             </Card>
           ) : (
-            <DataTable dense columns={columns} rows={members.data?.items} rowKey={(m) => m.recipientKey} loading={members.isLoading} error={members.isError ? errorMessage(members.error) : undefined} meta={members.data?.meta} onPageChange={setPage} />
+            <DataTable
+              dense
+              toolbar={
+                <>
+                  <SearchInput
+                    value={query}
+                    onChange={(v) => {
+                      setQuery(v)
+                      setPage(0)
+                    }}
+                    placeholder={t('segment.memberSearchPh')}
+                  />
+                  {s.type === 'FILE' && can('SEGMENT_MANAGE') && (
+                    <>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        className="hidden"
+                        onChange={(e) => {
+                          onAppendFile(e.target.files?.[0])
+                          e.target.value = ''
+                        }}
+                      />
+                      <Button variant="outline" className="ml-auto" loading={append.isPending} onClick={() => fileRef.current?.click()}>
+                        <FileUp />
+                        {t('segment.appendImport')}
+                      </Button>
+                    </>
+                  )}
+                </>
+              }
+              columns={columns}
+              rows={members.data?.items}
+              rowKey={(m) => m.recipientKey}
+              loading={members.isLoading}
+              error={members.isError ? errorMessage(members.error) : undefined}
+              meta={members.data?.meta}
+              onPageChange={setPage}
+              empty={<EmptyState icon={<UsersRound />} title={query ? t('common.noResult') : t('segment.noMembers')} description={query ? t('common.noResultDesc') : undefined} />}
+            />
           )}
         </div>
       </div>

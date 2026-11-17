@@ -1,10 +1,12 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, FlaskConical, FolderKanban, Megaphone, Plus, Rocket, Zap } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, FlaskConical, FolderKanban, FolderPlus, Megaphone, Pencil, Plus, Rocket, Trash2, Zap } from 'lucide-react'
+import { toast } from 'sonner'
 import { errorMessage } from '@/api/client'
-import type { CampaignStatus, CampaignSummary } from '@/api/types'
-import { useCampaignGroups, useCampaigns } from '@/features/campaign/api'
+import type { CampaignGroup, CampaignStatus, CampaignSummary } from '@/api/types'
+import { useCampaignGroups, useCampaigns, useDeleteCampaignGroup } from '@/features/campaign/api'
+import { ConfirmDialog } from '@/components/common/dialogs'
 import { useCan } from '@/features/auth/permissions'
 import { PageHeader } from '@/components/common/PageHeader'
 import { DataTable, type Column } from '@/components/common/DataTable'
@@ -18,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/misc'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { fmtCompact, fmtDate, fmtDateTime, fmtNumber, fmtPercent } from '@/lib/format'
 import { CampaignRowMenu } from './campaignActions'
+import { CampaignGroupDialog } from './CampaignGroupDialog'
 
 const STATUSES: CampaignStatus[] = ['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED', 'RUNNING', 'PAUSED', 'COMPLETED', 'REJECTED', 'CANCELLED']
 
@@ -67,6 +70,110 @@ export function CreateCampaignButton() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** Tab "Nhóm chiến dịch" (như laoads.com): bảng tên / mô tả / số chiến dịch; tạo, sửa, xoá nhóm trống. */
+function CampaignGroupsTab({ onOpenGroup }: { onOpenGroup: (g: CampaignGroup) => void }) {
+  const { t } = useTranslation()
+  const can = useCan()
+  const groups = useCampaignGroups()
+  const del = useDeleteCampaignGroup()
+  const [query, setQuery] = React.useState('')
+  const [editing, setEditing] = React.useState<CampaignGroup | null | undefined>(undefined)
+  const [deleting, setDeleting] = React.useState<CampaignGroup | null>(null)
+  const q = query.trim().toLowerCase()
+  const rows = (groups.data ?? []).filter((g) => !q || g.name.toLowerCase().includes(q) || (g.description ?? '').toLowerCase().includes(q))
+  const columns: Column<CampaignGroup>[] = [
+    { key: 'no', header: t('common.no'), width: '56px', align: 'right', cell: (_g, i) => <span className="text-muted-foreground tabular">{i + 1}</span> },
+    {
+      key: 'name',
+      header: t('campaign.groupDialog.name'),
+      cell: (g) => (
+        <div className="flex min-w-48 items-center gap-3">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-brand-600">
+            <FolderKanban className="size-4" />
+          </span>
+          <span className="font-medium">{g.name}</span>
+        </div>
+      ),
+    },
+    { key: 'desc', header: t('campaign.groupDialog.description'), cell: (g) => <span className="line-clamp-2 max-w-md text-[13px] text-muted-foreground">{g.description || '—'}</span> },
+    { key: 'count', header: t('campaign.groupTotal'), align: 'right', cell: (g) => <span className="font-semibold tabular">{fmtNumber(g.campaignCount)}</span> },
+    { key: 'running', header: t('campaignStatus.RUNNING'), align: 'right', cell: (g) => <span className="tabular text-success">{fmtNumber(g.runningCount)}</span> },
+    { key: 'createdAt', header: t('common.createdAt'), cell: (g) => <span className="text-[13px] whitespace-nowrap tabular text-muted-foreground">{fmtDate(g.createdAt)}</span> },
+    {
+      key: 'menu',
+      header: '',
+      width: '96px',
+      align: 'right',
+      cell: (g) => (
+        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          {can('CAMPAIGN_UPDATE') && (
+            <Button variant="ghost" size="icon-sm" aria-label={t('common.edit')} onClick={() => setEditing(g)}>
+              <Pencil />
+            </Button>
+          )}
+          {can('CAMPAIGN_DELETE') && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-danger"
+              aria-label={t('common.delete')}
+              disabled={g.campaignCount > 0}
+              title={g.campaignCount > 0 ? t('campaign.groupDialog.inUse') : undefined}
+              onClick={() => setDeleting(g)}
+            >
+              <Trash2 />
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ]
+  return (
+    <>
+      <DataTable
+        toolbar={
+          <>
+            <SearchInput value={query} onChange={setQuery} placeholder={t('campaign.groupDialog.searchPh')} />
+            {can('CAMPAIGN_CREATE') && (
+              <Button className="ml-auto" onClick={() => setEditing(null)}>
+                <FolderPlus />
+                {t('campaign.wizard.newGroup')}
+              </Button>
+            )}
+          </>
+        }
+        columns={columns}
+        rows={rows}
+        rowKey={(g) => g.id}
+        loading={groups.isLoading}
+        error={groups.isError ? errorMessage(groups.error) : undefined}
+        onRowClick={onOpenGroup}
+        empty={<EmptyState icon={<FolderKanban />} title={q ? t('common.noResult') : t('campaign.groupDialog.emptyTitle')} description={q ? t('common.noResultDesc') : t('campaign.groupDialog.emptyDesc')} />}
+      />
+      {editing !== undefined && <CampaignGroupDialog group={editing} onOpenChange={(o) => !o && setEditing(undefined)} />}
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        destructive
+        title={t('campaign.groupDialog.deleteTitle')}
+        description={t('campaign.groupDialog.deleteDesc', { name: deleting?.name ?? '' })}
+        confirmLabel={t('common.delete')}
+        loading={del.isPending}
+        onConfirm={() =>
+          deleting &&
+          del.mutate(deleting.id, {
+            onSuccess: () => {
+              toast.success(t('campaign.groupDialog.deleted'))
+              setDeleting(null)
+            },
+            onError: (e) => toast.error(errorMessage(e)),
+          })
+        }
+      />
+    </>
   )
 }
 
@@ -228,41 +335,13 @@ export default function CampaignsPage() {
         </TabsContent>
 
         <TabsContent value="groups">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {(groups.data ?? []).map((g) => (
-              <button
-                key={g.id}
-                onClick={() => {
-                  const next = new URLSearchParams()
-                  next.set('group', String(g.id))
-                  setSp(next)
-                }}
-                className="group cursor-pointer rounded-xl border bg-card p-5 text-left shadow-card transition hover:-translate-y-0.5 hover:border-brand-300"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="grid size-10 place-items-center rounded-xl bg-accent text-brand-600">
-                    <FolderKanban className="size-5" />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold">{g.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {t('common.createdAt')} {fmtDate(g.createdAt)}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-5 grid grid-cols-2 gap-3 border-t pt-4">
-                  <div>
-                    <div className="text-xl font-semibold tabular">{g.campaignCount}</div>
-                    <div className="text-xs text-muted-foreground">{t('campaign.groupTotal')}</div>
-                  </div>
-                  <div>
-                    <div className="text-xl font-semibold tabular text-success">{g.runningCount}</div>
-                    <div className="text-xs text-muted-foreground">{t('campaignStatus.RUNNING')}</div>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+          <CampaignGroupsTab
+            onOpenGroup={(g) => {
+              const next = new URLSearchParams()
+              next.set('group', String(g.id))
+              setSp(next)
+            }}
+          />
         </TabsContent>
       </Tabs>
     </>

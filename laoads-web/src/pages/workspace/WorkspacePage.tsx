@@ -20,6 +20,7 @@ import { Input, Textarea } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/misc'
 import { fmtCompact, fmtDateTime } from '@/lib/format'
 import { ApiKeyCard } from './ApiKeyCard'
+import { WorkspaceActivityCard } from './WorkspaceActivityCard'
 
 export default function WorkspacePage() {
   const { t } = useTranslation()
@@ -128,6 +129,13 @@ export default function WorkspacePage() {
       {cur && can('SECRET_KEY_MANAGE') && (
         <div className="mt-6 max-w-2xl">
           <ApiKeyCard wsId={cur.id} />
+        </div>
+      )}
+
+      {/* "Hoạt động" (laoads.com): nhật ký thao tác trong workspace — cùng quyền với trang Nhật ký */}
+      {cur && can('REPORT_VIEW') && (
+        <div className="mt-6">
+          <WorkspaceActivityCard wsId={cur.id} />
         </div>
       )}
 

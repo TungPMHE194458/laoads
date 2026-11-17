@@ -79,7 +79,8 @@ public class TestSendService {
                 try {
                     r = gateway.send(new MessageGateway.Outbound(0, a.channel(), a.type(), isdn, a.senderId(),
                             MessageParams.render(a.subject(), isdn, values.get(isdn)),
-                            MessageParams.render(a.content(), isdn, values.get(isdn)), a.amount(), a.packageCode(), language));
+                            a.usesWhatsappTemplate() ? null : MessageParams.render(a.content(), isdn, values.get(isdn)),
+                            a.amount(), a.packageCode(), language, a.usesWhatsappTemplate() ? a.templateId() : null));
                 } catch (RuntimeException e) {
                     r = MessageGateway.Result.fail(e.getMessage(), false);
                 }

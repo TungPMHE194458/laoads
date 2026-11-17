@@ -212,7 +212,9 @@ function InfoTab({ form, set, err, live }: TabProps & { live: SenderNumber | nul
             value={form.kind}
             onValueChange={(v) => {
               const kind = v as SenderForm['kind']
-              set({ kind, channels: kind === 'BRANDNAME' ? ['SMS'] : form.channels })
+              // Brandname: SMS / brand WhatsApp, không USSD; đầu số ngắn: SMS / USSD, không WhatsApp (BE SenderNumberService)
+              const keep = form.channels.filter((c) => (kind === 'BRANDNAME' ? c !== 'USSD' : c !== 'WHATSAPP'))
+              set({ kind, channels: keep.length ? keep : ['SMS'] })
             }}
             options={(['SHORTCODE', 'BRANDNAME'] as const).map((k) => ({ value: k, label: t(`sending.kind.${k}`) }))}
           />
@@ -224,7 +226,7 @@ function InfoTab({ form, set, err, live }: TabProps & { live: SenderNumber | nul
       <Field label={t('sending.channels')} error={err('channels')} hint={t('sending.channelsHint')}>
         <div className="flex flex-wrap gap-2">
           {SENDER_CHANNELS.map((c) => {
-            const disabled = c === 'USSD' && form.kind === 'BRANDNAME'
+            const disabled = (c === 'USSD' && form.kind === 'BRANDNAME') || (c === 'WHATSAPP' && form.kind === 'SHORTCODE')
             const checked = form.channels.includes(c)
             return (
               <label

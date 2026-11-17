@@ -80,6 +80,8 @@ export interface AuditQuery extends PageQuery {
   to?: string
   /** SUCCESS | FAILURE */
   result?: string
+  /** Chỉ Super Admin dùng được (lọc theo workspace); user khác BE luôn lọc theo X-Workspace-Id */
+  workspaceId?: number
 }
 export function useAuditLogs(q: AuditQuery) {
   return useQuery({

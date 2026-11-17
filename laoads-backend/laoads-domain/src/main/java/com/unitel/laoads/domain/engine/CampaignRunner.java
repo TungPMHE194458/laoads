@@ -167,8 +167,9 @@ public class CampaignRunner {
 
     private int materializeTargets(Campaign c, CampaignDefinition def, List<GroupRange> ranges, long runId, Instant now) {
         List<String> testIsdns = c.getTestIsdns() == null ? List.of() : List.of(c.getTestIsdns().split(","));
-        // SRS 3.2.1.4: chiến dịch thử nghiệm chỉ chạy tối đa testLimit khách hàng (mặc định 10)
-        int testLimit = def.testLimitOrDefault();
+        // Giới hạn số lượng khách hàng: TEST mặc định 10 (SRS 3.2.1.4); OFFICIAL tuỳ chọn như laoads.com
+        Integer limit = def.limitFor(c.getMode());
+        int testLimit = limit == null ? Integer.MAX_VALUE : limit;
         if (c.getMode() == Mode.TEST && !testIsdns.isEmpty()) {
             // điều kiện dừng (SRS 3.2.6.1): bỏ các số đã đạt mục tiêu / không phản hồi ở lượt trước
             java.util.Set<String> excluded = StopConditions.excluded(jdbc, def.goal(), c.getId(), testIsdns, now);
@@ -205,8 +206,8 @@ public class CampaignRunner {
         params.add(c.getSegmentId());
         // điều kiện dừng (SRS 3.2.6.1): lượt mới của chiến dịch lặp lại không gửi lại cho khách hàng đã bị loại
         String exclude = StopConditions.exclusionSql(def.goal(), c.getId(), "ISDN", now, params);
-        String source = c.getMode() == Mode.TEST
-                ? "SELECT ISDN FROM LADS_SEGMENT_MEMBER WHERE SEGMENT_ID = ?" + exclude + " AND ROWNUM <= " + testLimit
+        String source = limit != null
+                ? "SELECT ISDN FROM LADS_SEGMENT_MEMBER WHERE SEGMENT_ID = ?" + exclude + " AND ROWNUM <= " + limit
                 : "SELECT ISDN FROM LADS_SEGMENT_MEMBER WHERE SEGMENT_ID = ?" + exclude;
         String sql = "INSERT INTO LADS_CAMPAIGN_TARGET (ID, RUN_ID, CAMPAIGN_ID, ISDN, GROUP_KEY, IS_CONTROL, CONVERTED, "
                 + "CREATED_AT) SELECT LADS_CAMPAIGN_TARGET_SEQ.NEXTVAL, ?, ?, x.ISDN, " + keyCase + ", " + ctlCase

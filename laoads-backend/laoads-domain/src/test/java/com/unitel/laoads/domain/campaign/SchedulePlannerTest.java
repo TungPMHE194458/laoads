@@ -91,4 +91,17 @@ class SchedulePlannerTest {
         assertThat(second).isEqualTo(vte(2027, 2, 15, 9, 0));
         assertThat(SchedulePlanner.nextAfter(s, second)).isEqualTo(vte(2027, 2, 28, 9, 0));
     }
+
+    @Test
+    void multipleFramesPickTheEarliestNextRun() {
+        // laoads.com: "Khung thời gian 1" mỗi ngày 18:00 + "Khung thời gian 2" thứ 2 hằng tuần 08:00
+        ScheduleDef s = new ScheduleDef("RECURRING", vte(2027, 1, 4, 0, 0), vte(2027, 2, 1, 0, 0), null, null, null, null,
+                null, null, null, List.of(new CampaignDefinition.FrameDef(1, "DAY", null, null, "18:00"),
+                new CampaignDefinition.FrameDef(1, "WEEK", List.of(1), null, "08:00")));
+        Instant first = SchedulePlanner.firstRun(s, vte(2027, 1, 4, 0, 0)); // 04/01/2027 là thứ 2
+        assertThat(first).isEqualTo(vte(2027, 1, 4, 8, 0));
+        Instant second = SchedulePlanner.nextAfter(s, first);
+        assertThat(second).isEqualTo(vte(2027, 1, 4, 18, 0));
+        assertThat(SchedulePlanner.nextAfter(s, second)).isEqualTo(vte(2027, 1, 5, 18, 0));
+    }
 }

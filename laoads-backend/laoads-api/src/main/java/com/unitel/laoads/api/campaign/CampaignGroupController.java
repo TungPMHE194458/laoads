@@ -43,7 +43,8 @@ public class CampaignGroupController {
     @Operation(summary = "Danh sách nhóm (kèm số chiến dịch / đang chạy)")
     public ApiResponse<List<GroupDto>> list() {
         return ApiResponse.ok(service.groups(ws()).stream()
-                .map(v -> new GroupDto(v.group().getId(), v.group().getName(), v.campaignCount(), v.runningCount(),
+                .map(v -> new GroupDto(v.group().getId(), v.group().getName(), v.group().getDescription(),
+                        v.campaignCount(), v.runningCount(),
                         Times.toOffset(v.group().getCreatedAt()))).toList());
     }
 
@@ -53,16 +54,16 @@ public class CampaignGroupController {
     @Auditable(actionType = "CREATE", entityType = "CAMPAIGN_GROUP", entityId = "#result.id", workspaceId = "#workspaceHeader",
             summary = "'Tạo nhóm chiến dịch \"' + #result.name + '\"'")
     public ApiResponse<GroupDto> create(@Valid @RequestBody GroupRequest req) {
-        return ApiResponse.ok(dto(service.createGroup(ws(), req.name(), CurrentUser.require().username())));
+        return ApiResponse.ok(dto(service.createGroup(ws(), req.name(), req.description(), CurrentUser.require().username())));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("@perm.has('CAMPAIGN_UPDATE')")
-    @Operation(summary = "Đổi tên nhóm")
+    @Operation(summary = "Sửa tên / mô tả nhóm")
     @Auditable(actionType = "UPDATE", entityType = "CAMPAIGN_GROUP", entityId = "#id", workspaceId = "#workspaceHeader",
             summary = "'Đổi tên nhóm chiến dịch thành \"' + #result.name + '\"'")
     public ApiResponse<GroupDto> rename(@PathVariable Long id, @Valid @RequestBody GroupRequest req) {
-        return ApiResponse.ok(dto(service.renameGroup(ws(), id, req.name())));
+        return ApiResponse.ok(dto(service.updateGroup(ws(), id, req.name(), req.description())));
     }
 
     @DeleteMapping("/{id}")
@@ -75,7 +76,7 @@ public class CampaignGroupController {
     }
 
     private static GroupDto dto(CampaignGroup g) {
-        return new GroupDto(g.getId(), g.getName(), 0, 0, Times.toOffset(g.getCreatedAt()));
+        return new GroupDto(g.getId(), g.getName(), g.getDescription(), 0, 0, Times.toOffset(g.getCreatedAt()));
     }
 
     private long ws() {

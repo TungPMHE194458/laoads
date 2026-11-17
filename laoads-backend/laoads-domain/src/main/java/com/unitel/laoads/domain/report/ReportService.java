@@ -59,10 +59,22 @@ public class ReportService {
      * {@code uplift} = conversionRate − conversionRate nhóm đối chứng (điểm %).
      */
     public record GroupStat(String groupName, boolean isControl, long target, long delivered, double sentRate,
-                            long opens, double openRate, long conversions, double conversionRate, Double uplift) {
+                            long failed, long opens, double openRate, long clicks, double clickRate, long conversions,
+                            double conversionRate, Double uplift) {
     }
 
-    public record CampaignReport(Totals totals, List<TimePoint> timeseries, List<ChannelStat> channels, List<GroupStat> groups) {
+    /**
+     * Theo từng hành động (bảng "Hành động" của laoads.com): đếm theo tin — {@code sent} gửi thành công, {@code failed}
+     * gửi lỗi, {@code delivered}, {@code opens}, {@code clicks}; {@code conversions} = khách hàng nhận hành động này đã
+     * chuyển đổi. FE tự tính tỷ lệ (gửi = sent / (sent + failed), mở / click = / delivered, chuyển đổi = / sent).
+     */
+    public record ActionStat(String groupKey, String groupName, String actionKey, int actionIndex, String actionType,
+                             String channel, long sent, long failed, long delivered, long opens, long clicks,
+                             long conversions) {
+    }
+
+    public record CampaignReport(Totals totals, List<TimePoint> timeseries, List<ChannelStat> channels, List<GroupStat> groups,
+                                 List<ActionStat> actions) {
     }
 
     public record DashboardSummary(Metric runningCampaigns, Metric pendingApprovals, Metric totalCampaigns,
@@ -154,7 +166,7 @@ public class ReportService {
                 .toList();
 
         List<ChannelStat> channels = channelStats("m.CAMPAIGN_ID = ?", campaignId);
-        return new CampaignReport(totals, timeseries, channels, groupStats(c));
+        return new CampaignReport(totals, timeseries, channels, groupStats(c), actionStats(c));
     }
 
     private void countMessages(Map<String, long[]> series, int idx, String column, String extra, String fmt,
@@ -210,17 +222,20 @@ public class ReportService {
             ActionGroupDef g = groups.get(i);
             names.put(g.id() == null || g.id().isBlank() ? "g" + i : g.id(), g.name());
         }
-        record Row(String key, boolean control, long target, long reached, long opened, long converted) {
+        record Row(String key, boolean control, long target, long reached, long opened, long converted, long failed,
+                   long clicked) {
         }
         // COUNT(DISTINCT t.ID): mỗi đối tượng có thể có nhiều tin (chuỗi hành động) sau LEFT JOIN
         List<Row> rows = jdbc.query("SELECT t.GROUP_KEY, MAX(t.IS_CONTROL), COUNT(DISTINCT t.ID), "
                 + "COUNT(DISTINCT CASE WHEN m.STATUS IN ('SENT', 'DELIVERED') THEN t.ID END), "
                 + "COUNT(DISTINCT CASE WHEN m.OPENED_AT IS NOT NULL THEN t.ID END), "
-                + "COUNT(DISTINCT CASE WHEN t.CONVERTED = 1 THEN t.ID END) "
+                + "COUNT(DISTINCT CASE WHEN t.CONVERTED = 1 THEN t.ID END), "
+                + "COUNT(DISTINCT CASE WHEN m.STATUS = 'FAILED' THEN t.ID END), "
+                + "COUNT(DISTINCT CASE WHEN m.CLICKED_AT IS NOT NULL THEN t.ID END) "
                 + "FROM LADS_CAMPAIGN_TARGET t LEFT JOIN LADS_CAMPAIGN_MESSAGE m ON m.TARGET_ID = t.ID "
                 + "WHERE t.CAMPAIGN_ID = ? GROUP BY t.GROUP_KEY",
                 (rs, i) -> new Row(rs.getString(1), rs.getInt(2) == 1, rs.getLong(3), rs.getLong(4), rs.getLong(5),
-                        rs.getLong(6)), c.getId());
+                        rs.getLong(6), rs.getLong(7), rs.getLong(8)), c.getId());
         double controlRate = rows.stream().filter(Row::control).mapToDouble(r -> ratio(r.converted(), r.target()))
                 .findFirst().orElse(Double.NaN);
         List<GroupStat> out = new ArrayList<>();
@@ -229,12 +244,48 @@ public class ReportService {
             ActionGroupDef g = groups.get(i);
             String key = g.id() == null || g.id().isBlank() ? "g" + i : g.id();
             Row r = rows.stream().filter(x -> x.key().equals(key)).findFirst()
-                    .orElse(new Row(key, g.isControl(), 0, 0, 0, 0));
+                    .orElse(new Row(key, g.isControl(), 0, 0, 0, 0, 0, 0));
             double conv = ratio(r.converted(), r.target());
             Double uplift = g.isControl() || Double.isNaN(controlRate) || r.target() == 0 ? null
                     : Math.round((conv - controlRate) * 1000) / 10.0;
             out.add(new GroupStat(names.getOrDefault(key, key), g.isControl(), r.target(), r.reached(),
-                    ratio(r.reached(), r.target()), r.opened(), ratio(r.opened(), r.reached()), r.converted(), conv, uplift));
+                    ratio(r.reached(), r.target()), r.failed(), r.opened(), ratio(r.opened(), r.reached()), r.clicked(),
+                    ratio(r.clicked(), r.reached()), r.converted(), conv, uplift));
+        }
+        return out;
+    }
+
+    /** Thống kê theo từng hành động, giữ thứ tự nhóm / hành động như cấu hình. */
+    private List<ActionStat> actionStats(Campaign c) {
+        CampaignDefinition def = campaignService.definitionOf(c);
+        Map<String, long[]> counts = new HashMap<>();
+        jdbc.query("SELECT m.GROUP_KEY, m.ACTION_KEY, SUM(CASE WHEN m.STATUS IN ('SENT', 'DELIVERED') THEN 1 ELSE 0 END), "
+                + "SUM(CASE WHEN m.STATUS = 'FAILED' THEN 1 ELSE 0 END), SUM(CASE WHEN m.STATUS = 'DELIVERED' THEN 1 ELSE 0 END), "
+                + "COUNT(m.OPENED_AT), COUNT(m.CLICKED_AT), "
+                + "COUNT(DISTINCT CASE WHEN t.CONVERTED = 1 AND m.STATUS IN ('SENT', 'DELIVERED') THEN t.ID END) "
+                + "FROM LADS_CAMPAIGN_MESSAGE m JOIN LADS_CAMPAIGN_TARGET t ON t.ID = m.TARGET_ID "
+                + "WHERE m.CAMPAIGN_ID = ? GROUP BY m.GROUP_KEY, m.ACTION_KEY", rs -> {
+            counts.put(rs.getString(1) + "|" + rs.getString(2), new long[]{rs.getLong(3), rs.getLong(4), rs.getLong(5),
+                    rs.getLong(6), rs.getLong(7), rs.getLong(8)});
+        }, c.getId());
+        List<ActionStat> out = new ArrayList<>();
+        List<ActionGroupDef> groups = def.groups();
+        for (int gi = 0; gi < groups.size(); gi++) {
+            ActionGroupDef g = groups.get(gi);
+            if (g.isControl() || g.actions() == null) {
+                continue;
+            }
+            String gk = g.id() == null || g.id().isBlank() ? "g" + gi : g.id();
+            for (int ai = 0; ai < g.actions().size(); ai++) {
+                var a = g.actions().get(ai);
+                if (a.type() == null) {
+                    continue;
+                }
+                String ak = a.id() == null || a.id().isBlank() ? "a" + ai : a.id();
+                long[] v = counts.getOrDefault(gk + "|" + ak, new long[6]);
+                out.add(new ActionStat(gk, g.name(), ak, ai + 1, a.type().name(), a.channel().name(), v[0], v[1], v[2],
+                        v[3], v[4], v[5]));
+            }
         }
         return out;
     }

@@ -44,7 +44,7 @@ const DYNAMIC = {
   'campaign.wizard.schedule': ['NOW', 'ONCE', 'RECURRING', 'NOW_desc', 'ONCE_desc', 'RECURRING_desc'],
   'campaign.wizard.unit': ['DAY', 'WEEK', 'MONTH'],
   'campaign.wizard.goal': ['AUTO_OCS', 'MANUAL_FILE', 'NONE', 'AUTO_OCS_desc', 'MANUAL_FILE_desc', 'NONE_desc'],
-  'campaign.wizard.err': ['name', 'segment', 'allocation', 'noAction', 'sender', 'content', 'contentLong', 'subject', 'amount', 'unknownParam', 'start', 'startInPast', 'endRequired', 'endBeforeStart', 'budget', 'eventTemplate', 'description', 'testLimit', 'goalConditions'],
+  'campaign.wizard.err': ['name', 'segment', 'allocation', 'noAction', 'sender', 'content', 'contentLong', 'subject', 'amount', 'unknownParam', 'start', 'startInPast', 'endRequired', 'endBeforeStart', 'budget', 'eventTemplate', 'description', 'testLimit', 'goalConditions', 'limit', 'frame', 'whatsappTemplate'],
   weekday: ['0', '1', '2', '3', '4', '5', '6'],
   langName: ['LO', 'EN', 'VI'],
   op: ['EQ', 'NEQ', 'GT', 'GTE', 'LT', 'LTE', 'BETWEEN', 'IN', 'CONTAINS', 'IS_NULL'],
@@ -66,7 +66,10 @@ const DYNAMIC = {
   adminWs: ['lockDesc', 'unlockDesc'],
   // tham số nội dung tin (GET /message-params) + bộ đếm SMS chọn trong ternary
   'campaign.param': ['isdn', 'package'],
-  'campaign.wizard': ['smsCounter', 'smsCounterParams', 'contentCounter', 'contentCounterParams'],
+  'campaign.wizard': ['smsCounter', 'smsCounterParams', 'contentCounter', 'contentCounterParams', 'noBrand', 'noSender', 'brandDefault', 'senderNone', 'outcomeNeedsWhatsapp', 'outcomeNeedsGoal'],
+  // "Trích xuất khách hàng" (goal.outcomes) + đơn vị tính bảng giá theo loại hành động
+  'campaign.outcome': ['GOAL_ACHIEVED', 'GOAL_NOT_ACHIEVED', 'WHATSAPP_FAILED'],
+  'price.per': ['TOP_UP', 'ADD_MONEY', 'ADD_PROMOTION', 'ADD_DATA', 'ADD_SMS', 'ADD_CALL_MINUTES', 'ADD_PACKAGE', 'REGISTER_CRBT', 'REGISTER_LAOTV', 'NOTIFICATION_SMS', 'NOTIFICATION_EMAIL', 'NOTIFICATION_WHATSAPP', 'NOTIFICATION_USSD'],
 }
 
 function walk(dir) {

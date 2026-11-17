@@ -156,8 +156,9 @@ public class SegmentController {
     @PreAuthorize("@perm.has('CAMPAIGN_VIEW')")
     @Operation(summary = "Thành viên tệp (số thuê bao đã che)", description = "Tệp chưa READY → 409 SEGMENT_NOT_READY.")
     public ApiResponse<List<MemberDto>> members(@PathVariable Long id, @RequestParam(required = false) Integer page,
-                                                @RequestParam(required = false) Integer size) {
-        return ApiResponse.page(service.members(ws(), id, PageParams.of(page, size)), m -> {
+                                                @RequestParam(required = false) Integer size,
+                                                @RequestParam(required = false) String query) {
+        return ApiResponse.page(service.members(ws(), id, PageParams.of(page, size), query), m -> {
             Map<String, Object> attrs = new LinkedHashMap<>();
             if (m.province() != null) {
                 attrs.put("province", m.province());
@@ -203,6 +204,25 @@ public class SegmentController {
             SegmentService.ImportResult r = service.importFile(ws(), name, description, file.getOriginalFilename(), in,
                     CurrentUser.require().username());
             return ApiResponse.ok(dto(r.segment(), 0, r.invalidRows()));
+        } catch (IOException e) {
+            throw new LaoadsException(ErrorCode.FILE_INVALID, "File không hợp lệ", "không đọc được file");
+        }
+    }
+
+    public record AppendDto(Long id, int added, int duplicates, int invalidRows, int totalUsers) {
+    }
+
+    @PostMapping(value = "/segments/{id}/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@perm.has('SEGMENT_MANAGE')")
+    @Operation(summary = "Nhập thêm số thuê bao vào tệp từ file (như \"Import thêm dữ liệu\" của laoads.com)",
+            description = "Chỉ tệp FILE đang READY; bỏ số đã có trong tệp. Tệp khác → 409 INVALID_TRANSITION.")
+    @Auditable(actionType = "IMPORT", entityType = "SEGMENT", entityId = "#id", workspaceId = "#workspaceHeader",
+            summary = "'Nhập thêm ' + #result.added + ' số vào tệp #' + #id")
+    public ApiResponse<AppendDto> appendFile(@PathVariable Long id, @RequestPart("file") MultipartFile file) {
+        try (InputStream in = file.getInputStream()) {
+            SegmentService.AppendResult r = service.appendFile(ws(), id, file.getOriginalFilename(), in,
+                    CurrentUser.require().username());
+            return ApiResponse.ok(new AppendDto(id, r.added(), r.duplicates(), r.invalidRows(), r.segment().getTotalUsers()));
         } catch (IOException e) {
             throw new LaoadsException(ErrorCode.FILE_INVALID, "File không hợp lệ", "không đọc được file");
         }

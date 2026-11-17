@@ -1,5 +1,6 @@
 package com.unitel.laoads.api.campaign;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.unitel.laoads.domain.campaign.Campaign;
 import com.unitel.laoads.domain.campaign.CampaignDefinition;
 import com.unitel.laoads.domain.campaign.CampaignDefinition.ActionDef;
@@ -55,7 +56,7 @@ public final class CampaignDtos {
                          OffsetDateTime createdAt, String createdBy, BigDecimal expectedCost, double sentRate,
                          double openRate, double conversionRate, BigDecimal uplift,
                          String description, String language, List<String> testIsdns, List<ActionGroupDef> actionGroups,
-                         ScheduleDef schedule, GoalDef goal, BudgetDef budget, String eventTemplate, Integer testLimit,
+                         ScheduleDef schedule, GoalDef goal, BudgetDef budget, String eventTemplate, Integer limit,
                          String rejectReason, List<HistoryItem> history) {
 
         public static Detail from(Campaign c, CampaignDefinition def, String groupName, String segmentName,
@@ -69,7 +70,7 @@ public final class CampaignDtos {
                     c.getTestIsdns() == null ? List.of() : Arrays.asList(c.getTestIsdns().split(",")),
                     def.groups(), def.schedule(), def.goal(), budget,
                     def.eventTemplate() != null ? def.eventTemplate() : c.eventTemplate(),
-                    c.getMode() == CampaignEnums.Mode.TEST ? Integer.valueOf(def.testLimitOrDefault()) : null,
+                    def.limitFor(c.getMode()),
                     c.getRejectReason(),
                     history.stream().map(HistoryItem::from).toList());
         }
@@ -78,16 +79,18 @@ public final class CampaignDtos {
     /**
      * Body tạo / sửa chiến dịch. targetCount / channels / expectedCost FE gửi kèm bị bỏ qua — BE tự tính.
      * {@code eventTemplate}: bắt buộc khi type = EVENT (danh mục {@code GET /event-templates});
-     * {@code testLimit}: số khách hàng tối đa của chiến dịch TEST (1–1000, mặc định 10).
+     * {@code limit}: giới hạn số lượng khách hàng — TEST 1–1000 (mặc định 10), OFFICIAL tuỳ chọn (trống = toàn bộ tệp);
+     * nhận cả tên cũ {@code testLimit}.
      */
     public record Request(@NotBlank @Size(max = 255) String name, @Size(max = 2000) String description,
                           @NotNull CampaignEnums.Mode mode, @NotNull CampaignEnums.Type type, Long groupId,
                           Long segmentId, String language, List<String> testIsdns, List<ActionGroupDef> actionGroups,
-                          ScheduleDef schedule, GoalDef goal, BudgetDef budget, String eventTemplate, Integer testLimit) {
+                          ScheduleDef schedule, GoalDef goal, BudgetDef budget, String eventTemplate,
+                          @JsonAlias("testLimit") Integer limit) {
 
         public CampaignInput toInput() {
             return new CampaignInput(name, description, mode, type, groupId, segmentId, language, testIsdns,
-                    new CampaignDefinition(actionGroups, schedule, goal, budget, eventTemplate, testLimit));
+                    new CampaignDefinition(actionGroups, schedule, goal, budget, eventTemplate, limit));
         }
     }
 
@@ -97,10 +100,11 @@ public final class CampaignDtos {
     public record RejectRequest(String reason) {
     }
 
-    public record GroupDto(Long id, String name, long campaignCount, long runningCount, OffsetDateTime createdAt) {
+    public record GroupDto(Long id, String name, String description, long campaignCount, long runningCount,
+                           OffsetDateTime createdAt) {
     }
 
-    public record GroupRequest(@NotBlank @Size(max = 255) String name) {
+    public record GroupRequest(@NotBlank @Size(max = 255) String name, @Size(max = 500) String description) {
     }
 
     static List<String> channels(Campaign c) {

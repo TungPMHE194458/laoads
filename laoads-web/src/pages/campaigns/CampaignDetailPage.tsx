@@ -7,6 +7,8 @@ import {
   CalendarClock,
   CheckCircle2,
   Copy,
+  FileOutput,
+  Filter,
   FlaskConical,
   Goal,
   History,
@@ -24,7 +26,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { errorMessage } from '@/api/client'
-import type { ActionGroup, CampaignDetail, Channel } from '@/api/types'
+import type { ActionGroup, ActionStat, CampaignDetail, Channel } from '@/api/types'
 import { useCampaign, useCampaignReport } from '@/features/campaign/api'
 import { useCan } from '@/features/auth/permissions'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -42,6 +44,7 @@ import { Select } from '@/components/ui/select'
 import { fmtCompact, fmtDate, fmtDateTime, fmtKip, fmtNumber, fmtPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useCampaignOps } from './campaignActions'
+import { scheduleRule } from './scheduleRule'
 import { actionIcon } from './wizard/actionMeta'
 
 function Kpi({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
@@ -303,8 +306,11 @@ function ReportTab({ c }: { c: CampaignDetail }) {
                 <th className="px-3 py-2 text-left font-medium">{t('campaign.col.segment')}</th>
                 <th className="px-3 py-2 text-right font-medium">{t('metric.deliveryRate')}</th>
                 <th className="px-3 py-2 text-right font-medium">{t('metric.delivered')}</th>
+                <th className="px-3 py-2 text-right font-medium">{t('metric.failed')}</th>
                 <th className="px-3 py-2 text-right font-medium">{t('metric.openRate')}</th>
                 <th className="px-3 py-2 text-right font-medium">{t('metric.opens')}</th>
+                <th className="px-3 py-2 text-right font-medium">{t('metric.clickRate')}</th>
+                <th className="px-3 py-2 text-right font-medium">{t('metric.clicks')}</th>
                 <th className="px-3 py-2 text-right font-medium">{t('metric.conversionRate')}</th>
                 <th className="px-3 py-2 text-right font-medium">{t('metric.conversions')}</th>
                 <th className="px-5 py-2 text-right font-medium">Uplift</th>
@@ -323,8 +329,11 @@ function ReportTab({ c }: { c: CampaignDetail }) {
                   <td className="max-w-48 truncate px-3 py-3 text-muted-foreground">{c.segmentName ?? '—'}</td>
                   <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtPercent(g.sentRate)}</td>
                   <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtNumber(g.delivered)}</td>
+                  <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtNumber(g.failed)}</td>
                   <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtPercent(g.openRate)}</td>
                   <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtNumber(g.opens)}</td>
+                  <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtPercent(g.clickRate)}</td>
+                  <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtNumber(g.clicks)}</td>
                   <td className="px-3 py-3 text-right tabular">{fmtPercent(g.conversionRate)}</td>
                   <td className="px-3 py-3 text-right tabular">{fmtNumber(g.conversions)}</td>
                   <td className="px-5 py-3 text-right tabular">
@@ -343,6 +352,9 @@ function ReportTab({ c }: { c: CampaignDetail }) {
           </table>
         </CardContent>
       </Card>
+
+      {/* Bảng theo từng hành động (bảng "Hành động" của laoads.com) — đếm theo tin */}
+      <ActionStatsTable actions={r.data?.actions ?? []} />
 
       <Card>
         <CardHeader>
@@ -372,21 +384,71 @@ function ReportTab({ c }: { c: CampaignDetail }) {
   )
 }
 
-/** SRS 3.2.8.8 #11: diễn giải lịch chạy thành câu ("Mỗi 1 tuần vào T2, T5 lúc 09:00"). */
-function scheduleRule(c: CampaignDetail, t: (k: string, o?: Record<string, unknown>) => string): string | null {
-  const s = c.schedule
-  if (c.type === 'EVENT') return t('campaign.detail.ruleEvent', { event: c.eventTemplate ? t(`campaign.event.${c.eventTemplate}`, { defaultValue: c.eventTemplate }) : '—' })
-  if (s.type === 'NOW') return t('campaign.detail.ruleNow')
-  if (s.type === 'ONCE') return t('campaign.detail.ruleOnce', { at: fmtDateTime(s.startAt) })
-  const unit = t(`campaign.wizard.unit.${s.unit ?? 'WEEK'}`)
-  const days =
-    s.unit === 'WEEK' && s.weekdays?.length
-      ? ' · ' + [...s.weekdays].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => t(`weekday.${d}`)).join(', ')
-      : s.unit === 'MONTH' && s.monthDays?.length
-        ? ' · ' + t('campaign.detail.onDays', { days: s.monthDays.join(', ') })
-        : ''
-  const rule = t('campaign.detail.ruleRecurring', { every: s.every ?? 1, unit, days, time: s.sendTime ?? '09:00' })
-  return s.maxOccurrences ? `${rule} · ${t('campaign.detail.ruleMax', { n: s.maxOccurrences })}` : rule
+/** Hiệu quả theo từng hành động: gửi / lỗi / mở / click / chuyển đổi; tỷ lệ tính như BE ReportService.ActionStat. */
+function ActionStatsTable({ actions }: { actions: ActionStat[] }) {
+  const { t } = useTranslation()
+  if (!actions.length) return null
+  // Kênh không đo lượt mở (SMS, USSD) hoặc không có tin (hành động viễn thông) → '—'
+  const noOpen = (ch: string) => ch === 'SMS' || ch === 'USSD' || ch === 'OCS'
+  const isNotify = (ch: string) => ch !== 'OCS'
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>
+            <TitleWithInfo title={t('campaign.detail.byAction')} info={t('campaign.detail.byActionInfo')} />
+          </CardTitle>
+          <CardDescription>{t('campaign.detail.byActionDesc')}</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="overflow-x-auto px-0">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-y bg-muted/50 text-xs whitespace-nowrap text-muted-foreground uppercase">
+              <th className="px-5 py-2 text-left font-medium">{t('campaign.detail.group')}</th>
+              <th className="px-3 py-2 text-left font-medium">{t('campaign.detail.action')}</th>
+              <th className="px-3 py-2 text-right font-medium">{t('metric.sent')}</th>
+              <th className="px-3 py-2 text-right font-medium">{t('metric.failed')}</th>
+              <th className="px-3 py-2 text-right font-medium">{t('metric.deliveryRate')}</th>
+              <th className="px-3 py-2 text-right font-medium">{t('metric.opens')}</th>
+              <th className="px-3 py-2 text-right font-medium">{t('metric.openRate')}</th>
+              <th className="px-3 py-2 text-right font-medium">{t('metric.clicks')}</th>
+              <th className="px-3 py-2 text-right font-medium">{t('metric.clickRate')}</th>
+              <th className="px-3 py-2 text-right font-medium">{t('metric.conversions')}</th>
+              <th className="px-5 py-2 text-right font-medium">{t('metric.conversionRate')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {actions.map((a) => {
+              const Icon = actionIcon(a.actionType)
+              const base = a.delivered || a.sent
+              return (
+                <tr key={a.groupKey + '|' + a.actionKey} className="border-b whitespace-nowrap last:border-0">
+                  <td className="px-5 py-3 text-muted-foreground">{a.groupName}</td>
+                  <td className="px-3 py-3">
+                    <span className="flex items-center gap-2">
+                      <Icon className="size-4 text-brand-600" />
+                      <span className="tabular text-muted-foreground">{a.actionIndex}.</span>
+                      {t(`actionType.${a.actionType}`)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-right tabular">{fmtNumber(a.sent)}</td>
+                  <td className="px-3 py-3 text-right tabular">{fmtNumber(a.failed)}</td>
+                  <td className="px-3 py-3 text-right tabular">{fmtPercent(ratio(a.sent, a.sent + a.failed))}</td>
+                  <td className="px-3 py-3 text-right tabular">{noOpen(a.channel) ? '—' : fmtNumber(a.opens)}</td>
+                  <td className="px-3 py-3 text-right tabular">{noOpen(a.channel) ? '—' : fmtPercent(ratio(a.opens, base))}</td>
+                  <td className="px-3 py-3 text-right tabular">{isNotify(a.channel) ? fmtNumber(a.clicks) : '—'}</td>
+                  <td className="px-3 py-3 text-right tabular">{isNotify(a.channel) ? fmtPercent(ratio(a.clicks, base)) : '—'}</td>
+                  <td className="px-3 py-3 text-right tabular">{fmtNumber(a.conversions)}</td>
+                  <td className="px-5 py-3 text-right tabular">{fmtPercent(ratio(a.conversions, a.sent))}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
+  )
 }
 
 /** `customers`: số KH của nhóm — số thực tế khi đã chạy, ≈ ước tính (target × %) khi chưa chạy. */
@@ -426,7 +488,11 @@ function GroupBlock({ g, customers, estimated }: { g: ActionGroup; customers: nu
                     </p>
                   )}
                   {a.content && <p className="mt-1 rounded-lg bg-muted/60 px-3 py-2 text-[13px] whitespace-pre-wrap text-foreground/85">{a.content}</p>}
-                  {a.templateId && <p className="mt-1 font-mono text-xs text-muted-foreground">template: {a.templateId}</p>}
+                  {a.templateId && (
+                    <p className="mt-1 text-[13px] text-muted-foreground">
+                      {t('campaign.wizard.waTemplate')}: <span className="font-mono text-foreground">{a.templateId}</span>
+                    </p>
+                  )}
                   {a.amount != null && <p className="mt-1 text-[13px] text-muted-foreground">{t('campaign.wizard.amount')}: {fmtNumber(a.amount)}</p>}
                   {a.packageCode && (
                     <p className="mt-1 text-[13px] text-muted-foreground">
@@ -442,6 +508,9 @@ function GroupBlock({ g, customers, estimated }: { g: ActionGroup; customers: nu
     </div>
   )
 }
+
+/** Nhóm khách hàng tự trích xuất khi hoàn tất — giống BE GoalDef.outcomeList(): null = "chưa đạt mục tiêu" nếu có mục tiêu. */
+const outcomesOf = (c: CampaignDetail) => c.goal.outcomes ?? (c.goal.mode !== 'NONE' ? ['GOAL_NOT_ACHIEVED' as const] : [])
 
 function ConfigTab({ c }: { c: CampaignDetail }) {
   const { t } = useTranslation()
@@ -487,6 +556,8 @@ function ConfigTab({ c }: { c: CampaignDetail }) {
       </span>,
     ],
     [Goal, t('campaign.wizard.steps.goal'), `${t(`campaign.wizard.goal.${c.goal.mode}`)} · ${t('campaign.wizard.window', { n: c.goal.attributionWindowDays })}`],
+    [Filter, t('campaign.wizard.limitLabel'), c.limit != null ? t('campaign.detail.customersN', { n: fmtNumber(c.limit) }) : t('campaign.wizard.limitNone')],
+    [FileOutput, t('campaign.wizard.outcomesTitle'), outcomesOf(c).length ? outcomesOf(c).map((o) => t(`campaign.outcome.${o}`)).join(', ') : '—'],
     [Wallet, t('campaign.wizard.budget'), `${fmtKip(c.budget.expected)}${c.budget.max ? ` (${t('campaign.wizard.maxBudget')}: ${fmtKip(c.budget.max)})` : ''}`],
   ]
   return (

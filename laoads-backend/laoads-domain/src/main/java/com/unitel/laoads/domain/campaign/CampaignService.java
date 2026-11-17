@@ -81,6 +81,7 @@ public class CampaignService {
     private final SegmentRepository segmentRepo;
     private final SenderNumberRepository senderRepo;
     private final PriceQuoteService priceQuoteService;
+    private final com.unitel.laoads.domain.engine.WhatsAppTemplateSource whatsappTemplates;
     private final JdbcTemplate jdbc;
     private final ObjectMapper mapper;
 
@@ -334,10 +335,16 @@ public class CampaignService {
 
     @Transactional
     public CampaignGroup createGroup(long ws, String name, String actor) {
+        return createGroup(ws, name, null, actor);
+    }
+
+    @Transactional
+    public CampaignGroup createGroup(long ws, String name, String description, String actor) {
         String n = groupName(ws, name, null);
         CampaignGroup g = new CampaignGroup();
         g.setWorkspaceId(ws);
         g.setName(n);
+        g.setDescription(groupDescription(description));
         g.setCreatedAt(Instant.now());
         g.setCreatedBy(actor);
         return groupRepo.save(g);
@@ -348,6 +355,23 @@ public class CampaignService {
         CampaignGroup g = groupRepo.findByIdAndWorkspaceId(id, ws).orElseThrow(() -> groupNotFound(id));
         g.setName(groupName(ws, name, id));
         return g;
+    }
+
+    /** Sửa tên + mô tả nhóm. */
+    @Transactional
+    public CampaignGroup updateGroup(long ws, long id, String name, String description) {
+        CampaignGroup g = renameGroup(ws, id, name);
+        g.setDescription(groupDescription(description));
+        return g;
+    }
+
+    private static String groupDescription(String description) {
+        String d = Texts.trimToNull(description);
+        if (d != null && d.length() > 500) {
+            throw LaoadsException.validation(List.of(new FieldViolation("description", "error.validation.maxLength",
+                    "Tối đa 500 ký tự", 500)));
+        }
+        return d;
     }
 
     @Transactional
@@ -386,7 +410,21 @@ public class CampaignService {
         return m;
     }
 
-    /** Chi phí dự kiến = Σ nhóm nhận tin (target × tỷ lệ phân bổ) × Σ đơn giá hành động. */
+    /**
+     * Chi phí một hành động cho một khách hàng (bảng giá laoads.com theo đơn vị tính): hành động cộng tài nguyên tính
+     * theo số lượng — đơn giá × số KIP / MB / SMS / phút được cộng; gửi thông báo và đăng ký dịch vụ tính theo lượt.
+     */
+    public static BigDecimal costPerTarget(ActionDef a, BigDecimal unitPrice) {
+        if (unitPrice == null) {
+            return BigDecimal.ZERO;
+        }
+        if (a.type() != null && a.type().perUnit()) {
+            return unitPrice.multiply(a.amount() == null ? BigDecimal.ZERO : a.amount());
+        }
+        return unitPrice;
+    }
+
+    /** Chi phí dự kiến = Σ nhóm nhận tin (target × tỷ lệ phân bổ) × Σ chi phí từng hành động cho một khách hàng. */
     public static BigDecimal expectedCost(CampaignDefinition def, int target, Map<ActionType, BigDecimal> prices) {
         BigDecimal total = BigDecimal.ZERO;
         for (ActionGroupDef g : def.groups()) {
@@ -394,7 +432,8 @@ public class CampaignService {
                 continue;
             }
             BigDecimal perTarget = g.actions().stream()
-                    .map(a -> prices.getOrDefault(a.type(), BigDecimal.ZERO))
+                    .filter(a -> a.type() != null)
+                    .map(a -> costPerTarget(a, prices.getOrDefault(a.type(), BigDecimal.ZERO)))
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             BigDecimal recipients = BigDecimal.valueOf(target).multiply(BigDecimal.valueOf(g.allocationPercent()))
                     .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
@@ -452,6 +491,7 @@ public class CampaignService {
             if (strict) {
                 validateSenders(ws, def, errors);
                 validateParams(def, errors);
+                validateWhatsappTemplates(def, errors);
                 validateGoalStrict(def.goal(), errors);
             }
             if (in.type() != Type.EVENT) {
@@ -465,10 +505,14 @@ public class CampaignService {
                         "Vui lòng chọn template sự kiện"));
             }
         }
-        if (def != null && in.mode() == Mode.TEST
-                && (def.testLimitOrDefault() < 1 || def.testLimitOrDefault() > CampaignDefinition.MAX_TEST_LIMIT)) {
-            errors.add(new FieldViolation("testLimit", "error.validation.range",
+        // Giới hạn số lượng khách hàng (laoads.com: có ở cả chiến dịch chính thức): TEST 1–1000, OFFICIAL ≥ 1 hoặc trống
+        Integer limit = def == null ? null : def.limitFor(in.mode());
+        if (in.mode() == Mode.TEST && limit != null && (limit < 1 || limit > CampaignDefinition.MAX_TEST_LIMIT)) {
+            errors.add(new FieldViolation("limit", "error.validation.range",
                     "Giá trị phải từ 1 đến " + CampaignDefinition.MAX_TEST_LIMIT, 1, CampaignDefinition.MAX_TEST_LIMIT));
+        } else if (limit != null && limit < 1) {
+            errors.add(new FieldViolation("limit", "error.validation.range", "Giá trị phải từ 1 đến 1000000000", 1,
+                    1_000_000_000));
         }
         if (strict && in.type() == Type.STATIC) {
             if (in.mode() == Mode.OFFICIAL) {
@@ -501,7 +545,7 @@ public class CampaignService {
             return null;
         }
         String template = in.type() == Type.EVENT ? EventTemplates.normalize(d.eventTemplate()) : null;
-        Integer limit = in.mode() == Mode.TEST ? Integer.valueOf(d.testLimitOrDefault()) : null;
+        Integer limit = d.limitFor(in.mode());
         return new CampaignDefinition(d.actionGroups(), d.schedule(), d.goal(), d.budget(), template, limit);
     }
 
@@ -561,6 +605,29 @@ public class CampaignService {
         }
     }
 
+    /** Khi gửi duyệt: template WhatsApp đã chọn phải có trong danh mục của nhà cung cấp và đã được duyệt. */
+    private void validateWhatsappTemplates(CampaignDefinition def, List<FieldViolation> errors) {
+        for (int gi = 0; gi < def.groups().size(); gi++) {
+            ActionGroupDef g = def.groups().get(gi);
+            if (g.isControl() || g.actions() == null) {
+                continue;
+            }
+            for (int ai = 0; ai < g.actions().size(); ai++) {
+                ActionDef a = g.actions().get(ai);
+                if (!a.usesWhatsappTemplate() || Texts.trimToNull(a.templateId()) == null) {
+                    continue;
+                }
+                boolean ok = whatsappTemplates.find(a.templateId())
+                        .map(com.unitel.laoads.domain.engine.WhatsAppTemplateSource.Template::approved).orElse(false);
+                if (!ok) {
+                    errors.add(new FieldViolation("actionGroups[" + gi + "].actions[" + ai + "].templateId",
+                            "error.validation.whatsappTemplateUnavailable", "Template WhatsApp không tồn tại hoặc chưa được duyệt",
+                            a.templateId()));
+                }
+            }
+        }
+    }
+
     /** Khi gửi duyệt: nội dung / tiêu đề chỉ được dùng tham số trong danh mục {@link MessageParams}. */
     static void validateParams(CampaignDefinition def, List<FieldViolation> errors) {
         for (int gi = 0; gi < def.groups().size(); gi++) {
@@ -601,6 +668,9 @@ public class CampaignService {
         }
         if (g.maxNoResponse() != null && (g.maxNoResponse() < 1 || g.maxNoResponse() > 100)) {
             errors.add(new FieldViolation("goal.maxNoResponse", "error.validation.range", "Giá trị phải từ 1 đến 100", 1, 100));
+        }
+        if (g.outcomes() != null && g.outcomes().stream().anyMatch(o -> !CampaignDefinition.GoalDef.OUTCOMES.contains(o))) {
+            errors.add(new FieldViolation("goal.outcomes", "error.validation.invalidValue", "Giá trị không hợp lệ"));
         }
         if (g.reentryDays() != null && (g.reentryDays() < 1 || g.reentryDays() > 365)) {
             errors.add(new FieldViolation("goal.reentryDays", "error.validation.range", "Giá trị phải từ 1 đến 365", 1, 365));
@@ -648,8 +718,14 @@ public class CampaignService {
                     errors.add(new FieldViolation(path + ".delayMinutes", "error.validation.range",
                             "Giá trị phải từ 0 đến 43200", 0, 43200));
                 }
-                // SRS 3.2.3.3–5: nội dung SMS / WhatsApp / Email bắt buộc, tối đa 360 ký tự; Email bắt buộc tiêu đề
-                if (a.channel().isNotification() && Texts.trimToNull(a.content()) == null) {
+                // SRS 3.2.3.3–5: nội dung SMS / WhatsApp / Email bắt buộc, tối đa 360 ký tự; Email bắt buộc tiêu đề.
+                // WhatsApp chế độ template (như laoads.com) thay nội dung bằng template đã duyệt
+                if (a.usesWhatsappTemplate()) {
+                    if (Texts.trimToNull(a.templateId()) == null) {
+                        errors.add(new FieldViolation(path + ".templateId", "error.validation.whatsappTemplateRequired",
+                                "Vui lòng chọn template WhatsApp"));
+                    }
+                } else if (a.channel().isNotification() && Texts.trimToNull(a.content()) == null) {
                     errors.add(new FieldViolation(path + ".content", "error.validation.contentRequired",
                             "Nội dung tin không được để trống"));
                 } else if (CONTENT_LIMITED.contains(a.channel()) && a.content().length() > CONTENT_MAX) {
@@ -690,9 +766,6 @@ public class CampaignService {
         if ("RECURRING".equals(s.type()) && s.endAt() == null) {
             errors.add(new FieldViolation("schedule.endAt", "error.validation.endRequired", "Cần chọn thời gian kết thúc"));
         }
-        if (s.monthDays() != null && s.monthDays().stream().anyMatch(d -> d == null || d < 1 || d > 31)) {
-            errors.add(new FieldViolation("schedule.monthDays", "error.validation.range", "Giá trị phải từ 1 đến 31", 1, 31));
-        }
         if (s.maxOccurrences() != null && (s.maxOccurrences() < 1 || s.maxOccurrences() > 1000)) {
             errors.add(new FieldViolation("schedule.maxOccurrences", "error.validation.range", "Giá trị phải từ 1 đến 1000", 1, 1000));
         }
@@ -700,10 +773,27 @@ public class CampaignService {
             errors.add(new FieldViolation("schedule.endAt", "error.validation.endBeforeStart",
                     "Thời gian kết thúc phải sau thời gian bắt đầu"));
         }
-        if ("RECURRING".equals(s.type()) && (s.every() == null || s.every() < 1 || s.unit() == null
-                || !UNITS.contains(s.unit()) || s.sendTime() == null || !HH_MM.matcher(s.sendTime()).matches())) {
-            errors.add(new FieldViolation("schedule", "error.validation.recurringRule",
-                    "Lịch lặp lại cần chu kỳ và giờ gửi hợp lệ"));
+        if ("RECURRING".equals(s.type())) {
+            // mỗi khung thời gian (laoads.com: "Khung thời gian 1, 2…") cần chu kỳ + giờ gửi hợp lệ
+            List<CampaignDefinition.FrameDef> frames = s.effectiveFrames();
+            boolean many = s.frames() != null && !s.frames().isEmpty();
+            if (frames.size() > 10) {
+                errors.add(new FieldViolation("schedule.frames", "error.validation.range", "Giá trị phải từ 1 đến 10", 1, 10));
+            }
+            for (int i = 0; i < frames.size(); i++) {
+                CampaignDefinition.FrameDef f = frames.get(i);
+                String path = many ? "schedule.frames[" + i + "]" : "schedule";
+                if (f.every() == null || f.every() < 1 || f.unit() == null || !UNITS.contains(f.unit())
+                        || f.sendTime() == null || !HH_MM.matcher(f.sendTime()).matches()) {
+                    errors.add(new FieldViolation(path, "error.validation.recurringRule",
+                            "Lịch lặp lại cần chu kỳ và giờ gửi hợp lệ"));
+                }
+                if (f.monthDays() != null && f.monthDays().stream().anyMatch(d -> d == null || d < 1 || d > 31)) {
+                    errors.add(new FieldViolation(path + ".monthDays", "error.validation.range", "Giá trị phải từ 1 đến 31", 1, 31));
+                }
+            }
+        } else if (s.monthDays() != null && s.monthDays().stream().anyMatch(d -> d == null || d < 1 || d > 31)) {
+            errors.add(new FieldViolation("schedule.monthDays", "error.validation.range", "Giá trị phải từ 1 đến 31", 1, 31));
         }
         if (s.silentHours() != null && s.silentHours().enabled()
                 && (s.silentHours().from() == null || !HH_MM.matcher(s.silentHours().from()).matches()
@@ -738,14 +828,12 @@ public class CampaignService {
         if (in.type() == Type.EVENT) {
             return 0;
         }
-        if (in.mode() == Mode.TEST) {
-            int limit = def == null ? CampaignDefinition.DEFAULT_TEST_LIMIT : def.testLimitOrDefault();
-            if (!isdns.isEmpty()) {
-                return Math.min(isdns.size(), limit);
-            }
-            return segment == null ? 0 : Math.min(segment.getTotalUsers(), limit);
+        Integer limit = def == null ? null : def.limitFor(in.mode());
+        int cap = limit == null ? Integer.MAX_VALUE : limit;
+        if (in.mode() == Mode.TEST && !isdns.isEmpty()) {
+            return Math.min(isdns.size(), cap);
         }
-        return segment == null ? 0 : segment.getTotalUsers();
+        return segment == null ? 0 : Math.min(segment.getTotalUsers(), cap);
     }
 
     private static String channelsOf(CampaignDefinition def) {

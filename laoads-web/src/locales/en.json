@@ -206,7 +206,9 @@
     "openRate": "Open rate",
     "failedN": "{{n}} failed",
     "spent": "Spent",
-    "opensN": "{{n}} opens"
+    "opensN": "{{n}} opens",
+    "failed": "Failed",
+    "clickRate": "Click rate"
   },
   "langName": {
     "LO": "ພາສາລາວ (Lao)",
@@ -467,7 +469,11 @@
       "customersN": "{{n}} customers",
       "testList": "Test number list ({{n}} numbers)",
       "onDays": "on day {{days}}",
-      "ruleMax": "up to {{n}} times"
+      "ruleMax": "up to {{n}} times",
+      "action": "Action",
+      "byAction": "Performance by action",
+      "byActionDesc": "Each action in every group, counted per message sent.",
+      "byActionInfo": "Delivery rate = delivered / (delivered + failed). Open and click rates are based on messages that reached the device. Conversion rate = customers who received the action and reached the goal / messages delivered."
     },
     "wizard": {
       "newTitle": "New campaign",
@@ -590,7 +596,10 @@
         "startInPast": "The start time cannot be in the past.",
         "endRequired": "A recurring campaign needs an end time.",
         "contentLong": "The content exceeds 360 characters (counting parameters at their maximum length).",
-        "goalConditions": "A goal from an external data source needs at least one complete condition."
+        "goalConditions": "A goal from an external data source needs at least one complete condition.",
+        "limit": "The customer limit must be greater than 0 or left blank.",
+        "frame": "Each time frame needs a cycle of 1 or more and a valid send time.",
+        "whatsappTemplate": "A WhatsApp action has no template selected."
       },
       "trackLinks": "Track link clicks (replace links in the message with tracking links)",
       "newGroup": "New campaign group",
@@ -613,7 +622,6 @@
       "trackLinkUrl": "Link to track",
       "insertTrackLink": "Insert tracking link",
       "eventTemplateHint": "An external system sends this event through the events API to enrol a subscriber in the campaign.",
-      "testLimitLabel": "Test customer limit",
       "testLimitHint": "From 1 to {{max}} customers.",
       "testIsdns": "Test subscriber numbers (optional)",
       "testIsdnsHint": "One number per line or comma-separated. When set, the campaign sends to these numbers (up to {{n}}) instead of the segment.",
@@ -641,11 +649,54 @@
       "goalSourceOcs": "OCS — BI data",
       "goalTable": "Table",
       "goalConditions": "Goal conditions",
-      "goalConditionsHint": "A customer reaches the goal when their latest BI data meets these conditions within the tracking window. Use the \"is empty\" operator to check for Null."
+      "goalConditionsHint": "A customer reaches the goal when their latest BI data meets these conditions within the tracking window. Use the \"is empty\" operator to check for Null.",
+      "limitLabel": "Customer limit",
+      "limitHint": "Leave blank to send to the whole list. With a limit, each run takes at most this many customers.",
+      "limitNone": "No limit",
+      "frameN": "Time frame {{n}}",
+      "addFrame": "Add time frame",
+      "moveUp": "Move action up",
+      "moveDown": "Move action down",
+      "brand": "Brand",
+      "brandDefault": "Default brand",
+      "noBrand": "This workspace has no WhatsApp brand yet; messages go out under the default brand.",
+      "waModeContent": "Write content",
+      "waModeTemplate": "Choose template",
+      "waTemplate": "WhatsApp template",
+      "waTemplateHint": "Only templates approved by WhatsApp are listed. The message text comes from the template.",
+      "waTemplateSearch": "Search by template name",
+      "waNoTemplate": "No approved templates yet.",
+      "waSelected": "Selected",
+      "outcomesTitle": "Extract customers",
+      "outcomesDesc": "When the campaign completes, a customer list is created for each selected group so you can target it in later campaigns.",
+      "outcomeNeedsGoal": "needs a goal",
+      "outcomeNeedsWhatsapp": "needs a WhatsApp action",
+      "summaryEvent": "Customers who trigger the event",
+      "summaryLimit": "up to {{n}}",
+      "summaryActions": "{{n}} actions · {{g}} groups"
     },
     "param": {
       "isdn": "Subscriber number",
       "package": "Current data package"
+    },
+    "groupDialog": {
+      "name": "Group name",
+      "description": "Description",
+      "descriptionPh": "What this group is for, which campaigns go in it…",
+      "editTitle": "Edit campaign group",
+      "saved": "Campaign group saved",
+      "searchPh": "Search by group name or description",
+      "emptyTitle": "No campaign groups yet",
+      "emptyDesc": "Create a group to collect campaigns with the same goal and filter the list quickly.",
+      "inUse": "This group still has campaigns. Move them to another group before deleting it",
+      "deleteTitle": "Delete campaign group?",
+      "deleteDesc": "Group \"{{name}}\" will be deleted. This cannot be undone.",
+      "deleted": "Campaign group deleted"
+    },
+    "outcome": {
+      "GOAL_ACHIEVED": "Customers who reached the goal",
+      "GOAL_NOT_ACHIEVED": "Customers who did not reach the goal",
+      "WHATSAPP_FAILED": "Customers whose WhatsApp message failed"
     }
   },
   "approval": {
@@ -765,7 +816,11 @@
     "createAnyway": "Create anyway",
     "inUseNoDelete": "The segment is used by a campaign and cannot be deleted",
     "deleteOneTitle": "Delete segment?",
-    "deleteOneDesc": "The segment \"{{name}}\" and its customer list will be deleted."
+    "deleteOneDesc": "The segment \"{{name}}\" and its customer list will be deleted.",
+    "memberSearchPh": "Search by phone number",
+    "appendImport": "Import more data",
+    "appendDone": "Added {{added}} new numbers · {{dup}} already in the list · {{invalid}} invalid rows",
+    "noMembers": "This list has no customers yet"
   },
   "workspace": {
     "name": "Workspace name",
@@ -784,7 +839,10 @@
     "general": "General information",
     "updatedAt": "Last updated",
     "contact": "Contact",
-    "membersError": "Could not load the member list."
+    "membersError": "Could not load the member list.",
+    "activity": "Activity",
+    "activityDesc": "Recent actions by members in this workspace: campaigns, customer lists, members, API key…",
+    "noActivity": "No activity yet"
   },
   "members": {
     "desc": "Members of workspace {{ws}} and their roles.",
@@ -835,7 +893,23 @@
     "lockedAt": "Locked at",
     "deleteTitle": "Delete draft price list?",
     "deleteDesc": "\"{{name}}\" will be deleted.",
-    "activeNow": "Currently active"
+    "activeNow": "Currently active",
+    "telecomHint": "Actions with an amount (top-up, add money, promotion, data, SMS, call minutes) are priced per unit: cost = unit price × amount granted.",
+    "per": {
+      "NOTIFICATION_SMS": "Per SMS sent",
+      "NOTIFICATION_EMAIL": "Per email sent",
+      "NOTIFICATION_WHATSAPP": "Per WhatsApp message sent",
+      "NOTIFICATION_USSD": "Per USSD message sent",
+      "TOP_UP": "Per KIP topped up",
+      "ADD_MONEY": "Per KIP added",
+      "ADD_PROMOTION": "Per promotional KIP added",
+      "ADD_DATA": "Per MB added",
+      "ADD_SMS": "Per SMS added",
+      "ADD_CALL_MINUTES": "Per call minute added",
+      "ADD_PACKAGE": "Per package subscription",
+      "REGISTER_CRBT": "Per ringback tone subscription",
+      "REGISTER_LAOTV": "Per LaoTV subscription"
+    }
   },
   "audit": {
     "desc": "Every data-changing operation is recorded.",
@@ -979,7 +1053,7 @@
     "codeHint": "2–32 characters: letters, digits or underscore; uppercased automatically.",
     "description": "Description",
     "channels": "Channels",
-    "channelsHint": "Brandnames can only send SMS.",
+    "channelsHint": "Brandnames can send SMS or act as a WhatsApp brand, but not USSD. Short codes cannot be used for WhatsApp.",
     "enabledLabel": "Enabled",
     "enabledHint": "Disabled senders are hidden when creating campaigns; messages of running campaigns that use it are held until it is enabled again.",
     "sentToday": "Sent today",

@@ -275,6 +275,8 @@ export interface CampaignAction {
   packageCode?: string | null
   /** Thay URL trong nội dung bằng link tracking /api/v1/t/{token} (SRS 3.2.3.6) */
   trackLinks?: boolean | null
+  /** WhatsApp (như laoads.com): CONTENT = nhập nội dung, TEMPLATE = chọn template đã duyệt (templateId) */
+  whatsappMode?: 'CONTENT' | 'TEMPLATE' | null
 }
 export interface ActionGroup {
   id: string
@@ -291,6 +293,8 @@ export interface CampaignSchedule {
   every?: number
   unit?: 'DAY' | 'WEEK' | 'MONTH'
   weekdays?: number[]
+  /** Nhiều khung thời gian (laoads.com "Khung thời gian 1, 2…") — có thì thay cho every / unit / weekdays / monthDays / sendTime */
+  frames?: ScheduleFrame[] | null
   /** SRS 3.2.5.3: các ngày trong tháng (unit = MONTH), trống = ngày của startAt */
   monthDays?: number[] | null
   /** SRS 3.2.5.3: hoàn thành sau N lần lặp; null = chạy tới thời gian kết thúc */
@@ -298,6 +302,14 @@ export interface CampaignSchedule {
   sendTime?: string
   silentHours?: { enabled: boolean; from: string; to: string }
 }
+export interface ScheduleFrame {
+  every: number
+  unit: 'DAY' | 'WEEK' | 'MONTH'
+  weekdays?: number[] | null
+  monthDays?: number[] | null
+  sendTime: string
+}
+export type CampaignOutcome = 'GOAL_ACHIEVED' | 'GOAL_NOT_ACHIEVED' | 'WHATSAPP_FAILED'
 export interface CampaignGoal {
   mode: 'AUTO_OCS' | 'MANUAL_FILE' | 'NONE'
   description: string
@@ -309,6 +321,8 @@ export interface CampaignGoal {
   reentryDays?: number | null
   /** SRS 3.2.6.1: điều kiện đạt mục tiêu trên dữ liệu BI (all_report_stl_new); bắt buộc khi gửi duyệt AUTO_OCS */
   conditions?: SegmentCondition[] | null
+  /** "Trích xuất khách hàng" (laoads.com): tự tạo tệp khách hàng cho các nhóm này khi chiến dịch hoàn tất */
+  outcomes?: CampaignOutcome[] | null
 }
 export interface CampaignDetail extends CampaignSummary {
   description: string | null
@@ -320,8 +334,8 @@ export interface CampaignDetail extends CampaignSummary {
   budget: { expected: number; max: number | null }
   /** Template sự kiện (bắt buộc khi type = EVENT, danh mục GET /event-templates) — SRS 3.2.1.6 */
   eventTemplate?: string | null
-  /** Số khách hàng tối đa của chiến dịch TEST (1–1000, mặc định 10) — SRS 3.2.1.4 */
-  testLimit?: number | null
+  /** Giới hạn số lượng khách hàng: TEST 1–1000 (mặc định 10, SRS 3.2.1.4); OFFICIAL tuỳ chọn như laoads.com (trống = cả tệp) */
+  limit?: number | null
   rejectReason: string | null
   history: { at: string; actor: string; action: string; note?: string | null }[]
 }
@@ -346,6 +360,8 @@ export type CampaignInput = Omit<
 export interface CampaignGroup {
   id: number
   name: string
+  /** tối đa 500 ký tự (như laoads.com) */
+  description?: string | null
   campaignCount: number
   runningCount: number
   createdAt: string
@@ -374,7 +390,30 @@ export interface CampaignReport {
   timeseries: TimePoint[]
   channels: ChannelStat[]
   /** Theo nhóm hành động (SRS 3.2.8.7): delivered = KH đã nhận ≥ 1 tin, sentRate = delivered / target, openRate = opens / delivered */
-  groups: { groupName: string; isControl: boolean; target: number; delivered: number; sentRate: number; opens: number; openRate: number; conversions: number; conversionRate: number; uplift: number | null }[]
+  groups: { groupName: string; isControl: boolean; target: number; delivered: number; sentRate: number; failed: number; opens: number; openRate: number; clicks: number; clickRate: number; conversions: number; conversionRate: number; uplift: number | null }[]
+  /** Theo từng hành động (bảng "Hành động" của laoads.com) — đếm theo tin */
+  actions: ActionStat[]
+}
+export interface ActionStat {
+  groupKey: string
+  groupName: string
+  actionKey: string
+  actionIndex: number
+  actionType: ActionType
+  channel: string
+  sent: number
+  failed: number
+  delivered: number
+  opens: number
+  clicks: number
+  conversions: number
+}
+/** Template WhatsApp đã duyệt ở nhà cung cấp (GET /whatsapp/templates) */
+export interface WhatsAppTemplate {
+  id: string
+  name: string
+  language: string
+  status: 'APPROVED' | 'PENDING' | 'REJECTED'
 }
 
 export interface Metric {
@@ -505,8 +544,9 @@ export interface SegmentMember {
 
 // ───── Đầu số gửi tin (cấu hình từng đầu số) ─────
 export type SenderKind = 'SHORTCODE' | 'BRANDNAME'
-export type SenderChannel = 'SMS' | 'USSD'
-export const SENDER_CHANNELS: SenderChannel[] = ['SMS', 'USSD']
+/** WHATSAPP = brand / tài khoản WhatsApp chính thức (chỉ loại BRANDNAME) */
+export type SenderChannel = 'SMS' | 'USSD' | 'WHATSAPP'
+export const SENDER_CHANNELS: SenderChannel[] = ['SMS', 'USSD', 'WHATSAPP']
 export type GatewayProtocol = 'NONE' | 'SMPP' | 'HTTP'
 export type ConnectionTestCode = 'OK' | 'TIMEOUT' | 'REFUSED' | 'UNKNOWN_HOST' | 'AUTH_FAILED' | 'REJECTED' | 'PROTOCOL_ERROR' | 'ERROR'
 export interface ConnectionTestResult {

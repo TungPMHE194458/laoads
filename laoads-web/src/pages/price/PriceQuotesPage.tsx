@@ -13,7 +13,7 @@ import { ConfirmDialog, Field } from '@/components/common/dialogs'
 import { PriceStatusBadge } from '@/components/common/status'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/misc'
+import { Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/misc'
 import { Dialog, DialogTitle, SheetContent } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { fmtDateTime, fmtKip } from '@/lib/format'
@@ -44,7 +44,7 @@ function Editor({ quote, editId, readOnly, clone, onClose }: EditorState & { onC
 
   const section = (title: string, list: ActionType[]) => (
     <section>
-      <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
+      <h3 className="sr-only">{title}</h3>
       <div className="overflow-hidden rounded-xl border">
         <div className="grid grid-cols-[1fr_130px_150px] gap-3 border-b bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground">
           <span>{t('price.action')}</span>
@@ -56,9 +56,13 @@ function Editor({ quote, editId, readOnly, clone, onClose }: EditorState & { onC
           const I = actionIcon(a)
           return (
             <div key={a} className="grid grid-cols-[1fr_130px_150px] items-center gap-3 border-b px-4 py-2.5 last:border-0">
-              <span className="flex items-center gap-2 text-sm">
-                <I className="size-4 text-muted-foreground" />
-                {t(`actionType.${a}`)}
+              <span className="flex items-start gap-2 text-sm">
+                <I className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0">
+                  <span className="block">{t(`actionType.${a}`)}</span>
+                  {/* Đơn vị tính (như laoads.com): viễn thông có số lượng tính theo KIP / MB / SMS / phút được cộng */}
+                  <span className="block text-xs text-muted-foreground">{t(`price.per.${a}`)}</span>
+                </span>
               </span>
               {readOnly ? (
                 <span className="text-right text-sm tabular">{fmtKip(it.unitPrice)}</span>
@@ -101,8 +105,20 @@ function Editor({ quote, editId, readOnly, clone, onClose }: EditorState & { onC
             </Field>
           </div>
         )}
-        {section(t('price.notify'), NOTIFICATION_ACTIONS)}
-        {section(t('price.telecom'), TELECOM_ACTIONS)}
+        {/* Hai tab như laoads.com: "Thông báo" / "Dịch vụ viễn thông" */}
+        <Tabs defaultValue="notify">
+          <TabsList>
+            <TabsTrigger value="notify">{t('price.notify')}</TabsTrigger>
+            <TabsTrigger value="telecom">{t('price.telecom')}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="notify" className="mt-4">
+            {section(t('price.notify'), NOTIFICATION_ACTIONS)}
+          </TabsContent>
+          <TabsContent value="telecom" className="mt-4">
+            <p className="mb-3 text-xs text-muted-foreground">{t('price.telecomHint')}</p>
+            {section(t('price.telecom'), TELECOM_ACTIONS)}
+          </TabsContent>
+        </Tabs>
       </div>
       {!readOnly && (
         <div className="flex justify-end gap-2 border-t px-6 py-4">
@@ -227,6 +243,7 @@ export default function PriceQuotesPage() {
               <div key={a}>
                 <div className="text-xs text-muted-foreground">{t(`actionType.${a}`)}</div>
                 <div className="font-semibold tabular">{fmtKip(active.data!.items.find((i) => i.actionType === a)?.unitPrice)}</div>
+                <div className="text-[11px] text-muted-foreground">{t(`price.per.${a}`)}</div>
               </div>
             ))}
           </div>

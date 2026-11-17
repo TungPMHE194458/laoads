@@ -216,6 +216,10 @@ public class SenderNumberService {
             errors.add(new FieldViolation("channels", "error.validation.brandnameSmsOnly",
                     "Brandname chỉ dùng được cho SMS"));
         }
+        if (in.kind() == SenderKind.SHORTCODE && channels.contains(Channel.WHATSAPP)) {
+            errors.add(new FieldViolation("channels", "error.validation.whatsappBrandOnly",
+                    "WhatsApp chỉ dùng brand (tài khoản WhatsApp chính thức), không dùng đầu số ngắn"));
+        }
 
         Set<Long> workspaceIds = new LinkedHashSet<>(in.workspaceIds() == null ? List.of() : in.workspaceIds());
         workspaceIds.remove(null);

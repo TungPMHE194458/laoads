@@ -70,14 +70,20 @@ public class EngineMaintenance {
         historyRepo.save(CampaignHistory.of(campaignId, "system", "COMPLETE",
                 "Đã gửi " + c.getSentCount() + " tin, " + c.getConversionCount() + " chuyển đổi"));
         CampaignDefinition def = campaignService.definitionOf(c);
-        boolean hasGoal = def.goal() != null && def.goal().mode() != null && !"NONE".equals(def.goal().mode());
-        if (hasGoal && c.getSentCount() > 0) {
-            var seg = segmentService.createCampaignOutcome(c.getWorkspaceId(), campaignId, c.getName());
-            log.info("[ENGINE] Chiến dịch #{} hoàn tất — tạo tệp CAMPAIGN_OUTCOME #{} ({} thuê bao)", campaignId,
-                    seg.getId(), seg.getTotalUsers());
-        } else {
-            log.info("[ENGINE] Chiến dịch #{} hoàn tất", campaignId);
+        // "Trích xuất khách hàng" (laoads.com): mỗi nhóm đã chọn thành một tệp CAMPAIGN_OUTCOME
+        List<String> outcomes = def.goal() == null ? List.of() : def.goal().outcomeList();
+        boolean hasGoal = def.goal() != null && def.goal().hasGoal();
+        if (c.getSentCount() > 0) {
+            for (String o : outcomes) {
+                if (!hasGoal && !"WHATSAPP_FAILED".equals(o)) {
+                    continue; // không có mục tiêu thì không phân được đạt / chưa đạt
+                }
+                var seg = segmentService.createCampaignOutcome(c.getWorkspaceId(), campaignId, c.getName(), o);
+                log.info("[ENGINE] Chiến dịch #{} hoàn tất — tạo tệp {} #{} ({} thuê bao)", campaignId, o, seg.getId(),
+                        seg.getTotalUsers());
+            }
         }
+        log.info("[ENGINE] Chiến dịch #{} hoàn tất", campaignId);
     }
 
     /** Cập nhật bộ đếm cho chiến dịch đang hoạt động / mới hoàn tất. */
@@ -181,18 +187,17 @@ public class EngineMaintenance {
     @Transactional
     public int importConversions(long campaignId, java.util.Collection<String> isdns) {
         List<Object[]> rows = isdns.stream().map(i -> new Object[]{Utc.ts(Instant.now()), campaignId, i}).toList();
-        int[][] res = jdbc.batchUpdate("UPDATE LADS_CAMPAIGN_TARGET SET CONVERTED = 1, CONVERTED_AT = ? "
+        // Đếm trước / sau: Oracle JDBC có thể trả SUCCESS_NO_INFO (-2) cho từng lệnh trong batch thay vì số dòng
+        String countSql = "SELECT COUNT(*) FROM LADS_CAMPAIGN_TARGET WHERE CAMPAIGN_ID = ? AND CONVERTED = 1";
+        Long before = jdbc.queryForObject(countSql, Long.class, campaignId);
+        jdbc.batchUpdate("UPDATE LADS_CAMPAIGN_TARGET SET CONVERTED = 1, CONVERTED_AT = ? "
                 + "WHERE CAMPAIGN_ID = ? AND ISDN = ? AND CONVERTED = 0", rows, 1000, (ps, row) -> {
             ps.setObject(1, row[0]);
             ps.setObject(2, row[1]);
             ps.setObject(3, row[2]);
         });
-        int n = 0;
-        for (int[] batch : res) {
-            for (int r : batch) {
-                n += Math.max(r, 0);
-            }
-        }
+        Long after = jdbc.queryForObject(countSql, Long.class, campaignId);
+        int n = (int) Math.max(0, (after == null ? 0 : after) - (before == null ? 0 : before));
         campaignRepo.findById(campaignId).ifPresent(this::refresh);
         return n;
     }

@@ -206,7 +206,9 @@
     "openRate": "Tỷ lệ mở",
     "failedN": "{{n}} gửi lỗi",
     "spent": "Đã chi",
-    "opensN": "{{n}} lượt mở"
+    "opensN": "{{n}} lượt mở",
+    "failed": "Gửi lỗi",
+    "clickRate": "Tỷ lệ click"
   },
   "langName": {
     "LO": "ພາສາລາວ (Lào)",
@@ -467,7 +469,11 @@
       "customersN": "{{n}} khách hàng",
       "testList": "Danh sách số thử nghiệm ({{n}} số)",
       "onDays": "ngày {{days}}",
-      "ruleMax": "tối đa {{n}} lần"
+      "ruleMax": "tối đa {{n}} lần",
+      "action": "Hành động",
+      "byAction": "Hiệu quả theo hành động",
+      "byActionDesc": "Từng hành động trong mỗi nhóm, đếm theo tin đã gửi.",
+      "byActionInfo": "Tỷ lệ gửi thành công = gửi thành công / (gửi thành công + gửi lỗi). Tỷ lệ mở và tỷ lệ click tính trên số tin đến máy. Tỷ lệ chuyển đổi = khách hàng nhận hành động và đạt mục tiêu / số tin gửi thành công."
     },
     "wizard": {
       "newTitle": "Tạo chiến dịch mới",
@@ -590,7 +596,10 @@
         "startInPast": "Thời gian bắt đầu không được ở quá khứ.",
         "endRequired": "Chạy lặp lại theo chu kỳ cần chọn thời gian kết thúc.",
         "contentLong": "Nội dung vượt quá 360 ký tự (tính cả độ dài tối đa của tham số).",
-        "goalConditions": "Mục tiêu từ nguồn dữ liệu ngoài cần ít nhất một điều kiện đầy đủ."
+        "goalConditions": "Mục tiêu từ nguồn dữ liệu ngoài cần ít nhất một điều kiện đầy đủ.",
+        "limit": "Giới hạn số lượng khách hàng phải lớn hơn 0 hoặc bỏ trống.",
+        "frame": "Mỗi khung thời gian cần chu kỳ từ 1 trở lên và giờ gửi hợp lệ.",
+        "whatsappTemplate": "Có hành động WhatsApp chưa chọn template."
       },
       "trackLinks": "Theo dõi click link (thay link trong nội dung bằng link tracking)",
       "newGroup": "Tạo nhóm chiến dịch",
@@ -613,7 +622,6 @@
       "trackLinkUrl": "Link cần theo dõi",
       "insertTrackLink": "Chèn link tracking",
       "eventTemplateHint": "Hệ thống ngoài gửi sự kiện này qua API sự kiện để đưa thuê bao vào chiến dịch.",
-      "testLimitLabel": "Giới hạn số khách hàng chạy thử",
       "testLimitHint": "Từ 1 đến {{max}} khách hàng.",
       "testIsdns": "Danh sách số thuê bao thử nghiệm (tuỳ chọn)",
       "testIsdnsHint": "Mỗi số một dòng hoặc cách nhau bằng dấu phẩy. Khi có danh sách, chiến dịch gửi tới các số này (tối đa {{n}} số) thay cho tệp khách hàng.",
@@ -641,11 +649,54 @@
       "goalSourceOcs": "OCS — dữ liệu BI",
       "goalTable": "Bảng",
       "goalConditions": "Điều kiện đạt mục tiêu",
-      "goalConditionsHint": "Khách hàng được ghi nhận đạt mục tiêu khi dữ liệu BI mới nhất của họ thoả các điều kiện trên trong thời gian ghi nhận. Chọn toán tử \"Rỗng\" để kiểm tra giá trị Null."
+      "goalConditionsHint": "Khách hàng được ghi nhận đạt mục tiêu khi dữ liệu BI mới nhất của họ thoả các điều kiện trên trong thời gian ghi nhận. Chọn toán tử \"Rỗng\" để kiểm tra giá trị Null.",
+      "limitLabel": "Giới hạn số lượng khách hàng",
+      "limitHint": "Bỏ trống để gửi cho toàn bộ tệp. Có giới hạn thì mỗi lượt chạy chỉ lấy tối đa số khách hàng này.",
+      "limitNone": "Không giới hạn",
+      "frameN": "Khung thời gian {{n}}",
+      "addFrame": "Thêm khoảng thời gian",
+      "moveUp": "Chuyển hành động lên trên",
+      "moveDown": "Chuyển hành động xuống dưới",
+      "brand": "Brand",
+      "brandDefault": "Brand mặc định",
+      "noBrand": "Chưa có brand WhatsApp nào cho workspace này, tin sẽ gửi bằng brand mặc định.",
+      "waModeContent": "Nhập nội dung",
+      "waModeTemplate": "Chọn template",
+      "waTemplate": "Template WhatsApp",
+      "waTemplateHint": "Chỉ hiện template đã được WhatsApp duyệt. Nội dung tin lấy theo template.",
+      "waTemplateSearch": "Tìm theo tên template",
+      "waNoTemplate": "Chưa có template nào được duyệt.",
+      "waSelected": "Đang chọn",
+      "outcomesTitle": "Trích xuất khách hàng",
+      "outcomesDesc": "Khi chiến dịch hoàn tất, hệ thống tự tạo tệp khách hàng cho từng nhóm được chọn để dùng cho chiến dịch sau.",
+      "outcomeNeedsGoal": "cần có mục tiêu",
+      "outcomeNeedsWhatsapp": "cần có hành động WhatsApp",
+      "summaryEvent": "Khách hàng phát sinh sự kiện",
+      "summaryLimit": "tối đa {{n}}",
+      "summaryActions": "{{n}} hành động · {{g}} nhóm"
     },
     "param": {
       "isdn": "Số thuê bao",
       "package": "Gói data hiện tại"
+    },
+    "groupDialog": {
+      "name": "Tên nhóm",
+      "description": "Mô tả",
+      "descriptionPh": "Mục đích của nhóm, các chiến dịch sẽ đưa vào…",
+      "editTitle": "Sửa nhóm chiến dịch",
+      "saved": "Đã lưu nhóm chiến dịch",
+      "searchPh": "Tìm theo tên hoặc mô tả nhóm",
+      "emptyTitle": "Chưa có nhóm chiến dịch",
+      "emptyDesc": "Tạo nhóm để gom các chiến dịch cùng mục tiêu và lọc nhanh trong danh sách.",
+      "inUse": "Nhóm còn chiến dịch, chuyển chiến dịch sang nhóm khác trước khi xoá",
+      "deleteTitle": "Xoá nhóm chiến dịch?",
+      "deleteDesc": "Nhóm \"{{name}}\" sẽ bị xoá. Thao tác này không hoàn tác được.",
+      "deleted": "Đã xoá nhóm chiến dịch"
+    },
+    "outcome": {
+      "GOAL_ACHIEVED": "Khách hàng đạt mục tiêu",
+      "GOAL_NOT_ACHIEVED": "Khách hàng chưa đạt mục tiêu",
+      "WHATSAPP_FAILED": "Khách hàng gửi WhatsApp không thành công"
     }
   },
   "approval": {
@@ -765,7 +816,11 @@
     "createAnyway": "Vẫn tạo tệp",
     "inUseNoDelete": "Tệp đang được chiến dịch sử dụng, không xoá được",
     "deleteOneTitle": "Xoá tệp khách hàng?",
-    "deleteOneDesc": "Tệp \"{{name}}\" và danh sách khách hàng của nó sẽ bị xoá."
+    "deleteOneDesc": "Tệp \"{{name}}\" và danh sách khách hàng của nó sẽ bị xoá.",
+    "memberSearchPh": "Tìm theo số thuê bao",
+    "appendImport": "Import thêm dữ liệu",
+    "appendDone": "Đã thêm {{added}} số mới · {{dup}} số đã có trong tệp · {{invalid}} dòng không hợp lệ",
+    "noMembers": "Tệp chưa có khách hàng"
   },
   "workspace": {
     "name": "Tên workspace",
@@ -784,7 +839,10 @@
     "general": "Thông tin chung",
     "updatedAt": "Cập nhật lần cuối",
     "contact": "Đầu mối liên hệ",
-    "membersError": "Không tải được danh sách thành viên."
+    "membersError": "Không tải được danh sách thành viên.",
+    "activity": "Hoạt động",
+    "activityDesc": "Thao tác gần đây của thành viên trong workspace: chiến dịch, tệp khách hàng, thành viên, API key…",
+    "noActivity": "Chưa có hoạt động nào"
   },
   "members": {
     "desc": "Thành viên của workspace {{ws}} và vai trò của họ.",
@@ -835,7 +893,23 @@
     "lockedAt": "Khoá lúc",
     "deleteTitle": "Xoá bảng giá nháp?",
     "deleteDesc": "\"{{name}}\" sẽ bị xoá.",
-    "activeNow": "Đang áp dụng"
+    "activeNow": "Đang áp dụng",
+    "telecomHint": "Hành động có số lượng (nạp tiền, cộng tiền, khuyến mãi, data, SMS, phút gọi) tính theo đơn vị: chi phí = đơn giá × số lượng được cộng.",
+    "per": {
+      "NOTIFICATION_SMS": "Trên mỗi tin SMS gửi đi",
+      "NOTIFICATION_EMAIL": "Trên mỗi email gửi đi",
+      "NOTIFICATION_WHATSAPP": "Trên mỗi tin WhatsApp gửi đi",
+      "NOTIFICATION_USSD": "Trên mỗi tin USSD gửi đi",
+      "TOP_UP": "Trên mỗi KIP được nạp",
+      "ADD_MONEY": "Trên mỗi KIP được cộng",
+      "ADD_PROMOTION": "Trên mỗi KIP khuyến mãi được cộng",
+      "ADD_DATA": "Trên mỗi MB được cộng",
+      "ADD_SMS": "Trên mỗi SMS được cộng",
+      "ADD_CALL_MINUTES": "Trên mỗi phút gọi được cộng",
+      "ADD_PACKAGE": "Trên mỗi lượt đăng ký gói",
+      "REGISTER_CRBT": "Trên mỗi lượt đăng ký nhạc chờ",
+      "REGISTER_LAOTV": "Trên mỗi lượt đăng ký LaoTV"
+    }
   },
   "audit": {
     "desc": "Mọi thao tác thay đổi dữ liệu đều được ghi lại.",
@@ -979,7 +1053,7 @@
     "codeHint": "2–32 ký tự: chữ, số hoặc gạch dưới; tự viết hoa.",
     "description": "Mô tả",
     "channels": "Kênh sử dụng",
-    "channelsHint": "Brandname chỉ dùng cho SMS.",
+    "channelsHint": "Brandname dùng cho SMS hoặc brand WhatsApp, không dùng cho USSD. Đầu số ngắn không dùng cho WhatsApp.",
     "enabledLabel": "Đang bật",
     "enabledHint": "Đầu số tắt sẽ không hiện khi tạo chiến dịch; tin của chiến dịch đang chạy dùng đầu số này được hoãn lại cho tới khi bật lại.",
     "sentToday": "Đã gửi hôm nay",

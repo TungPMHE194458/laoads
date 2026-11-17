@@ -191,8 +191,10 @@ public class MessageDispatcher {
                 continue;
             }
             processed++;
-            if (send(m, ctx, action, sender, code, settings, prices.getOrDefault(m.actionType(), BigDecimal.ZERO),
-                    subscriberValues.get(m.isdn()), now) && code != null) {
+            // bảng giá theo đơn vị tính: cộng tài nguyên = đơn giá × số lượng
+            BigDecimal unit = prices.getOrDefault(m.actionType(), BigDecimal.ZERO);
+            BigDecimal cost = action == null ? unit : CampaignService.costPerTarget(action, unit);
+            if (send(m, ctx, action, sender, code, settings, cost, subscriberValues.get(m.isdn()), now) && code != null) {
                 sentToday.merge(code, 1L, Long::sum);
             }
         }
@@ -243,10 +245,11 @@ public class MessageDispatcher {
         if (action != null && action.tracksLinks() && content != null) {
             content = trackLinks(content, m.id(), m.campaignId(), now);
         }
+        boolean waTemplate = action != null && action.usesWhatsappTemplate();
         MessageGateway.Outbound out = new MessageGateway.Outbound(m.id(), m.channel(), m.actionType(), m.isdn(),
-                action == null ? null : action.senderId(), subject, content,
+                action == null ? null : action.senderId(), subject, waTemplate ? null : content,
                 action == null ? null : action.amount(), action == null ? null : action.packageCode(),
-                ctx.campaign().getLanguage());
+                ctx.campaign().getLanguage(), waTemplate ? action.templateId() : null);
         MessageGateway.Result r;
         try {
             r = gateway.send(out);

@@ -31,6 +31,7 @@ import type {
   SenderNumber,
   SenderNumberInput,
   TimePoint,
+  WhatsAppTemplate,
 } from '@/api/types'
 import { useUiStore } from '@/stores/ui'
 
@@ -190,12 +191,33 @@ export function useSegment(id: number | null) {
     refetchInterval: (query) => (query.state.data?.status === 'BUILDING' ? 3000 : false),
   })
 }
-export function useSegmentMembers(id: number | null, page: number) {
+/** `query`: tìm số thuê bao trong tệp (chứa chuỗi số) — như "Tìm kiếm khách hàng" của laoads.com. */
+export function useSegmentMembers(id: number | null, page: number, query = '') {
   return useQuery({
-    queryKey: ['segment', id, 'members', page],
-    queryFn: () => requestPage<SegmentMember>({ url: `/segments/${id}/members`, params: { page, size: 10 } }),
+    queryKey: ['segment', id, 'members', page, query],
+    queryFn: () => requestPage<SegmentMember>({ url: `/segments/${id}/members`, params: cleanParams({ page, size: 10, query }) }),
     enabled: id != null,
     placeholderData: keepPreviousData,
+  })
+}
+/** "Import thêm dữ liệu" vào tệp FILE đang READY — bỏ số đã có trong tệp. */
+export function useAppendSegment(id: number) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return request<{ id: number; added: number; duplicates: number; invalidRows: number; totalUsers: number }>({
+        url: `/segments/${id}/import`,
+        method: 'POST',
+        data: form,
+        timeout: 300_000,
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['segment', id] })
+      qc.invalidateQueries({ queryKey: ['segments'] })
+    },
   })
 }
 export function useSegmentAttributes() {
@@ -204,6 +226,15 @@ export function useSegmentAttributes() {
 /** Danh mục tham số nội dung tin — cố định phía BE, dùng chung mọi workspace. */
 export function useMessageParams() {
   return useQuery({ queryKey: ['message-params'], queryFn: () => request<MessageParam[]>({ url: '/message-params' }), staleTime: Infinity })
+}
+/** Template WhatsApp đã duyệt ở nhà cung cấp (như "Chọn template" của laoads.com) — dùng chung mọi workspace. */
+export function useWhatsappTemplates(query = '') {
+  return useQuery({
+    queryKey: ['whatsapp-templates', query],
+    queryFn: () => request<WhatsAppTemplate[]>({ url: '/whatsapp/templates', params: cleanParams({ query }) }),
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+  })
 }
 /** Danh mục template sự kiện cho chiến dịch EVENT (SRS 3.2.1.6) — nhãn dịch ở campaign.event.<code>. */
 export function useEventTemplates() {
@@ -364,10 +395,23 @@ export function useSaveNotificationSettings() {
 }
 
 // ───── Nhóm chiến dịch ─────
-export function useCreateCampaignGroup() {
+/** Tạo / sửa nhóm (tên + mô tả ≤ 500 ký tự). Trùng tên → 409 GROUP_NAME_DUPLICATE. */
+export function useSaveCampaignGroup() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (name: string) => request<CampaignGroup>({ url: '/campaign-groups', method: 'POST', data: { name } }),
+    mutationFn: ({ id, name, description }: { id?: number; name: string; description?: string | null }) =>
+      request<CampaignGroup>({ url: id ? `/campaign-groups/${id}` : '/campaign-groups', method: id ? 'PUT' : 'POST', data: { name, description: description || null } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaign-groups'] })
+      qc.invalidateQueries({ queryKey: ['campaigns'] })
+    },
+  })
+}
+/** Chỉ xoá được nhóm không còn chiến dịch → 409 GROUP_IN_USE. */
+export function useDeleteCampaignGroup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => request<CampaignGroup>({ url: `/campaign-groups/${id}`, method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['campaign-groups'] }),
   })
 }

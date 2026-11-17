@@ -300,7 +300,7 @@ export const coreHandlers = [
     const to = q(url, 'to')
     const list = auditLogs.filter(
       (a) =>
-        (u.systemRole === 'SUPER_ADMIN' || a.workspaceId === ws) &&
+        (u.systemRole === 'SUPER_ADMIN' ? !q(url, 'workspaceId') || a.workspaceId === Number(q(url, 'workspaceId')) : a.workspaceId === ws) &&
         includes(a.actor, q(url, 'actor')) &&
         (!q(url, 'actionType') || a.actionType === q(url, 'actionType')) &&
         (!q(url, 'entityType') || a.entityType === q(url, 'entityType')) &&

@@ -24,6 +24,7 @@ import type {
   SenderNumber,
   UserDto,
   Workspace,
+  WhatsAppTemplate,
 } from '@/api/types'
 import { ALL_PERMISSIONS, NOTIFICATION_ACTIONS, TELECOM_ACTIONS } from '@/api/types'
 
@@ -227,10 +228,26 @@ export const audienceCatalog: Record<AudienceSource, Record<string, AudienceColu
 
 // ── Nhóm chiến dịch ──
 export const groups: (CampaignGroup & { workspaceId: number })[] = [
-  { workspaceId: 1, id: 1, name: 'Phát triển Data 4G', campaignCount: 0, runningCount: 0, createdAt: daysAgo(40) },
-  { workspaceId: 1, id: 2, name: 'Chuyển đổi chéo BU', campaignCount: 0, runningCount: 0, createdAt: daysAgo(35) },
-  { workspaceId: 1, id: 3, name: 'Chăm sóc khách hàng', campaignCount: 0, runningCount: 0, createdAt: daysAgo(20) },
+  { workspaceId: 1, id: 1, name: 'Phát triển Data 4G', description: 'Chiến dịch kích hoạt và nâng gói data 4G cho thuê bao trả trước', campaignCount: 0, runningCount: 0, createdAt: daysAgo(40) },
+  { workspaceId: 1, id: 2, name: 'Chuyển đổi chéo BU', description: 'Bán chéo U-Money, LaoTV giữa các khối kinh doanh', campaignCount: 0, runningCount: 0, createdAt: daysAgo(35) },
+  { workspaceId: 1, id: 3, name: 'Chăm sóc khách hàng', description: null, campaignCount: 0, runningCount: 0, createdAt: daysAgo(20) },
 ]
+
+/** Template WhatsApp giả lập — cùng danh mục với BE SimulatedWhatsAppTemplateSource. */
+export const whatsappTemplates: WhatsAppTemplate[] = [
+  ['wa-tpl-0001', 'bsd_data4g_promo_v1', 'lo', 'APPROVED'],
+  ['wa-tpl-0002', 'bsd_data4g_promo_v1', 'en', 'APPROVED'],
+  ['wa-tpl-0003', 'bsd_topup_bonus_v2', 'lo', 'APPROVED'],
+  ['wa-tpl-0004', 'bsd_topup_bonus_v2', 'vi', 'APPROVED'],
+  ['wa-tpl-0005', 'bcd_superapp_login_v1', 'lo', 'APPROVED'],
+  ['wa-tpl-0006', 'bcd_umoney_open_wallet', 'lo', 'APPROVED'],
+  ['wa-tpl-0007', 'bcd_umoney_open_wallet', 'en', 'APPROVED'],
+  ['wa-tpl-0008', 'bsd_laotv_trial_7days', 'lo', 'APPROVED'],
+  ['wa-tpl-0009', 'bsd_package_expiring_d3', 'lo', 'APPROVED'],
+  ['wa-tpl-0010', 'bsd_welcome_new_sim', 'lo', 'APPROVED'],
+  ['wa-tpl-0011', 'bsd_new_year_greeting', 'lo', 'PENDING'],
+  ['wa-tpl-0012', 'bsd_lucky_draw_dec', 'lo', 'REJECTED'],
+].map(([id, name, language, status]) => ({ id, name, language, status: status as WhatsAppTemplate['status'] }))
 
 // ── Chiến dịch ──
 type MockCampaign = CampaignDetail & { workspaceId: number }
@@ -293,7 +310,7 @@ function mkCampaign(
     language: 'LO',
     testIsdns: [],
     eventTemplate: opts.type === 'EVENT' ? 'SIM_ACTIVATION_D0' : null,
-    testLimit: null,
+    limit: null,
     actionGroups: [
       { id: `g${id}-a`, name: 'Nhóm A', allocationPercent: 90, isControl: false, mode: 'SEQUENTIAL', actions },
       { id: `g${id}-c`, name: 'Nhóm đối chứng', allocationPercent: 10, isControl: true, mode: 'SEQUENTIAL', actions: [] },
@@ -392,6 +409,7 @@ export const senders: SenderNumber[] = [
   },
   { id: 3, code: 'UNITEL', kind: 'BRANDNAME', description: 'Brandname chính thức', enabled: true, channels: ['SMS'], allWorkspaces: true, workspaceIds: [], gateway: noGateway(), policy: noPolicy(), sentToday: 0, ...senderMeta(120) },
   { id: 4, code: 'UNITEL_LOGS', kind: 'BRANDNAME', description: 'Thông báo hệ thống/kỹ thuật', enabled: false, channels: ['SMS'], allWorkspaces: false, workspaceIds: [1], gateway: noGateway(), policy: noPolicy(), sentToday: 0, ...senderMeta(120) },
+  { id: 6, code: 'UNIADS', kind: 'BRANDNAME', description: 'Brand WhatsApp chính thức', enabled: true, channels: ['WHATSAPP'], allWorkspaces: true, workspaceIds: [], gateway: noGateway(), policy: noPolicy(), sentToday: 0, ...senderMeta(90) },
   {
     id: 5, code: '1555', kind: 'SHORTCODE', description: 'Dịch vụ giá trị gia tăng', enabled: true, channels: ['SMS', 'USSD'], allWorkspaces: false, workspaceIds: [1],
     gateway: { protocol: 'SMPP', host: '127.0.0.1', port: 2776, systemType: null, url: null, username: 'vas1555', hasPassword: false, tps: 50, lastTest: null },

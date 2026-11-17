@@ -14,10 +14,15 @@ import {
   Wifi,
   type LucideIcon,
 } from 'lucide-react'
-import type { ActionGroup, ActionType, Channel, MessageParam, SenderChannel } from '@/api/types'
+import type { ActionGroup, ActionType, CampaignAction, Channel, MessageParam, SenderChannel } from '@/api/types'
 
-/** Kênh đầu số của hành động (chỉ SMS / USSD chọn đầu số). */
-export const SENDER_CHANNEL_OF: Partial<Record<ActionType, SenderChannel>> = { NOTIFICATION_SMS: 'SMS', NOTIFICATION_USSD: 'USSD' }
+/** Kênh đầu số của hành động: SMS (bắt buộc) / USSD / brand WhatsApp (không bắt buộc — như "Brand" của laoads.com). */
+export const SENDER_CHANNEL_OF: Partial<Record<ActionType, SenderChannel>> = { NOTIFICATION_SMS: 'SMS', NOTIFICATION_USSD: 'USSD', NOTIFICATION_WHATSAPP: 'WHATSAPP' }
+
+/** WhatsApp gửi bằng template đã duyệt (không cần nội dung). */
+export const usesWhatsappTemplate = (a: Pick<CampaignAction, 'type' | 'whatsappMode'>) => a.type === 'NOTIFICATION_WHATSAPP' && a.whatsappMode === 'TEMPLATE'
+/** Hành động cần nội dung văn bản trong cấu hình hiện tại (WhatsApp chế độ template thì không). */
+export const needsContent = (a: Pick<CampaignAction, 'type' | 'whatsappMode'>) => NEEDS_CONTENT.includes(a.type) && !usesWhatsappTemplate(a)
 
 /** Hành động SMS chưa chọn đầu số → đầu số SMS mặc định (đầu số đầu tiên workspace được dùng). */
 export function withDefaultSender(groups: ActionGroup[], defaultSms: string | null): ActionGroup[] {
@@ -58,6 +63,11 @@ export const CONTENT_LIMITED: ActionType[] = ['NOTIFICATION_SMS', 'NOTIFICATION_
 export const DESCRIPTION_MAX = 360
 /** Hành động viễn thông cần số lượng */
 export const NEEDS_AMOUNT: ActionType[] = ['TOP_UP', 'ADD_MONEY', 'ADD_PROMOTION', 'ADD_DATA', 'ADD_SMS', 'ADD_CALL_MINUTES']
+/**
+ * Chi phí một khách hàng của hành động — giống BE CampaignService.costPerTarget: hành động viễn thông có số lượng tính
+ * theo đơn vị (đơn giá × số Kip / MB / SMS / phút được cộng, như bảng giá laoads.com); còn lại tính theo lượt.
+ */
+export const actionCost = (a: Pick<CampaignAction, 'type' | 'amount'>, unitPrice: number) => unitPrice * (NEEDS_AMOUNT.includes(a.type) ? Number(a.amount) || 0 : 1)
 export const AMOUNT_UNIT: Partial<Record<ActionType, string>> = {
   TOP_UP: 'Kip',
   ADD_MONEY: 'Kip',

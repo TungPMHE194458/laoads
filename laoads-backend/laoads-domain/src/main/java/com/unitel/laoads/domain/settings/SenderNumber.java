@@ -37,7 +37,8 @@ import java.util.stream.Collectors;
 public class SenderNumber {
 
     /** Kênh được phép gắn đầu số. */
-    public static final Set<Channel> SUPPORTED_CHANNELS = EnumSet.of(Channel.SMS, Channel.USSD);
+    /** SMS / USSD: đầu số; WHATSAPP: brand = tài khoản WhatsApp chính thức ("Brand" của laoads.com), chỉ loại BRANDNAME. */
+    public static final Set<Channel> SUPPORTED_CHANNELS = EnumSet.of(Channel.SMS, Channel.USSD, Channel.WHATSAPP);
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "lads_sender_number_seq")

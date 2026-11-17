@@ -14,5 +14,13 @@ public enum ActionType {
     NOTIFICATION_SMS,
     NOTIFICATION_EMAIL,
     NOTIFICATION_WHATSAPP,
-    NOTIFICATION_USSD
+    NOTIFICATION_USSD;
+
+    /** Hành động cộng tài nguyên tính phí theo số lượng (KIP / MB / SMS / phút) — bảng giá laoads.com theo đơn vị tính. */
+    public boolean perUnit() {
+        return switch (this) {
+            case TOP_UP, ADD_MONEY, ADD_PROMOTION, ADD_DATA, ADD_SMS, ADD_CALL_MINUTES -> true;
+            default -> false;
+        };
+    }
 }

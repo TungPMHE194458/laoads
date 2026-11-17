@@ -33,6 +33,10 @@ public class CampaignGroup {
     @Column(name = "NAME", nullable = false, length = 255)
     private String name;
 
+    /** Mô tả nhóm (V7, tối đa 500 ký tự) — như laoads.com. */
+    @Column(name = "DESCRIPTION", length = 500)
+    private String description;
+
     @Column(name = "CREATED_AT", nullable = false)
     private Instant createdAt;
 

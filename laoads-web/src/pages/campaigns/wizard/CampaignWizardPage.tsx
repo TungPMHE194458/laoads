@@ -2,10 +2,10 @@ import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Download, FlaskConical, Info, ListChecks, Plus, Rocket, Send, Users2, XCircle, Zap } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CalendarPlus, Check, CheckCircle2, Download, FlaskConical, Info, ListChecks, Plus, Rocket, Send, Trash2, Users2, XCircle, Zap } from 'lucide-react'
 import { ApiError, errorMessage } from '@/api/client'
-import type { CampaignDetail, CampaignInput, CampaignSchedule } from '@/api/types'
-import { useAvailableSenders, useCampaign, useCampaignGroups, useCreateCampaignGroup, downloadConversionTemplate, useEventTemplates, useMessageParams, useNotificationSettings, useSaveCampaign, useSegment, useSegments, useTestSend } from '@/features/campaign/api'
+import type { CampaignDetail, CampaignInput, CampaignOutcome, CampaignSchedule, ScheduleFrame } from '@/api/types'
+import { useAvailableSenders, useCampaign, useCampaignGroups, downloadConversionTemplate, useEventTemplates, useMessageParams, useNotificationSettings, useSaveCampaign, useSegment, useSegments, useTestSend } from '@/features/campaign/api'
 import { useActivePriceQuote } from '@/features/price/api'
 import { PageHeader } from '@/components/common/PageHeader'
 import { SearchInput } from '@/components/common/SearchInput'
@@ -14,7 +14,7 @@ import { useCan } from '@/features/auth/permissions'
 import { CreateSegmentDialog } from '@/pages/segments/CreateSegmentDialog'
 import { ConditionEditor } from '@/pages/segments/ConditionEditor'
 import { conditionComplete } from '@/pages/segments/conditionOps'
-import { Field, FormDialog } from '@/components/common/dialogs'
+import { Field } from '@/components/common/dialogs'
 import { SegmentStatusBadge, ChannelChips } from '@/components/common/status'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -25,7 +25,9 @@ import { Badge } from '@/components/ui/badge'
 import { fmtKip, fmtNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ActionsStep, newGroup, validateActions } from './ActionsStep'
-import { ACTION_CHANNEL, DESCRIPTION_MAX, withDefaultSender } from './actionMeta'
+import { ACTION_CHANNEL, actionCost, DESCRIPTION_MAX, withDefaultSender } from './actionMeta'
+import { CampaignGroupDialog } from '../CampaignGroupDialog'
+import { effectiveFrames, FRAMES_MAX, scheduleRule } from '../scheduleRule'
 
 const STEPS = ['basics', 'audience', 'actions', 'schedule', 'goal', 'review'] as const
 type Step = (typeof STEPS)[number]
@@ -52,14 +54,19 @@ function emptyDraft(mode: 'OFFICIAL' | 'TEST', t: (k: string) => string): Campai
     testIsdns: [],
     actionGroups: [newGroup(`${t('campaign.wizard.group')} A`, 100)],
     schedule: { type: 'ONCE', startAt: start.toISOString(), endAt: end.toISOString(), sendTime: '09:00', every: 1, unit: 'WEEK', weekdays: [1], silentHours: { enabled: true, from: '21:00', to: '07:00' } },
-    goal: { mode: 'AUTO_OCS', description: '', attributionWindowDays: 7, stopOnGoal: true, maxNoResponse: null, reentryDays: null, conditions: [{ field: 'g_volume', operator: 'GT', value: '', join: 'AND' }] },
+    goal: { mode: 'AUTO_OCS', description: '', attributionWindowDays: 7, stopOnGoal: true, maxNoResponse: null, reentryDays: null, conditions: [{ field: 'g_volume', operator: 'GT', value: '', join: 'AND' }], outcomes: null },
     budget: { expected: 0, max: null },
     eventTemplate: null,
-    testLimit: mode === 'TEST' ? TEST_LIMIT_DEFAULT : null,
+    limit: mode === 'TEST' ? TEST_LIMIT_DEFAULT : null,
   }
 }
 
-/** SRS 3.2.1.4: giới hạn số khách hàng chạy thử, mặc định 10 (BE CampaignDefinition.DEFAULT_TEST_LIMIT / MAX_TEST_LIMIT). */
+/** "Trích xuất khách hàng" (laoads.com): tệp khách hàng tạo tự động khi chiến dịch hoàn tất. */
+const OUTCOMES: CampaignOutcome[] = ['GOAL_ACHIEVED', 'GOAL_NOT_ACHIEVED', 'WHATSAPP_FAILED']
+/** Giống BE GoalDef.outcomeList(): null = "chưa đạt mục tiêu" nếu có mục tiêu (hành vi cũ). */
+const outcomesOf = (g: CampaignInput['goal']): CampaignOutcome[] => g.outcomes ?? (g.mode !== 'NONE' ? ['GOAL_NOT_ACHIEVED'] : [])
+
+/** SRS 3.2.1.4: giới hạn số khách hàng chạy thử, mặc định 10 (BE CampaignDefinition.DEFAULT_TEST_LIMIT / MAX_TEST_LIMIT); chiến dịch chính thức tuỳ chọn. */
 const TEST_LIMIT_DEFAULT = 10
 const TEST_LIMIT_MAX = 1000
 const parseIsdns = (v: string) => v.split(/[\s,;]+/).filter(Boolean)
@@ -70,6 +77,122 @@ function fromDetail(c: CampaignDetail): CampaignInput {
   const { id: _i, code: _c, status: _s, createdAt: _ca, createdBy: _cb, sentRate: _sr, openRate: _or, conversionRate: _cr, uplift: _u, rejectReason: _rr, history: _h, groupName: _gn, segmentName: _sn, expectedCost: _ec, ...rest } = c
   void [_i, _c, _s, _ca, _cb, _sr, _or, _cr, _u, _rr, _h, _gn, _sn, _ec]
   return rest
+}
+
+/** Một "Khung thời gian" của lịch lặp lại (laoads.com cho thêm nhiều khung, mỗi khung chu kỳ + giờ gửi riêng). */
+function FrameEditor({ frame, index, total, onChange, onRemove }: { frame: ScheduleFrame; index: number; total: number; onChange: (f: ScheduleFrame) => void; onRemove: () => void }) {
+  const { t } = useTranslation()
+  const set = (p: Partial<ScheduleFrame>) => onChange({ ...frame, ...p })
+  return (
+    <div className="grid gap-4 rounded-xl border p-4 md:grid-cols-3">
+      <div className="flex items-center justify-between md:col-span-3">
+        <span className="text-sm font-semibold">{t('campaign.wizard.frameN', { n: index + 1 })}</span>
+        {total > 1 && (
+          <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-danger" onClick={onRemove} aria-label={t('common.delete')}>
+            <Trash2 />
+          </Button>
+        )}
+      </div>
+      <Field label={t('campaign.wizard.every')}>
+        <div className="flex gap-2">
+          <Input type="number" min={1} step={1} value={frame.every ?? 1} onChange={(e) => set({ every: Math.max(1, Math.floor(Number(e.target.value) || 1)) })} className="w-20" />
+          <Select value={frame.unit ?? 'WEEK'} onValueChange={(v) => set({ unit: v as ScheduleFrame['unit'] })} options={(['DAY', 'WEEK', 'MONTH'] as const).map((u) => ({ value: u, label: t(`campaign.wizard.unit.${u}`) }))} />
+        </div>
+      </Field>
+      <Field label={t('campaign.wizard.sendTime')}>
+        <Input type="time" value={frame.sendTime ?? '09:00'} onChange={(e) => set({ sendTime: e.target.value })} />
+      </Field>
+      {frame.unit === 'WEEK' && (
+        <Field label={t('campaign.wizard.weekdays')} className="md:col-span-3">
+          <div className="flex flex-wrap gap-1.5">
+            {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+              const on = frame.weekdays?.includes(d)
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => set({ weekdays: on ? frame.weekdays?.filter((x) => x !== d) : [...(frame.weekdays ?? []), d] })}
+                  className={cn('h-9 min-w-11 cursor-pointer rounded-lg border px-3 text-sm transition', on ? 'border-brand-500 bg-accent font-semibold text-accent-foreground' : 'hover:bg-muted')}
+                >
+                  {t(`weekday.${d}`)}
+                </button>
+              )
+            })}
+          </div>
+        </Field>
+      )}
+      {frame.unit === 'MONTH' && (
+        <Field label={t('campaign.wizard.monthDays')} hint={t('campaign.wizard.monthDaysHint')} className="md:col-span-3">
+          <div className="flex flex-wrap gap-1.5">
+            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+              const on = frame.monthDays?.includes(d)
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => set({ monthDays: on ? frame.monthDays?.filter((x) => x !== d) : [...(frame.monthDays ?? []), d].sort((a, b) => a - b) })}
+                  className={cn('h-9 w-10 cursor-pointer rounded-lg border text-sm tabular transition', on ? 'border-brand-500 bg-accent font-semibold text-accent-foreground' : 'hover:bg-muted')}
+                >
+                  {d}
+                </button>
+              )
+            })}
+          </div>
+        </Field>
+      )}
+    </div>
+  )
+}
+
+/** "Tóm tắt chiến dịch" cạnh các bước (như laoads.com) — cập nhật theo bản nháp. */
+function SummaryPanel({ draft, segmentName, target, expected, limit }: { draft: CampaignInput; segmentName?: string; target: number; expected: number; limit: number | null }) {
+  const { t } = useTranslation()
+  const actions = draft.actionGroups.filter((g) => !g.isControl).flatMap((g) => g.actions)
+  const channels = [...new Set(actions.map((a) => ACTION_CHANNEL[a.type]).filter(Boolean))] as CampaignInput['channels']
+  const rows: [string, React.ReactNode][] = [
+    [t('campaign.wizard.name'), draft.name.trim() || '—'],
+    [t('campaign.wizard.steps.basics'), `${t(`campaign.mode.${draft.mode}`)} · ${t(`campaign.type.${draft.type}`)}`],
+    [
+      t('campaign.wizard.steps.audience'),
+      draft.type === 'EVENT' ? (
+        t('campaign.wizard.summaryEvent')
+      ) : (
+        <>
+          <span className="block">{segmentName ?? (draft.testIsdns.length ? t('campaign.detail.testList', { n: draft.testIsdns.length }) : '—')}</span>
+          <span className="text-muted-foreground tabular">
+            {t('campaign.detail.customersN', { n: fmtNumber(target) })}
+            {limit != null ? ` · ${t('campaign.wizard.summaryLimit', { n: fmtNumber(limit) })}` : ''}
+          </span>
+        </>
+      ),
+    ],
+    [
+      t('campaign.wizard.steps.actions'),
+      <>
+        <span className="block">{t('campaign.wizard.summaryActions', { n: actions.length, g: draft.actionGroups.length })}</span>
+        {channels.length > 0 && <ChannelChips className="mt-1" channels={channels} />}
+      </>,
+    ],
+    [t('campaign.wizard.steps.schedule'), scheduleRule(draft, t)],
+    [t('campaign.wizard.steps.goal'), t(`campaign.wizard.goal.${draft.goal.mode}`)],
+    [t('campaign.wizard.expectedCost'), <span className="font-semibold tabular">{fmtKip(expected)}</span>],
+  ]
+  return (
+    <div className="mt-4 hidden overflow-hidden rounded-xl border bg-card p-4 shadow-card lg:block">
+      <div className="mb-3 text-sm font-semibold">{t('campaign.detail.summary')}</div>
+      <dl className="grid gap-3 text-[13px]">
+        {rows.map(([k, v]) => (
+          <div key={k} className="min-w-0">
+            <dt className="text-xs text-muted-foreground">{k}</dt>
+            {/* tên dài không có khoảng trắng (tên tệp, mã) vẫn xuống dòng trong cột 240px */}
+            <dd className="mt-0.5 min-w-0 [overflow-wrap:anywhere]">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
 }
 
 function Stepper({ step, done, onGo }: { step: Step; done: Set<Step>; onGo: (s: Step) => void }) {
@@ -130,9 +253,7 @@ export default function CampaignWizardPage() {
   }, [existing.data])
 
   const groups = useCampaignGroups()
-  const createGroup = useCreateCampaignGroup()
   const [groupDialog, setGroupDialog] = React.useState(false)
-  const [groupName, setGroupName] = React.useState('')
   // SRS 3.2.2.1: chọn tệp có sẵn — tìm kiếm + phân trang; tệp đang chọn lấy riêng để luôn có số khách hàng
   const [segQuery, setSegQuery] = React.useState('')
   const [segPage, setSegPage] = React.useState(0)
@@ -156,13 +277,22 @@ export default function CampaignWizardPage() {
 
   const set = <K extends keyof CampaignInput>(k: K, v: CampaignInput[K]) => setDraft((d) => ({ ...d, [k]: v }))
   const setSchedule = (p: Partial<CampaignSchedule>) => setDraft((d) => ({ ...d, schedule: { ...d.schedule, ...p } }))
+  // Lịch lặp lại: 1 khung → các trường chính (tương thích bản cũ), nhiều khung → `frames` (khung đầu vẫn chép ra trường chính)
+  const frames = effectiveFrames(draft.schedule)
+  const setFrames = (fs: ScheduleFrame[]) =>
+    setSchedule({ frames: fs.length > 1 ? fs : null, every: fs[0].every, unit: fs[0].unit, weekdays: fs[0].weekdays ?? [], monthDays: fs[0].monthDays ?? null, sendTime: fs[0].sendTime })
+  const outcomes = outcomesOf(draft.goal)
+  const hasWhatsapp = draft.actionGroups.some((g) => g.actions.some((a) => a.type === 'NOTIFICATION_WHATSAPP'))
   const segment = selectedSegment.data ?? segments.data?.items.find((s) => s.id === draft.segmentId)
 
   // Ước tính chi phí theo bảng giá đang khoá
   const unit = (type: string) => price.data?.items.find((i) => i.actionType === type)?.unitPrice ?? 0
-  const testLimit = draft.testLimit ?? TEST_LIMIT_DEFAULT
-  const target = draft.type === 'EVENT' ? 0 : draft.mode === 'TEST' ? Math.min(draft.testIsdns.length || (segment?.totalUsers ?? 0), testLimit) : (segment?.totalUsers ?? 0)
-  const expected = Math.round(draft.actionGroups.reduce((s, g) => s + (g.isControl ? 0 : ((target * g.allocationPercent) / 100) * g.actions.reduce((x, a) => x + unit(a.type), 0)), 0))
+  // Giới hạn số khách hàng: TEST mặc định 10; OFFICIAL trống = cả tệp (như laoads.com)
+  const limit = draft.limit ?? (draft.mode === 'TEST' ? TEST_LIMIT_DEFAULT : null)
+  const testLimit = limit ?? TEST_LIMIT_DEFAULT
+  const pool = draft.mode === 'TEST' ? draft.testIsdns.length || (segment?.totalUsers ?? 0) : (segment?.totalUsers ?? 0)
+  const target = draft.type === 'EVENT' ? 0 : limit != null ? Math.min(pool, limit) : pool
+  const expected = Math.round(draft.actionGroups.reduce((s, g) => s + (g.isControl ? 0 : ((target * g.allocationPercent) / 100) * g.actions.reduce((x, a) => x + actionCost(a, unit(a.type)), 0)), 0))
 
   const validate = (s: Step): string | null => {
     if (s === 'basics') {
@@ -170,6 +300,7 @@ export default function CampaignWizardPage() {
       if (draft.type === 'EVENT' && !draft.eventTemplate) return 'campaign.wizard.err.eventTemplate'
       if ((draft.description ?? '').length > DESCRIPTION_MAX) return 'campaign.wizard.err.description'
       if (draft.mode === 'TEST' && !(testLimit >= 1 && testLimit <= TEST_LIMIT_MAX)) return 'campaign.wizard.err.testLimit'
+      if (draft.mode === 'OFFICIAL' && draft.limit != null && !(draft.limit >= 1)) return 'campaign.wizard.err.limit'
       return null
     }
     // Chiến dịch sự kiện ghi danh thuê bao khi nhận sự kiện; chiến dịch thử có thể dùng danh sách số thử thay cho tệp
@@ -181,6 +312,7 @@ export default function CampaignWizardPage() {
       if (sc.type !== 'NOW' && sc.startAt && isPast(sc.startAt)) return 'campaign.wizard.err.startInPast'
       if (sc.type === 'RECURRING' && !sc.endAt) return 'campaign.wizard.err.endRequired'
       if (sc.endAt && sc.startAt && sc.endAt <= sc.startAt) return 'campaign.wizard.err.endBeforeStart'
+      if (sc.type === 'RECURRING' && frames.some((f) => !(f.every >= 1) || !/^\d{2}:\d{2}$/.test(f.sendTime ?? ''))) return 'campaign.wizard.err.frame'
     }
     // SRS 3.2.6.1: mục tiêu từ nguồn dữ liệu ngoài cần ít nhất một điều kiện đầy đủ
     if (s === 'goal' && draft.goal.mode === 'AUTO_OCS' && !(draft.goal.conditions?.length && draft.goal.conditions.every(conditionComplete))) return 'campaign.wizard.err.goalConditions'
@@ -261,6 +393,7 @@ export default function CampaignWizardPage() {
       <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
         <aside className="lg:sticky lg:top-24 lg:self-start">
           <Stepper step={step} done={done} onGo={go} />
+          <SummaryPanel draft={draft} segmentName={segment?.name} target={target} expected={expected} limit={draft.type === 'EVENT' ? null : limit} />
         </aside>
 
         <div className="min-w-0">
@@ -277,7 +410,7 @@ export default function CampaignWizardPage() {
                     value={draft.mode}
                     onValueChange={(v) =>
                       // SRS 3.2.1.4: chiến dịch thử nghiệm chỉ chạy theo danh sách cố định
-                      setDraft((d) => (v === 'TEST' ? { ...d, mode: 'TEST', type: 'STATIC', testLimit: d.testLimit ?? TEST_LIMIT_DEFAULT } : { ...d, mode: 'OFFICIAL' }))
+                      setDraft((d) => (v === 'TEST' ? { ...d, mode: 'TEST', type: 'STATIC', limit: d.limit ?? TEST_LIMIT_DEFAULT } : { ...d, mode: 'OFFICIAL', limit: null }))
                     }
                     className="grid gap-3 sm:grid-cols-2"
                   >
@@ -304,9 +437,22 @@ export default function CampaignWizardPage() {
                         />
                       </Field>
                     )}
-                    {draft.mode === 'TEST' && (
-                      <Field label={t('campaign.wizard.testLimitLabel')} required hint={t('campaign.wizard.testLimitHint', { max: fmtNumber(TEST_LIMIT_MAX) })}>
-                        <Input type="number" min={1} max={TEST_LIMIT_MAX} step={1} value={draft.testLimit ?? ''} onChange={(e) => set('testLimit', e.target.value ? Math.floor(Number(e.target.value)) : null)} className="max-w-40" />
+                    {draft.type !== 'EVENT' && (
+                      <Field
+                        label={t('campaign.wizard.limitLabel')}
+                        required={draft.mode === 'TEST'}
+                        hint={draft.mode === 'TEST' ? t('campaign.wizard.testLimitHint', { max: fmtNumber(TEST_LIMIT_MAX) }) : t('campaign.wizard.limitHint')}
+                      >
+                        <Input
+                          type="number"
+                          min={1}
+                          max={draft.mode === 'TEST' ? TEST_LIMIT_MAX : undefined}
+                          step={1}
+                          value={draft.limit ?? ''}
+                          onChange={(e) => set('limit', e.target.value ? Math.floor(Number(e.target.value)) : null)}
+                          placeholder={draft.mode === 'OFFICIAL' ? t('campaign.wizard.limitNone') : undefined}
+                          className="max-w-48"
+                        />
                       </Field>
                     )}
                     <Field label={t('campaign.wizard.group')}>
@@ -433,77 +579,42 @@ export default function CampaignWizardPage() {
                     </div>
                   )}
                   {draft.schedule.type === 'RECURRING' && (
-                    <div className="grid gap-4 rounded-xl border p-4 md:grid-cols-3">
-                      <Field label={t('campaign.wizard.every')}>
-                        <div className="flex gap-2">
-                          <Input type="number" min={1} step="any" value={draft.schedule.every ?? 1} onChange={(e) => setSchedule({ every: Math.max(1, Number(e.target.value) || 1) })} className="w-20" />
-                          <Select value={draft.schedule.unit ?? 'WEEK'} onValueChange={(v) => setSchedule({ unit: v as CampaignSchedule['unit'] })} options={(['DAY', 'WEEK', 'MONTH'] as const).map((u) => ({ value: u, label: t(`campaign.wizard.unit.${u}`) }))} />
-                        </div>
-                      </Field>
-                      <Field label={t('campaign.wizard.sendTime')}>
-                        <Input type="time" value={draft.schedule.sendTime ?? '09:00'} onChange={(e) => setSchedule({ sendTime: e.target.value })} />
-                      </Field>
-                      {draft.schedule.unit === 'MONTH' && (
-                        <Field label={t('campaign.wizard.monthDays')} hint={t('campaign.wizard.monthDaysHint')} className="md:col-span-3">
-                          <div className="flex flex-wrap gap-1.5">
-                            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
-                              const on = draft.schedule.monthDays?.includes(d)
-                              return (
-                                <button
-                                  key={d}
-                                  type="button"
-                                  aria-pressed={on}
-                                  onClick={() => setSchedule({ monthDays: on ? draft.schedule.monthDays?.filter((x) => x !== d) : [...(draft.schedule.monthDays ?? []), d].sort((a, b) => a - b) })}
-                                  className={cn('h-9 w-10 cursor-pointer rounded-lg border text-sm tabular transition', on ? 'border-brand-500 bg-accent font-semibold text-accent-foreground' : 'hover:bg-muted')}
-                                >
-                                  {d}
-                                </button>
-                              )
-                            })}
+                    <div className="grid gap-3">
+                      {frames.map((f, fi) => (
+                        <FrameEditor
+                          key={fi}
+                          frame={f}
+                          index={fi}
+                          total={frames.length}
+                          onChange={(nf) => setFrames(frames.map((x, i) => (i === fi ? nf : x)))}
+                          onRemove={() => setFrames(frames.filter((_, i) => i !== fi))}
+                        />
+                      ))}
+                      {frames.length < FRAMES_MAX && (
+                        <Button type="button" variant="outline" className="border-dashed" onClick={() => setFrames([...frames, { ...frames[frames.length - 1] }])}>
+                          <CalendarPlus />
+                          {t('campaign.wizard.addFrame')}
+                        </Button>
+                      )}
+                      <div className="rounded-xl border p-4">
+                        <Field label={t('campaign.wizard.maxOccurrences')} hint={t('campaign.wizard.maxOccurrencesHint')}>
+                          <div className="flex items-center gap-3 text-sm">
+                            <Checkbox id="sched-max" checked={draft.schedule.maxOccurrences != null} onCheckedChange={(v) => setSchedule({ maxOccurrences: v === true ? 10 : null })} />
+                            <label htmlFor="sched-max">{t('campaign.wizard.finishAfter')}</label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={1000}
+                              className="h-8 w-24"
+                              aria-label={t('campaign.wizard.maxOccurrences')}
+                              disabled={draft.schedule.maxOccurrences == null}
+                              value={draft.schedule.maxOccurrences ?? 10}
+                              onChange={(e) => setSchedule({ maxOccurrences: Math.min(1000, Math.max(1, Math.floor(Number(e.target.value) || 1))) })}
+                            />
+                            <span className="text-muted-foreground">{t('campaign.wizard.occurrences')}</span>
                           </div>
                         </Field>
-                      )}
-                      <Field label={t('campaign.wizard.maxOccurrences')} hint={t('campaign.wizard.maxOccurrencesHint')} className="md:col-span-3">
-                        <div className="flex items-center gap-3 text-sm">
-                          <Checkbox
-                            id="sched-max"
-                            checked={draft.schedule.maxOccurrences != null}
-                            onCheckedChange={(v) => setSchedule({ maxOccurrences: v === true ? 10 : null })}
-                          />
-                          <label htmlFor="sched-max">{t('campaign.wizard.finishAfter')}</label>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={1000}
-                            className="h-8 w-24"
-                            aria-label={t('campaign.wizard.maxOccurrences')}
-                            disabled={draft.schedule.maxOccurrences == null}
-                            value={draft.schedule.maxOccurrences ?? 10}
-                            onChange={(e) => setSchedule({ maxOccurrences: Math.min(1000, Math.max(1, Math.floor(Number(e.target.value) || 1))) })}
-                          />
-                          <span className="text-muted-foreground">{t('campaign.wizard.occurrences')}</span>
-                        </div>
-                      </Field>
-                      {draft.schedule.unit === 'WEEK' && (
-                        <Field label={t('campaign.wizard.weekdays')} className="md:col-span-3">
-                          <div className="flex flex-wrap gap-1.5">
-                            {[1, 2, 3, 4, 5, 6, 0].map((d) => {
-                              const on = draft.schedule.weekdays?.includes(d)
-                              return (
-                                <button
-                                  key={d}
-                                  type="button"
-                                  aria-pressed={on}
-                                  onClick={() => setSchedule({ weekdays: on ? draft.schedule.weekdays?.filter((x) => x !== d) : [...(draft.schedule.weekdays ?? []), d] })}
-                                  className={cn('h-9 min-w-11 cursor-pointer rounded-lg border px-3 text-sm transition', on ? 'border-brand-500 bg-accent font-semibold text-accent-foreground' : 'hover:bg-muted')}
-                                >
-                                  {t(`weekday.${d}`)}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </Field>
-                      )}
+                      </div>
                     </div>
                   )}
                   <div className="flex flex-wrap items-center gap-4 rounded-xl border p-4">
@@ -623,6 +734,29 @@ export default function CampaignWizardPage() {
                       </div>
                     </div>
                   </section>
+                  {/* "Trích xuất khách hàng" (laoads.com): tự tạo tệp khách hàng theo kết quả khi chiến dịch hoàn tất */}
+                  <section className="rounded-xl border p-4">
+                    <h3 className="text-sm font-semibold">{t('campaign.wizard.outcomesTitle')}</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{t('campaign.wizard.outcomesDesc')}</p>
+                    <div className="mt-3 grid gap-3 text-sm">
+                      {OUTCOMES.map((o) => {
+                        const disabled = o === 'WHATSAPP_FAILED' ? !hasWhatsapp : draft.goal.mode === 'NONE'
+                        return (
+                          <label key={o} className={cn('flex items-center gap-3', disabled && 'text-muted-foreground')}>
+                            <Checkbox
+                              checked={!disabled && outcomes.includes(o)}
+                              disabled={disabled}
+                              onCheckedChange={(v) => set('goal', { ...draft.goal, outcomes: v === true ? [...outcomes.filter((x) => x !== o), o] : outcomes.filter((x) => x !== o) })}
+                            />
+                            <span>
+                              {t(`campaign.outcome.${o}`)}
+                              {disabled && <span className="ml-2 text-xs">({t(o === 'WHATSAPP_FAILED' ? 'campaign.wizard.outcomeNeedsWhatsapp' : 'campaign.wizard.outcomeNeedsGoal')})</span>}
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </section>
                 </div>
               )}
 
@@ -647,8 +781,10 @@ export default function CampaignWizardPage() {
                     {[
                       [t('campaign.wizard.name'), draft.name],
                       [t('campaign.wizard.steps.basics'), `${t(`campaign.mode.${draft.mode}`)} · ${t(`campaign.type.${draft.type}`)}`],
-                      [t('campaign.wizard.steps.schedule'), `${t(`campaign.wizard.schedule.${draft.schedule.type}`)}${draft.schedule.silentHours?.enabled ? ` · ${t('campaign.wizard.silent')} ${draft.schedule.silentHours.from}–${draft.schedule.silentHours.to}` : ''}`],
+                      [t('campaign.wizard.steps.schedule'), `${scheduleRule(draft, t)}${draft.schedule.silentHours?.enabled ? ` · ${t('campaign.wizard.silent')} ${draft.schedule.silentHours.from}–${draft.schedule.silentHours.to}` : ''}`],
                       [t('campaign.wizard.steps.goal'), t(`campaign.wizard.goal.${draft.goal.mode}`)],
+                      [t('campaign.wizard.limitLabel'), limit != null ? fmtNumber(limit) : t('campaign.wizard.limitNone')],
+                      [t('campaign.wizard.outcomesTitle'), outcomes.filter((o) => (o === 'WHATSAPP_FAILED' ? hasWhatsapp : draft.goal.mode !== 'NONE')).map((o) => t(`campaign.outcome.${o}`)).join(', ') || '—'],
                     ].map(([k, v]) => (
                       <div key={k}>
                         <dt className="text-xs text-muted-foreground">{k}</dt>
@@ -744,32 +880,7 @@ export default function CampaignWizardPage() {
           }}
         />
       )}
-      <FormDialog
-        open={groupDialog}
-        onOpenChange={(o) => {
-          setGroupDialog(o)
-          if (!o) setGroupName('')
-        }}
-        title={t('campaign.wizard.newGroup')}
-        submitLabel={t('campaign.wizard.createGroup')}
-        loading={createGroup.isPending}
-        onSubmit={() => {
-          if (!groupName.trim()) return
-          createGroup.mutate(groupName.trim(), {
-            onSuccess: (g) => {
-              set('groupId', g.id)
-              setGroupDialog(false)
-              setGroupName('')
-              toast.success(t('campaign.wizard.groupCreated'))
-            },
-            onError: (e) => toast.error(errorMessage(e)),
-          })
-        }}
-      >
-        <Field label={t('campaign.wizard.groupName')} required>
-          <Input value={groupName} onChange={(e) => setGroupName(e.target.value)} maxLength={255} />
-        </Field>
-      </FormDialog>
+      {groupDialog && <CampaignGroupDialog onOpenChange={setGroupDialog} onSaved={(g) => set('groupId', g.id)} />}
     </>
   )
 }

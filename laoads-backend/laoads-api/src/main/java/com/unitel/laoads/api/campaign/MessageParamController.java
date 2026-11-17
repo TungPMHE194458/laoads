@@ -4,6 +4,9 @@ import com.unitel.laoads.api.common.ApiPaths;
 import com.unitel.laoads.api.common.ApiResponse;
 import com.unitel.laoads.domain.campaign.EventTemplates;
 import com.unitel.laoads.domain.campaign.MessageParams;
+import com.unitel.laoads.domain.engine.WhatsAppTemplateSource;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.RequestParam;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,7 +22,10 @@ import java.util.List;
 @RestController
 @RequestMapping(ApiPaths.V1)
 @Tag(name = "campaign", description = "Chiến dịch")
+@RequiredArgsConstructor
 public class MessageParamController {
+
+    private final WhatsAppTemplateSource whatsappTemplates;
 
     /**
      * {@code source}: TARGET (lấy từ thuê bao nhận tin) | SUBSCRIBER (dữ liệu BI trong LADS_SUBSCRIBER, có thể trống);
@@ -48,5 +54,19 @@ public class MessageParamController {
                     + "eventType = mã template. Nhãn hiển thị do FE dịch (campaign.event.<code>).")
     public ApiResponse<List<EventTemplateDto>> eventTemplates() {
         return ApiResponse.ok(EventTemplates.CODES.stream().map(EventTemplateDto::new).toList());
+    }
+
+    @GetMapping("/whatsapp/templates")
+    @Operation(summary = "Danh mục template WhatsApp đã duyệt (từ nhà cung cấp)",
+            description = "Hành động WhatsApp chế độ TEMPLATE chọn một template ở đây (như laoads.com). query: lọc theo tên; "
+                    + "mặc định chỉ trả template APPROVED, tối đa 200 dòng. Bản hiện tại là danh mục giả lập.")
+    public ApiResponse<List<WhatsAppTemplateSource.Template>> whatsappTemplates(
+            @RequestParam(required = false) String query,
+            @RequestParam(defaultValue = "false") boolean includeUnapproved) {
+        String q = query == null ? "" : query.trim().toLowerCase(java.util.Locale.ROOT);
+        return ApiResponse.ok(whatsappTemplates.templates().stream()
+                .filter(t -> includeUnapproved || t.approved())
+                .filter(t -> q.isEmpty() || t.name().toLowerCase(java.util.Locale.ROOT).contains(q))
+                .limit(200).toList());
     }
 }

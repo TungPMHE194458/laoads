@@ -20,7 +20,8 @@ import type {
 } from '@/api/types'
 import { CHANNELS, SENDER_CHANNELS } from '@/api/types'
 import type { AudienceRequest, AudienceSource, Segment } from '@/api/types'
-import { activeUnitPrice, audienceCatalog, audit, campaigns, campaignSeq, eventTemplates, groups, messageParams, notificationSettings, rand, refreshGroupCounts, segmentAttributes, segments, segmentSeq, senderPasswords, senders, senderSeq, users, workspaces } from '../db'
+import { activeUnitPrice, audienceCatalog, audit, campaigns, campaignSeq, eventTemplates, groups, messageParams, notificationSettings, rand, refreshGroupCounts, segmentAttributes, segments, segmentSeq, senderPasswords, senders, senderSeq, users, whatsappTemplates, workspaces } from '../db'
+import { actionCost } from '@/pages/campaigns/wizard/actionMeta'
 import { currentUser, fail, guard, includes, ok, paged, q, workspaceId } from '../utils'
 import { validateAudience } from '@/features/campaign/audience'
 
@@ -85,8 +86,9 @@ function validateSender(b: SenderNumberInput, hadPassword: boolean): FieldErr[] 
   if (b.kind !== 'SHORTCODE' && b.kind !== 'BRANDNAME') bad('kind')
   if ((b.description ?? '').length > 255) bad('description', 'Tối đa 255 ký tự')
   const ch = b.channels ?? []
-  if (!ch.length || ch.some((c) => c !== 'SMS' && c !== 'USSD')) bad('channels', 'Chọn ít nhất một kênh')
-  else if (b.kind === 'BRANDNAME' && ch.includes('USSD')) bad('channels', 'Brandname chỉ dùng cho SMS')
+  if (!ch.length || ch.some((c) => !SENDER_CHANNELS.includes(c))) bad('channels', 'Chọn ít nhất một kênh')
+  else if (b.kind === 'BRANDNAME' && ch.includes('USSD')) bad('channels', 'Brandname không dùng được cho USSD')
+  else if (b.kind === 'SHORTCODE' && ch.includes('WHATSAPP')) bad('channels', 'WhatsApp chỉ dùng loại Brandname (brand / tài khoản WhatsApp)')
   if (!b.allWorkspaces && !(b.workspaceIds ?? []).length) bad('workspaceIds', 'Chọn ít nhất một workspace')
   const g = b.gateway
   const pwd = g.password ?? ''
@@ -187,7 +189,7 @@ const summary = ({ actionGroups: _a, schedule: _s, goal: _g, budget: _b, history
 
 function expectedCostOf(c: Pick<CampaignDetail, 'actionGroups' | 'targetCount'>) {
   return Math.round(
-    c.actionGroups.reduce((sum, g) => sum + (g.isControl ? 0 : (c.targetCount * g.allocationPercent) / 100) * g.actions.reduce((s, a) => s + activeUnitPrice(a.type), 0), 0),
+    c.actionGroups.reduce((sum, g) => sum + (g.isControl ? 0 : (c.targetCount * g.allocationPercent) / 100) * g.actions.reduce((s, a) => s + actionCost(a, activeUnitPrice(a.type)), 0), 0),
   )
 }
 
@@ -291,12 +293,30 @@ export const campaignHandlers = [
         target: Math.round((target * g.allocationPercent) / 100),
         delivered: g.isControl ? 0 : Math.round(((target * g.allocationPercent) / 100) * c.sentRate),
         sentRate: g.isControl ? 0 : c.sentRate,
+        failed: g.isControl ? 0 : Math.round(((target * g.allocationPercent) / 100) * (1 - c.sentRate)),
         opens: g.isControl ? 0 : Math.round(((target * g.allocationPercent) / 100) * c.sentRate * c.openRate),
         openRate: g.isControl ? 0 : c.openRate,
+        clicks: g.isControl ? 0 : Math.round(((target * g.allocationPercent) / 100) * c.sentRate * c.openRate * 0.31),
+        clickRate: g.isControl ? 0 : c.openRate * 0.31,
         conversions: Math.round(((target * g.allocationPercent) / 100) * (g.isControl ? c.conversionRate * 0.35 : c.conversionRate)),
         conversionRate: g.isControl ? c.conversionRate * 0.35 : c.conversionRate,
         uplift: g.isControl ? null : c.uplift,
       })),
+      // Theo từng hành động (đếm theo tin) — như BE ReportService.actionStats
+      actions: c.actionGroups
+        .filter((g) => !g.isControl)
+        .flatMap((g) =>
+          g.actions.map((a, ai) => {
+            const n = started ? Math.round(((target * g.allocationPercent) / 100) * c.sentRate * Math.pow(0.8, ai)) : 0
+            const channel = a.type.startsWith('NOTIFICATION_') ? a.type.slice('NOTIFICATION_'.length) : 'OCS'
+            const opens = channel === 'SMS' || channel === 'USSD' || channel === 'OCS' ? 0 : Math.round(n * c.openRate)
+            return {
+              groupKey: g.id, groupName: g.name, actionKey: a.id, actionIndex: ai + 1, actionType: a.type, channel,
+              sent: n, failed: Math.round(n * 0.03), delivered: Math.round(n * 0.93), opens, clicks: channel === 'OCS' ? 0 : Math.round(n * c.openRate * 0.31),
+              conversions: Math.round(n * c.conversionRate),
+            }
+          }),
+        ),
     })
   }),
   http.post(`${B}/campaigns`, async ({ request }) => {
@@ -552,6 +572,7 @@ export const campaignHandlers = [
     if (s.status !== 'READY') return fail(409, 'SEGMENT_VERSION0002', 'Phiên bản tệp khách hàng chưa sẵn sàng')
     const url = new URL(request.url)
     const page = Number(url.searchParams.get('page') ?? 0)
+    const digits = (url.searchParams.get('query') ?? '').replace(/\D/g, '')
     const all = Array.from({ length: Math.min(s.totalUsers, 120) }, (_, i) => {
       const n = (s.id * 7919 + i * 104729) % 9_000_000
       return {
@@ -561,7 +582,33 @@ export const campaignHandlers = [
       }
     })
     void page
-    return paged(all, url)
+    // "Tìm kiếm khách hàng": số thuê bao chứa chuỗi số (mock che 5 số cuối nên khớp phần đầu)
+    return paged(digits ? all.filter((m) => m.phone.replace(/\D/g, '').includes(digits)) : all, url)
+  }),
+  // ───── "Import thêm dữ liệu" vào tệp FILE đang READY ─────
+  http.post(`${B}/segments/:id/import`, async ({ request, params }) => {
+    const g = guard(request, 'SEGMENT_MANAGE')
+    if (g) return g
+    const s = segments.find((x) => x.id === Number(params.id) && x.workspaceId === wsOf(request))
+    if (!s) return fail(404, 'NOT_FOUND', 'Không tìm thấy tệp khách hàng')
+    if (s.type !== 'FILE') return fail(409, 'INVALID_TRANSITION', 'Chỉ nhập thêm được vào tệp tạo từ file')
+    if (s.status !== 'READY') return fail(409, 'SEGMENT_VERSION0002', 'Tệp khách hàng chưa sẵn sàng')
+    const file = (await request.formData()).get('file') as File | null
+    if (!file) return fail(400, 'FILE_INVALID', 'File không hợp lệ')
+    const lines = (await file.text()).split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+    const valid = [...new Set(lines.map((l) => l.replace(/\D/g, '')).filter((d) => d.length >= 8))]
+    const duplicates = Math.round(valid.length * 0.1)
+    const added = valid.length - duplicates
+    s.totalUsers += added
+    s.updatedAt = new Date().toISOString()
+    audit(actor(request), 'IMPORT', 'SEGMENT', String(s.id), `Nhập thêm ${added} số vào tệp #${s.id}`, s.workspaceId)
+    return ok({ id: s.id, added, duplicates, invalidRows: lines.length - valid.length, totalUsers: s.totalUsers })
+  }),
+  http.get(`${B}/whatsapp/templates`, ({ request }) => {
+    const url = new URL(request.url)
+    const query = (url.searchParams.get('query') ?? '').trim().toLowerCase()
+    const all = url.searchParams.get('includeUnapproved') === 'true'
+    return ok(whatsappTemplates.filter((x) => (all || x.status === 'APPROVED') && (!query || x.name.toLowerCase().includes(query) || x.id.includes(query))).slice(0, 200))
   }),
   http.post(`${B}/segments`, async ({ request }) => {
     const g = guard(request, 'SEGMENT_MANAGE')
@@ -755,10 +802,33 @@ export const campaignHandlers = [
   http.post(`${B}/campaign-groups`, async ({ request }) => {
     const g = guard(request, 'CAMPAIGN_CREATE')
     if (g) return g
-    const { name } = (await request.json()) as { name: string }
+    const { name, description } = (await request.json()) as { name: string; description?: string | null }
     if (groups.some((x) => x.workspaceId === wsOf(request) && x.name.toLowerCase() === name.trim().toLowerCase())) return fail(409, 'GROUP_NAME_DUPLICATE', 'Tên nhóm chiến dịch đã tồn tại trong workspace')
-    const grp = { workspaceId: wsOf(request), id: Math.max(0, ...groups.map((x) => x.id)) + 1, name: name.trim(), campaignCount: 0, runningCount: 0, createdAt: new Date().toISOString() }
+    if ((description ?? '').length > 500) return fail(400, 'VALIDATION_ERROR', 'Mô tả tối đa 500 ký tự')
+    const grp = { workspaceId: wsOf(request), id: Math.max(0, ...groups.map((x) => x.id)) + 1, name: name.trim(), description: description?.trim() || null, campaignCount: 0, runningCount: 0, createdAt: new Date().toISOString() }
     groups.push(grp)
+    return ok(grp)
+  }),
+  http.put(`${B}/campaign-groups/:id`, async ({ request, params }) => {
+    const g = guard(request, 'CAMPAIGN_UPDATE')
+    if (g) return g
+    const grp = groups.find((x) => x.id === Number(params.id) && x.workspaceId === wsOf(request))
+    if (!grp) return fail(404, 'NOT_FOUND', 'Không tìm thấy nhóm chiến dịch')
+    const { name, description } = (await request.json()) as { name: string; description?: string | null }
+    if (groups.some((x) => x.id !== grp.id && x.workspaceId === grp.workspaceId && x.name.toLowerCase() === name.trim().toLowerCase())) return fail(409, 'GROUP_NAME_DUPLICATE', 'Tên nhóm chiến dịch đã tồn tại trong workspace')
+    if ((description ?? '').length > 500) return fail(400, 'VALIDATION_ERROR', 'Mô tả tối đa 500 ký tự')
+    grp.name = name.trim()
+    grp.description = description?.trim() || null
+    campaigns.filter((c) => c.groupId === grp.id).forEach((c) => (c.groupName = grp.name))
+    return ok(grp)
+  }),
+  http.delete(`${B}/campaign-groups/:id`, ({ request, params }) => {
+    const g = guard(request, 'CAMPAIGN_DELETE')
+    if (g) return g
+    const i = groups.findIndex((x) => x.id === Number(params.id) && x.workspaceId === wsOf(request))
+    if (i < 0) return fail(404, 'NOT_FOUND', 'Không tìm thấy nhóm chiến dịch')
+    if (campaigns.some((c) => c.groupId === groups[i].id)) return fail(409, 'GROUP_IN_USE', 'Nhóm còn chiến dịch, không xoá được')
+    const [grp] = groups.splice(i, 1)
     return ok(grp)
   }),
 

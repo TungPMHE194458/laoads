@@ -523,7 +523,7 @@ paths:
     put:
       tags:
       - campaign-group
-      summary: Đổi tên nhóm
+      summary: Sửa tên / mô tả nhóm
       operationId: rename
       parameters:
       - name: id
@@ -1120,6 +1120,56 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseSegmentDto"
+  /v1/segments/{id}/import:
+    post:
+      tags:
+      - segment
+      summary: Nhập thêm số thuê bao vào tệp từ file (như "Import thêm dữ liệu" của
+        laoads.com)
+      description: Chỉ tệp FILE đang READY; bỏ số đã có trong tệp. Tệp khác → 409
+        INVALID_TRANSITION.
+      operationId: appendFile
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseAppendDto"
   /v1/segments/import:
     post:
       tags:
@@ -2483,6 +2533,43 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseListMyWorkspace"
+  /v1/whatsapp/templates:
+    get:
+      tags:
+      - campaign
+      summary: Danh mục template WhatsApp đã duyệt (từ nhà cung cấp)
+      description: "Hành động WhatsApp chế độ TEMPLATE chọn một template ở đây (như\
+        \ laoads.com). query: lọc theo tên; mặc định chỉ trả template APPROVED, tố\
+        i đa 200 dòng. Bản hiện tại là danh mục giả lập."
+      operationId: whatsappTemplates
+      parameters:
+      - name: query
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: includeUnapproved
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListTemplate"
   /v1/t/{token}:
     get:
       tags:
@@ -2606,6 +2693,11 @@ paths:
         schema:
           type: integer
           format: int32
+      - name: query
+        in: query
+        required: false
+        schema:
+          type: string
       - name: X-Workspace-Id
         in: header
         description: Workspace hiện hành (bắt buộc)
@@ -4013,6 +4105,8 @@ components:
           type: string
         trackLinks:
           type: boolean
+        whatsappMode:
+          type: string
     ActionGroupDef:
       type: object
       properties:
@@ -4038,6 +4132,26 @@ components:
           type: number
         max:
           type: number
+    FrameDef:
+      type: object
+      properties:
+        every:
+          type: integer
+          format: int32
+        unit:
+          type: string
+        weekdays:
+          type: array
+          items:
+            type: integer
+            format: int32
+        monthDays:
+          type: array
+          items:
+            type: integer
+            format: int32
+        sendTime:
+          type: string
     GoalDef:
       type: object
       properties:
@@ -4060,6 +4174,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SegmentCondition"
+        outcomes:
+          type: array
+          items:
+            type: string
     Request:
       type: object
       properties:
@@ -4105,7 +4223,7 @@ components:
           $ref: "#/components/schemas/BudgetDef"
         eventTemplate:
           type: string
-        testLimit:
+        limit:
           type: integer
           format: int32
       required:
@@ -4145,6 +4263,10 @@ components:
         maxOccurrences:
           type: integer
           format: int32
+        frames:
+          type: array
+          items:
+            $ref: "#/components/schemas/FrameDef"
     SegmentCondition:
       type: object
       properties:
@@ -4278,7 +4400,7 @@ components:
           $ref: "#/components/schemas/BudgetDef"
         eventTemplate:
           type: string
-        testLimit:
+        limit:
           type: integer
           format: int32
         rejectReason:
@@ -4305,6 +4427,10 @@ components:
         name:
           type: string
           maxLength: 255
+          minLength: 0
+        description:
+          type: string
+          maxLength: 500
           minLength: 0
       required:
       - name
@@ -4334,6 +4460,8 @@ components:
           type: integer
           format: int64
         name:
+          type: string
+        description:
           type: string
         campaignCount:
           type: integer
@@ -4628,6 +4756,43 @@ components:
         importedRows:
           type: integer
           format: int64
+    ApiResponseAppendDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: "#/components/schemas/AppendDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    AppendDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        added:
+          type: integer
+          format: int32
+        duplicates:
+          type: integer
+          format: int32
+        invalidRows:
+          type: integer
+          format: int32
+        totalUsers:
+          type: integer
+          format: int32
     EstimateRequest:
       type: object
       properties:
@@ -5160,6 +5325,38 @@ components:
           type: array
           items:
             type: string
+    ApiResponseListTemplate:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Template"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        language:
+          type: string
+        status:
+          type: string
     ApiResponseListSenderDto:
       type: object
       properties:
@@ -5695,6 +5892,40 @@ components:
           format: double
         uplift:
           type: number
+    ActionStat:
+      type: object
+      properties:
+        groupKey:
+          type: string
+        groupName:
+          type: string
+        actionKey:
+          type: string
+        actionIndex:
+          type: integer
+          format: int32
+        actionType:
+          type: string
+        channel:
+          type: string
+        sent:
+          type: integer
+          format: int64
+        failed:
+          type: integer
+          format: int64
+        delivered:
+          type: integer
+          format: int64
+        opens:
+          type: integer
+          format: int64
+        clicks:
+          type: integer
+          format: int64
+        conversions:
+          type: integer
+          format: int64
     ApiResponseCampaignReport:
       type: object
       properties:
@@ -5731,6 +5962,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GroupStat"
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionStat"
     GroupStat:
       type: object
       properties:
@@ -5747,10 +5982,19 @@ components:
         sentRate:
           type: number
           format: double
+        failed:
+          type: integer
+          format: int64
         opens:
           type: integer
           format: int64
         openRate:
+          type: number
+          format: double
+        clicks:
+          type: integer
+          format: int64
+        clickRate:
           type: number
           format: double
         conversions:

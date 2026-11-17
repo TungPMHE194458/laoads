@@ -11,8 +11,18 @@ import java.math.BigDecimal;
  */
 public interface MessageGateway {
 
+    /**
+     * {@code senderId}: mã đầu số SMS / USSD hoặc brand WhatsApp; {@code whatsappTemplateId}: WhatsApp gửi bằng template
+     * đã duyệt (khi đó {@code content} = null) — như laoads.com.
+     */
     record Outbound(long messageId, Channel channel, ActionType actionType, String isdn, String senderId,
-                    String subject, String content, BigDecimal amount, String packageCode, String language) {
+                    String subject, String content, BigDecimal amount, String packageCode, String language,
+                    String whatsappTemplateId) {
+
+        public Outbound(long messageId, Channel channel, ActionType actionType, String isdn, String senderId,
+                        String subject, String content, BigDecimal amount, String packageCode, String language) {
+            this(messageId, channel, actionType, isdn, senderId, subject, content, amount, packageCode, language, null);
+        }
     }
 
     /**

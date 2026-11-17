@@ -140,7 +140,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Đổi tên nhóm */
+        /** Sửa tên / mô tả nhóm */
         put: operations["rename"];
         post?: never;
         /**
@@ -315,6 +315,26 @@ export interface paths {
          * @description OCS nạp tiếp từ offset đã xử lý, BCCS3 nạp lại từ đầu. Không phải tệp FAILED → 409 INVALID_TRANSITION.
          */
         post: operations["retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/segments/{id}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Nhập thêm số thuê bao vào tệp từ file (như "Import thêm dữ liệu" của laoads.com)
+         * @description Chỉ tệp FILE đang READY; bỏ số đã có trong tệp. Tệp khác → 409 INVALID_TRANSITION.
+         */
+        post: operations["appendFile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -881,6 +901,26 @@ export interface paths {
         };
         /** Workspace ACTIVE của tôi (= MeResponse.workspaces) */
         get: operations["my"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/whatsapp/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Danh mục template WhatsApp đã duyệt (từ nhà cung cấp)
+         * @description Hành động WhatsApp chế độ TEMPLATE chọn một template ở đây (như laoads.com). query: lọc theo tên; mặc định chỉ trả template APPROVED, tối đa 200 dòng. Bản hiện tại là danh mục giả lập.
+         */
+        get: operations["whatsappTemplates"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1622,6 +1662,7 @@ export interface components {
             amount?: number;
             packageCode?: string;
             trackLinks?: boolean;
+            whatsappMode?: string;
         };
         ActionGroupDef: {
             id?: string;
@@ -1636,6 +1677,14 @@ export interface components {
             expected?: number;
             max?: number;
         };
+        FrameDef: {
+            /** Format: int32 */
+            every?: number;
+            unit?: string;
+            weekdays?: number[];
+            monthDays?: number[];
+            sendTime?: string;
+        };
         GoalDef: {
             mode?: string;
             description?: string;
@@ -1647,6 +1696,7 @@ export interface components {
             /** Format: int32 */
             reentryDays?: number;
             conditions?: components["schemas"]["SegmentCondition"][];
+            outcomes?: string[];
         };
         Request: {
             name: string;
@@ -1667,7 +1717,7 @@ export interface components {
             budget?: components["schemas"]["BudgetDef"];
             eventTemplate?: string;
             /** Format: int32 */
-            testLimit?: number;
+            limit?: number;
         };
         ScheduleDef: {
             type?: string;
@@ -1684,6 +1734,7 @@ export interface components {
             monthDays?: number[];
             /** Format: int32 */
             maxOccurrences?: number;
+            frames?: components["schemas"]["FrameDef"][];
         };
         SegmentCondition: {
             field?: string;
@@ -1750,7 +1801,7 @@ export interface components {
             budget?: components["schemas"]["BudgetDef"];
             eventTemplate?: string;
             /** Format: int32 */
-            testLimit?: number;
+            limit?: number;
             rejectReason?: string;
             history?: components["schemas"]["HistoryItem"][];
         };
@@ -1763,6 +1814,7 @@ export interface components {
         };
         GroupRequest: {
             name: string;
+            description?: string;
         };
         ApiResponseGroupDto: {
             success?: boolean;
@@ -1777,6 +1829,7 @@ export interface components {
             /** Format: int64 */
             id?: number;
             name?: string;
+            description?: string;
             /** Format: int64 */
             campaignCount?: number;
             /** Format: int64 */
@@ -1908,6 +1961,27 @@ export interface components {
             audience?: components["schemas"]["Request"];
             /** Format: int64 */
             importedRows?: number;
+        };
+        ApiResponseAppendDto: {
+            success?: boolean;
+            data?: components["schemas"]["AppendDto"];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        AppendDto: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: int32 */
+            added?: number;
+            /** Format: int32 */
+            duplicates?: number;
+            /** Format: int32 */
+            invalidRows?: number;
+            /** Format: int32 */
+            totalUsers?: number;
         };
         EstimateRequest: {
             conditions?: components["schemas"]["SegmentCondition"][];
@@ -2138,6 +2212,21 @@ export interface components {
             /** @enum {string} */
             role?: "OWNER" | "ADMIN" | "MEMBER";
             permissions?: string[];
+        };
+        ApiResponseListTemplate: {
+            success?: boolean;
+            data?: components["schemas"]["Template"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        Template: {
+            id?: string;
+            name?: string;
+            language?: string;
+            status?: string;
         };
         ApiResponseListSenderDto: {
             success?: boolean;
@@ -2393,6 +2482,27 @@ export interface components {
             conversionRate?: number;
             uplift?: number;
         };
+        ActionStat: {
+            groupKey?: string;
+            groupName?: string;
+            actionKey?: string;
+            /** Format: int32 */
+            actionIndex?: number;
+            actionType?: string;
+            channel?: string;
+            /** Format: int64 */
+            sent?: number;
+            /** Format: int64 */
+            failed?: number;
+            /** Format: int64 */
+            delivered?: number;
+            /** Format: int64 */
+            opens?: number;
+            /** Format: int64 */
+            clicks?: number;
+            /** Format: int64 */
+            conversions?: number;
+        };
         ApiResponseCampaignReport: {
             success?: boolean;
             data?: components["schemas"]["CampaignReport"];
@@ -2407,6 +2517,7 @@ export interface components {
             timeseries?: components["schemas"]["TimePoint"][];
             channels?: components["schemas"]["ChannelStat"][];
             groups?: components["schemas"]["GroupStat"][];
+            actions?: components["schemas"]["ActionStat"][];
         };
         GroupStat: {
             groupName?: string;
@@ -2418,9 +2529,15 @@ export interface components {
             /** Format: double */
             sentRate?: number;
             /** Format: int64 */
+            failed?: number;
+            /** Format: int64 */
             opens?: number;
             /** Format: double */
             openRate?: number;
+            /** Format: int64 */
+            clicks?: number;
+            /** Format: double */
+            clickRate?: number;
             /** Format: int64 */
             conversions?: number;
             /** Format: double */
@@ -3343,6 +3460,39 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseSegmentDto"];
+                };
+            };
+        };
+    };
+    appendFile: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseAppendDto"];
                 };
             };
         };
@@ -4333,6 +4483,31 @@ export interface operations {
             };
         };
     };
+    whatsappTemplates: {
+        parameters: {
+            query?: {
+                query?: string;
+                includeUnapproved?: boolean;
+            };
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListTemplate"];
+                };
+            };
+        };
+    };
     track: {
         parameters: {
             query?: never;
@@ -4412,6 +4587,7 @@ export interface operations {
             query?: {
                 page?: number;
                 size?: number;
+                query?: string;
             };
             header: {
                 /** @description Workspace hiện hành (bắt buộc) */

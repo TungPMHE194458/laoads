@@ -41,6 +41,10 @@ public class SegmentService {
     public record ImportResult(Segment segment, int invalidRows) {
     }
 
+    /** Nhập thêm vào tệp có sẵn: {@code added} số mới, {@code duplicates} số đã có trong tệp, {@code invalidRows} dòng sai. */
+    public record AppendResult(Segment segment, int added, int duplicates, int invalidRows) {
+    }
+
     public record MemberRow(String isdn, String province, String packageCode, BigDecimal gVolume) {
     }
 
@@ -108,20 +112,85 @@ public class SegmentService {
 
     @Transactional(readOnly = true)
     public Page<MemberRow> members(long workspaceId, long id, Pageable pageable) {
+        return members(workspaceId, id, pageable, null);
+    }
+
+    /** {@code query}: tìm khách hàng trong tệp theo số thuê bao (chứa chuỗi số; như "Tìm kiếm khách hàng" của laoads.com). */
+    @Transactional(readOnly = true)
+    public Page<MemberRow> members(long workspaceId, long id, Pageable pageable, String query) {
         Segment s = get(workspaceId, id);
         if (!s.isReady()) {
             throw new LaoadsException(ErrorCode.SEGMENT_NOT_READY, "Tệp khách hàng chưa sẵn sàng");
         }
+        String digits = query == null ? "" : query.replaceAll("[^0-9]", "");
+        String filter = digits.isEmpty() ? "" : " AND m.ISDN LIKE ?";
+        List<Object> params = new ArrayList<>(List.of(id));
+        if (!digits.isEmpty()) {
+            params.add("%" + digits + "%");
+        }
         long offset = pageable.getOffset();
         long limit = offset + pageable.getPageSize();
+        List<Object> pageParams = new ArrayList<>(params);
+        pageParams.add(limit);
+        pageParams.add(offset);
         List<MemberRow> rows = jdbc.query(
                 "SELECT * FROM (SELECT a.*, ROWNUM RN FROM ("
                         + "SELECT m.ISDN, sb.PROVINCE_CODE_ACTIVE, sb.REAL_PACKAGE_DATA, sb.G_VOLUME "
                         + "FROM LADS_SEGMENT_MEMBER m LEFT JOIN LADS_SUBSCRIBER sb ON sb.ISDN = m.ISDN "
-                        + "WHERE m.SEGMENT_ID = ? ORDER BY m.ISDN) a WHERE ROWNUM <= ?) WHERE RN > ?",
+                        + "WHERE m.SEGMENT_ID = ?" + filter + " ORDER BY m.ISDN) a WHERE ROWNUM <= ?) WHERE RN > ?",
                 (rs, i) -> new MemberRow(rs.getString(1), rs.getString(2), rs.getString(3), rs.getBigDecimal(4)),
-                id, limit, offset);
-        return new PageImpl<>(rows, pageable, s.getTotalUsers());
+                pageParams.toArray());
+        long total = digits.isEmpty() ? s.getTotalUsers()
+                : jdbc.queryForObject("SELECT COUNT(*) FROM LADS_SEGMENT_MEMBER m WHERE m.SEGMENT_ID = ?" + filter,
+                Long.class, params.toArray());
+        return new PageImpl<>(rows, pageable, total);
+    }
+
+    /**
+     * "Import thêm dữ liệu" (laoads.com): nạp thêm số thuê bao từ file vào tệp FILE đang READY, bỏ số đã có trong tệp.
+     * Chiến dịch dùng tệp này nhận số mới từ lượt chạy kế tiếp.
+     */
+    @Transactional
+    public AppendResult appendFile(long workspaceId, long id, String fileName, InputStream content, String actor) {
+        Segment s = get(workspaceId, id);
+        if (s.getType() != Type.FILE) {
+            throw new LaoadsException(ErrorCode.INVALID_TRANSITION, "Chỉ nhập thêm được vào tệp tạo từ file");
+        }
+        if (!s.isReady()) {
+            throw new LaoadsException(ErrorCode.SEGMENT_NOT_READY, "Tệp khách hàng chưa sẵn sàng");
+        }
+        IsdnFileParser.Result parsed = IsdnFileParser.parse(fileName, content);
+        // Đếm trước / sau thay cho tổng update count: Oracle JDBC trả SUCCESS_NO_INFO (-2) cho từng lệnh trong batch
+        long before = countMembers(id);
+        List<Object[]> batch = new ArrayList<>(BATCH);
+        for (String isdn : parsed.isdns()) {
+            batch.add(new Object[]{id, isdn, id, isdn});
+            if (batch.size() == BATCH) {
+                appendBatch(batch);
+                batch.clear();
+            }
+        }
+        if (!batch.isEmpty()) {
+            appendBatch(batch);
+        }
+        long total = countMembers(id);
+        int added = (int) Math.max(0, total - before);
+        s.setTotalUsers((int) total);
+        s.setUpdatedAt(Instant.now());
+        s.setUpdatedBy(actor);
+        log.info("[SEGMENT] {} nhập thêm vào tệp #{}: +{} số mới, {} số đã có, bỏ {} dòng sai", actor, id, added,
+                parsed.isdns().size() - added, parsed.invalidRows());
+        return new AppendResult(s, added, parsed.isdns().size() - added, parsed.invalidRows());
+    }
+
+    private void appendBatch(List<Object[]> batch) {
+        jdbc.batchUpdate("INSERT INTO LADS_SEGMENT_MEMBER (SEGMENT_ID, ISDN) SELECT ?, ? FROM DUAL "
+                + "WHERE NOT EXISTS (SELECT 1 FROM LADS_SEGMENT_MEMBER WHERE SEGMENT_ID = ? AND ISDN = ?)", batch);
+    }
+
+    private long countMembers(long segmentId) {
+        Long n = jdbc.queryForObject("SELECT COUNT(*) FROM LADS_SEGMENT_MEMBER WHERE SEGMENT_ID = ?", Long.class, segmentId);
+        return n == null ? 0 : n;
     }
 
     // ───────────── Tạo ─────────────
@@ -159,19 +228,39 @@ public class SegmentService {
     /** Tệp CAMPAIGN_OUTCOME: khách hàng nhận tin nhưng chưa chuyển đổi của một chiến dịch (gửi lại vòng sau). */
     @Transactional
     public Segment createCampaignOutcome(long workspaceId, long campaignId, String campaignName) {
-        String base = "KH chưa đạt mục tiêu – " + campaignName;
+        return createCampaignOutcome(workspaceId, campaignId, campaignName, "GOAL_NOT_ACHIEVED");
+    }
+
+    /**
+     * "Trích xuất khách hàng" khi chiến dịch hoàn tất (như laoads.com): GOAL_ACHIEVED = khách hàng nhận tin đã đạt mục
+     * tiêu; GOAL_NOT_ACHIEVED = nhận tin nhưng chưa đạt; WHATSAPP_FAILED = gửi WhatsApp không thành công.
+     */
+    @Transactional
+    public Segment createCampaignOutcome(long workspaceId, long campaignId, String campaignName, String outcome) {
+        String prefix = switch (outcome) {
+            case "GOAL_ACHIEVED" -> "KH đạt mục tiêu – ";
+            case "WHATSAPP_FAILED" -> "KH gửi WhatsApp lỗi – ";
+            default -> "KH chưa đạt mục tiêu – ";
+        };
+        String sql = switch (outcome) {
+            case "GOAL_ACHIEVED" -> "SELECT DISTINCT ?, ISDN FROM LADS_CAMPAIGN_TARGET WHERE CAMPAIGN_ID = ? AND IS_CONTROL = 0 "
+                    + "AND CONVERTED = 1";
+            case "WHATSAPP_FAILED" -> "SELECT DISTINCT ?, ISDN FROM LADS_CAMPAIGN_MESSAGE WHERE CAMPAIGN_ID = ? "
+                    + "AND CHANNEL = 'WHATSAPP' AND STATUS = 'FAILED'";
+            default -> "SELECT DISTINCT ?, ISDN FROM LADS_CAMPAIGN_TARGET WHERE CAMPAIGN_ID = ? AND IS_CONTROL = 0 "
+                    + "AND CONVERTED = 0";
+        };
+        String base = prefix + campaignName;
         String n = base.length() > 230 ? base.substring(0, 230) : base;
         if (repo.countByName(workspaceId, n.toLowerCase(Locale.ROOT)) > 0) {
             n = n + " (" + campaignId + ")";
         }
-        Segment s = newSegment(workspaceId, n, "Tự sinh từ kết quả chiến dịch (GOAL_NOT_ACHIEVED)",
+        Segment s = newSegment(workspaceId, n, "Tự sinh từ kết quả chiến dịch (" + outcome + ")",
                 Type.CAMPAIGN_OUTCOME, Source.CAMPAIGN, "system");
         s.setStatus(Status.READY);
         s.setSourceCampaignId(campaignId);
         s = repo.saveAndFlush(s);
-        int count = jdbc.update("INSERT INTO LADS_SEGMENT_MEMBER (SEGMENT_ID, ISDN) "
-                + "SELECT DISTINCT ?, ISDN FROM LADS_CAMPAIGN_TARGET WHERE CAMPAIGN_ID = ? AND IS_CONTROL = 0 "
-                + "AND CONVERTED = 0", s.getId(), campaignId);
+        int count = jdbc.update("INSERT INTO LADS_SEGMENT_MEMBER (SEGMENT_ID, ISDN) " + sql, s.getId(), campaignId);
         s.setTotalUsers(count);
         return s;
     }

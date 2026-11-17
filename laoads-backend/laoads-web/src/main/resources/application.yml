@@ -108,6 +108,10 @@ laoads:
     public-base-url: ${LAOADS_PUBLIC_BASE_URL:http://localhost:5173}
     # Thời gian chờ tối đa khi "Kiểm tra kết nối" gateway của đầu số (SMPP bind / HTTP GET)
     gateway-probe-timeout: PT5S
+  # Danh mục template WhatsApp đã duyệt (hành động WhatsApp chế độ template, như laoads.com).
+  # templates = simulated (mặc định, danh mục giả lập) — adapter đọc từ nhà cung cấp WhatsApp thay sau.
+  whatsapp:
+    templates: ${LAOADS_WHATSAPP_TEMPLATES:simulated}
   # Audience API (tài liệu "Tài liệu API tích hợp"): tệp KH lấy từ OCS Audience (Hive) / BCCS3 Audience (MySQL).
   # client = simulated (mặc định: dựng dữ liệu từ LADS_SUBSCRIBER) | http (gọi thật, cần URL + API key từng nguồn).
   # base-url đã gồm prefix endpoint. API key chỉ đặt qua biến môi trường.

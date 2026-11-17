@@ -91,6 +91,18 @@ public class DevEngineDataSeeder {
             s.setCreatedBy("seed");
             senderRepo.save(s);
         }
+        // Brand WhatsApp (tài khoản WhatsApp chính thức) — như "Brand: UniAds" của laoads.com
+        if (senderRepo.findByCode("UNIADS").isEmpty()) {
+            SenderNumber s = new SenderNumber();
+            s.setCode("UNIADS");
+            s.setKind(SenderKind.BRANDNAME);
+            s.setDescription("Tài khoản WhatsApp chính thức UniAds");
+            s.setEnabled(true);
+            s.setChannels("WHATSAPP");
+            s.setCreatedAt(Instant.now());
+            s.setCreatedBy("seed");
+            senderRepo.save(s);
+        }
         senderRepo.findByCode("118").filter(this::untouched).ifPresent(s -> {
             s.setGwProtocol(GatewayProtocol.SMPP);
             s.setGwHost("smsc.unitel.example");

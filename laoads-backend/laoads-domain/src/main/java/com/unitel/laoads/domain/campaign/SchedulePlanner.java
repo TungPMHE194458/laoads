@@ -43,7 +43,23 @@ public final class SchedulePlanner {
         return nextOccurrence(s, lastRun);
     }
 
+    /** Nhiều khung thời gian (laoads.com "Khung thời gian 1, 2…"): lượt kế tiếp = sớm nhất trong các khung. */
     static Instant nextOccurrence(ScheduleDef s, Instant after) {
+        if (s.frames() == null || s.frames().isEmpty()) {
+            return nextInFrame(s, after);
+        }
+        Instant best = null;
+        for (CampaignDefinition.FrameDef f : s.frames()) {
+            Instant t = nextInFrame(new ScheduleDef(s.type(), s.startAt(), s.endAt(), f.every(), f.unit(), f.weekdays(),
+                    f.sendTime(), s.silentHours(), f.monthDays(), s.maxOccurrences(), null), after);
+            if (t != null && (best == null || t.isBefore(best))) {
+                best = t;
+            }
+        }
+        return best;
+    }
+
+    private static Instant nextInFrame(ScheduleDef s, Instant after) {
         LocalTime time = parseTime(s.sendTime(), LocalTime.of(9, 0));
         Instant startAt = s.startAt() != null ? s.startAt() : after;
         LocalDate startDate = startAt.atZone(ZONE).toLocalDate();
