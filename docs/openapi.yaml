@@ -2812,6 +2812,33 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponsePriceQuoteDto"
+  /v1/message-params:
+    get:
+      tags:
+      - campaign
+      summary: Danh mục tham số nội dung tin
+      description: "Viết trong nội dung / tiêu đề dạng {{key}} hoặc {{key|giá trị\
+        \ mặc định}}. Engine thay theo từng thuê bao lúc gửi; thiếu dữ liệu → giá\
+        \ trị mặc định hoặc rỗng. Gửi duyệt chiến dịch có tham số ngoài danh mục →\
+        \ 400 VALIDATION_ERROR (error.validation.unknownParam)."
+      operationId: messageParams
+      parameters:
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListMessageParamDto"
   /v1/me:
     get:
       tags:
@@ -5232,6 +5259,41 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ApiFieldError"
+    ApiResponseListMessageParamDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageParamDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    MessageParamDto:
+      type: object
+      properties:
+        key:
+          type: string
+        token:
+          type: string
+        source:
+          type: string
+        maxLength:
+          type: integer
+          format: int32
+        example:
+          type: string
     ApiResponseMeResponse:
       type: object
       properties:

@@ -20,6 +20,7 @@ import type {
   RoleDef,
   Segment,
   SegmentAttribute,
+  MessageParam,
   SenderNumber,
   UserDto,
   Workspace,
@@ -115,6 +116,11 @@ export const priceSeq = { v: 3 }
 export const activeUnitPrice = (a: ActionType) => priceQuotes.find((p) => p.status === 'LOCKED')?.items.find((i) => i.actionType === a)?.unitPrice ?? 0
 
 // ── Tệp khách hàng ──
+// Giống BE MessageParams.PARAMS (GET /message-params)
+export const messageParams: MessageParam[] = [
+  { key: 'isdn', token: '{{isdn}}', source: 'TARGET', maxLength: 13, example: '8562055512345' },
+  { key: 'package', token: '{{package}}', source: 'SUBSCRIBER', maxLength: 16, example: 'M50' },
+]
 export const segmentAttributes: SegmentAttribute[] = [
   { field: 'province_code_active', group: 'PROFILE', dataType: 'STRING', options: ['VTE', 'LPB', 'SVK', 'CPS', 'XKH', 'OUD', 'BOK'] },
   { field: 'customer_age', group: 'PROFILE', dataType: 'NUMBER' },
@@ -251,7 +257,7 @@ function mkCampaign(
     delayMinutes: i === 0 ? 0 : 60 * 24,
     senderId: c === 'SMS' ? '118' : null,
     subject: c === 'EMAIL' ? name : null,
-    content: c === 'SMS' ? `[Unitel] ${name}. Soạn DK gửi 118 để nhận ưu đãi. Chi tiết: {{link}}` : c === 'WHATSAPP' ? null : `Ưu đãi dành riêng cho {{name}}`,
+    content: c === 'SMS' ? `[Unitel] ${name}. Soạn DK gửi 118 để nhận ưu đãi. Chi tiết: https://unitel.com.la/uu-dai` : c === 'WHATSAPP' ? null : `Ưu đãi dành riêng cho thuê bao {{isdn}}, gói hiện tại {{package|chưa có}}`,
     templateId: c === 'WHATSAPP' ? 'unitel_promo_v3' : null,
   }))
   if (opts.type !== 'EVENT' && id % 3 === 0) actions.push({ id: `a${id}-gift`, type: 'ADD_DATA', delayMinutes: 0, senderId: null, subject: null, content: null, templateId: null, amount: 1024, packageCode: null } as never)

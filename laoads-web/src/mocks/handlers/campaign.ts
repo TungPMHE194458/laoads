@@ -20,7 +20,7 @@ import type {
 } from '@/api/types'
 import { CHANNELS, SENDER_CHANNELS } from '@/api/types'
 import type { AudienceRequest, AudienceSource, Segment } from '@/api/types'
-import { activeUnitPrice, audienceCatalog, audit, campaigns, campaignSeq, groups, notificationSettings, rand, refreshGroupCounts, segmentAttributes, segments, segmentSeq, senderPasswords, senders, senderSeq, users, workspaces } from '../db'
+import { activeUnitPrice, audienceCatalog, audit, campaigns, campaignSeq, groups, messageParams, notificationSettings, rand, refreshGroupCounts, segmentAttributes, segments, segmentSeq, senderPasswords, senders, senderSeq, users, workspaces } from '../db'
 import { currentUser, fail, guard, includes, ok, paged, q, workspaceId } from '../utils'
 import { validateAudience } from '@/features/campaign/audience'
 
@@ -397,6 +397,7 @@ export const campaignHandlers = [
 
   // ───── Tệp khách hàng ─────
   http.get(`${B}/segment-attributes`, () => ok(segmentAttributes)),
+  http.get(`${B}/message-params`, () => ok(messageParams)),
 
   // ───── Audience API (OCS / BCCS3) ─────
   http.get(`${B}/segments/audience/sources`, ({ request }) => {

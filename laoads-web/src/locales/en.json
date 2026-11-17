@@ -531,13 +531,14 @@
         "allocation": "Group allocations must add up to 100%.",
         "noAction": "Add at least one action to a non-control group.",
         "content": "A messaging action has no content.",
-        "smsLong": "SMS content exceeds 459 characters (3 messages).",
+        "smsLong": "SMS content exceeds 459 characters (3 messages), counting parameters at their maximum length.",
         "subject": "Email needs a subject.",
         "amount": "Offer actions need an amount greater than 0.",
         "start": "Please choose a start time.",
         "endBeforeStart": "End time must be after start time.",
         "budget": "Maximum budget is below the estimated cost.",
-        "sender": "An SMS action has no sender selected."
+        "sender": "An SMS action has no sender selected.",
+        "unknownParam": "The content uses unsupported parameters."
       },
       "trackLinks": "Track link clicks (replace links in the message with tracking links)",
       "newGroup": "New campaign group",
@@ -546,7 +547,17 @@
       "senderNone": "None (default gateway)",
       "senderUnavailable": "no longer available",
       "senderUnavailableHint": "This sender is disabled, deleted or no longer allowed for this workspace — pick another one.",
-      "noSender": "This workspace has no sender for this channel yet — contact a Super Admin."
+      "noSender": "This workspace has no sender for this channel yet — contact a Super Admin.",
+      "smsCounterParams": "Up to {{n}} chars after parameters are filled · {{seg}} SMS",
+      "unknownParams": "Unsupported parameters: {{list}}. Remove or fix them before submitting.",
+      "preview": "Preview",
+      "paramExample": "Example: {{v}}",
+      "paramHint": "Parameters are filled per subscriber when sending. A subscriber with no data gets the default you set, e.g. {{example}}; otherwise it is left blank.",
+      "paramDefaultSample": "new plan"
+    },
+    "param": {
+      "isdn": "Subscriber number",
+      "package": "Current data package"
     }
   },
   "approval": {

@@ -43,7 +43,7 @@ const DYNAMIC = {
   'campaign.wizard.schedule': ['NOW', 'ONCE', 'RECURRING', 'NOW_desc', 'ONCE_desc', 'RECURRING_desc'],
   'campaign.wizard.unit': ['DAY', 'WEEK', 'MONTH'],
   'campaign.wizard.goal': ['AUTO_OCS', 'MANUAL_FILE', 'NONE', 'AUTO_OCS_desc', 'MANUAL_FILE_desc', 'NONE_desc'],
-  'campaign.wizard.err': ['name', 'segment', 'allocation', 'noAction', 'sender', 'content', 'smsLong', 'subject', 'amount', 'start', 'endBeforeStart', 'budget'],
+  'campaign.wizard.err': ['name', 'segment', 'allocation', 'noAction', 'sender', 'content', 'smsLong', 'subject', 'amount', 'unknownParam', 'start', 'endBeforeStart', 'budget'],
   weekday: ['0', '1', '2', '3', '4', '5', '6'],
   langName: ['LO', 'EN', 'VI'],
   op: ['EQ', 'NEQ', 'GT', 'GTE', 'LT', 'LTE', 'BETWEEN', 'IN', 'IS_NULL'],
@@ -61,6 +61,9 @@ const DYNAMIC = {
   // key nằm trong biểu thức điều kiện, regex không bắt được
   dashboard: ['morning', 'afternoon', 'evening'],
   adminWs: ['lockDesc', 'unlockDesc'],
+  // tham số nội dung tin (GET /message-params) + bộ đếm SMS chọn trong ternary
+  'campaign.param': ['isdn', 'package'],
+  'campaign.wizard': ['smsCounter', 'smsCounterParams'],
 }
 
 function walk(dir) {

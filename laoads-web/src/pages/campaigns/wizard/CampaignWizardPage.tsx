@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, FlaskConical, ListChecks, Plus, Rocket, Send, Users2, XCircle, Zap } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { CampaignDetail, CampaignInput, CampaignSchedule } from '@/api/types'
-import { useAvailableSenders, useCampaign, useCampaignGroups, useCreateCampaignGroup, useNotificationSettings, useSaveCampaign, useSegments, useTestSend } from '@/features/campaign/api'
+import { useAvailableSenders, useCampaign, useCampaignGroups, useCreateCampaignGroup, useMessageParams, useNotificationSettings, useSaveCampaign, useSegments, useTestSend } from '@/features/campaign/api'
 import { useActivePriceQuote } from '@/features/price/api'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Field, FormDialog } from '@/components/common/dialogs'
@@ -123,6 +123,7 @@ export default function CampaignWizardPage() {
   const notif = useNotificationSettings()
   const save = useSaveCampaign()
   const testSend = useTestSend()
+  const messageParams = useMessageParams()
   const [testList, setTestList] = React.useState('')
   // Hành động SMS chưa chọn đầu số dùng đầu số SMS đầu tiên workspace được dùng (điền khi kiểm tra / lưu / bắn thử)
   const smsSenders = useAvailableSenders('SMS')
@@ -141,7 +142,7 @@ export default function CampaignWizardPage() {
   const validate = (s: Step): string | null => {
     if (s === 'basics') return draft.name.trim().length < 3 ? 'campaign.wizard.err.name' : null
     if (s === 'audience') return !draft.segmentId ? 'campaign.wizard.err.segment' : null
-    if (s === 'actions') return validateActions(actionGroups)
+    if (s === 'actions') return validateActions(actionGroups, messageParams.data)
     if (s === 'schedule') {
       if (draft.schedule.type !== 'NOW' && !draft.schedule.startAt) return 'campaign.wizard.err.start'
       if (draft.schedule.endAt && draft.schedule.startAt && draft.schedule.endAt <= draft.schedule.startAt) return 'campaign.wizard.err.endBeforeStart'

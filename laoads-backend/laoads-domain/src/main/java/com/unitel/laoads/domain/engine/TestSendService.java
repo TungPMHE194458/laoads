@@ -5,6 +5,7 @@ import com.unitel.laoads.domain.campaign.CampaignDefinition.ActionDef;
 import com.unitel.laoads.domain.campaign.CampaignDefinition.ActionGroupDef;
 import com.unitel.laoads.domain.campaign.CampaignEnums.Channel;
 import com.unitel.laoads.domain.campaign.CampaignService;
+import com.unitel.laoads.domain.campaign.MessageParams;
 import com.unitel.laoads.domain.common.FieldViolation;
 import com.unitel.laoads.domain.common.Isdns;
 import com.unitel.laoads.domain.common.LaoadsException;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -35,6 +37,7 @@ public class TestSendService {
 
     private final MessageGateway gateway;
     private final CampaignService campaignService;
+    private final MessageParamValues paramValues;
 
     public List<Result> send(long workspaceId, Long campaignId, List<String> rawIsdns, List<ActionDef> draftActions,
                              String actor) {
@@ -66,13 +69,17 @@ public class TestSendService {
             actions = List.of(new ActionDef("test", ActionType.NOTIFICATION_SMS, 0, null, null,
                     "[LaoAds] Tin nhắn thử nghiệm", null, null, null, false));
         }
+        // tham số nội dung thay như khi gửi thật: số thử không có trong LADS_SUBSCRIBER → giá trị mặc định / rỗng
+        boolean needsSubscriber = actions.stream().anyMatch(a -> MessageParams.needsSubscriber(a.subject(), a.content()));
+        Map<String, Map<String, String>> values = needsSubscriber ? paramValues.load(isdns) : Map.of();
         List<Result> out = new ArrayList<>();
         for (String isdn : isdns) {
             for (ActionDef a : actions) {
                 MessageGateway.Result r;
                 try {
-                    r = gateway.send(new MessageGateway.Outbound(0, a.channel(), a.type(), isdn, a.senderId(), a.subject(),
-                            a.content(), a.amount(), a.packageCode(), language));
+                    r = gateway.send(new MessageGateway.Outbound(0, a.channel(), a.type(), isdn, a.senderId(),
+                            MessageParams.render(a.subject(), isdn, values.get(isdn)),
+                            MessageParams.render(a.content(), isdn, values.get(isdn)), a.amount(), a.packageCode(), language));
                 } catch (RuntimeException e) {
                     r = MessageGateway.Result.fail(e.getMessage(), false);
                 }

@@ -10,6 +10,7 @@ import com.unitel.laoads.domain.campaign.CampaignHistory;
 import com.unitel.laoads.domain.campaign.CampaignHistoryRepository;
 import com.unitel.laoads.domain.campaign.CampaignRepository;
 import com.unitel.laoads.domain.campaign.CampaignService;
+import com.unitel.laoads.domain.campaign.MessageParams;
 import com.unitel.laoads.domain.campaign.SchedulePlanner;
 import com.unitel.laoads.domain.common.Times;
 import com.unitel.laoads.domain.pricing.ActionType;
@@ -32,8 +33,10 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -67,6 +70,7 @@ public class MessageDispatcher {
     private final SenderNumberRepository senderRepo;
     private final SenderNumberService senderService;
     private final MessageGateway gateway;
+    private final MessageParamValues paramValues;
     private final TransactionTemplate tx;
     private final String publicBaseUrl;
     /** Chu kỳ dispatch ~5 giây → bucket chứa TPS × 5 lượt để đạt đúng TPS trung bình. */
@@ -75,7 +79,7 @@ public class MessageDispatcher {
     public MessageDispatcher(JdbcTemplate jdbc, CampaignRepository campaignRepo, CampaignHistoryRepository historyRepo,
                              CampaignService campaignService, SettingsService settingsService,
                              SenderNumberRepository senderRepo, SenderNumberService senderService, MessageGateway gateway,
-                             PlatformTransactionManager txManager,
+                             MessageParamValues paramValues, PlatformTransactionManager txManager,
                              @Value("${laoads.engine.public-base-url:http://localhost:5173}") String publicBaseUrl) {
         this.jdbc = jdbc;
         this.campaignRepo = campaignRepo;
@@ -85,6 +89,7 @@ public class MessageDispatcher {
         this.senderRepo = senderRepo;
         this.senderService = senderService;
         this.gateway = gateway;
+        this.paramValues = paramValues;
         this.tx = new TransactionTemplate(txManager);
         this.publicBaseUrl = publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
     }
@@ -116,6 +121,7 @@ public class MessageDispatcher {
         Map<String, Integer> overflow = new HashMap<>();
         List<Object[]> throttled = new ArrayList<>();
         Map<Long, CampaignCtx> contexts = new HashMap<>();
+        Map<String, Map<String, String>> subscriberValues = subscriberValues(due, contexts);
         int processed = 0;
         for (Due m : due) {
             CampaignCtx ctx = contexts.computeIfAbsent(m.campaignId(), this::load);
@@ -177,8 +183,8 @@ public class MessageDispatcher {
                 continue;
             }
             processed++;
-            if (send(m, ctx, action, sender, code, settings, prices.getOrDefault(m.actionType(), BigDecimal.ZERO), now)
-                    && code != null) {
+            if (send(m, ctx, action, sender, code, settings, prices.getOrDefault(m.actionType(), BigDecimal.ZERO),
+                    subscriberValues.get(m.isdn()), now) && code != null) {
                 sentToday.merge(code, 1L, Long::sum);
             }
         }
@@ -188,15 +194,34 @@ public class MessageDispatcher {
         return processed;
     }
 
+    /**
+     * Giá trị tham số nguồn LADS_SUBSCRIBER cho các tin trong lô — một truy vấn cho cả lô, chỉ với thuê bao có
+     * hành động dùng tham số loại này.
+     */
+    private Map<String, Map<String, String>> subscriberValues(List<Due> due, Map<Long, CampaignCtx> contexts) {
+        Set<String> isdns = new HashSet<>();
+        for (Due m : due) {
+            CampaignCtx ctx = contexts.computeIfAbsent(m.campaignId(), this::load);
+            ActionDef a = ctx == null || ctx.overBudget() ? null : actionOf(ctx.def(), m.groupKey(), m.actionKey());
+            if (a != null && MessageParams.needsSubscriber(a.subject(), a.content())) {
+                isdns.add(m.isdn());
+            }
+        }
+        return isdns.isEmpty() ? Map.of() : paramValues.load(isdns);
+    }
+
     /** @return true nếu gateway nhận tin (SENT / DELIVERED) */
     private boolean send(Due m, CampaignCtx ctx, ActionDef action, SenderNumber sender, String senderCode,
-                         NotificationSettings settings, BigDecimal unitPrice, Instant now) {
-        String content = action == null ? null : action.content();
+                         NotificationSettings settings, BigDecimal unitPrice, Map<String, String> subscriber,
+                         Instant now) {
+        // thay tham số trước, rồi mới thay link — URL có tham số ({{isdn}}) được tracking với giá trị thật
+        String content = action == null ? null : MessageParams.render(action.content(), m.isdn(), subscriber);
+        String subject = action == null ? null : MessageParams.render(action.subject(), m.isdn(), subscriber);
         if (action != null && action.tracksLinks() && content != null) {
             content = trackLinks(content, m.id(), m.campaignId(), now);
         }
         MessageGateway.Outbound out = new MessageGateway.Outbound(m.id(), m.channel(), m.actionType(), m.isdn(),
-                action == null ? null : action.senderId(), action == null ? null : action.subject(), content,
+                action == null ? null : action.senderId(), subject, content,
                 action == null ? null : action.amount(), action == null ? null : action.packageCode(),
                 ctx.campaign().getLanguage());
         MessageGateway.Result r;

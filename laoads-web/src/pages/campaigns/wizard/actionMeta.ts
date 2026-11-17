@@ -14,7 +14,7 @@ import {
   Wifi,
   type LucideIcon,
 } from 'lucide-react'
-import type { ActionGroup, ActionType, Channel, SenderChannel } from '@/api/types'
+import type { ActionGroup, ActionType, Channel, MessageParam, SenderChannel } from '@/api/types'
 
 /** Kênh đầu số của hành động (chỉ SMS / USSD chọn đầu số). */
 export const SENDER_CHANNEL_OF: Partial<Record<ActionType, SenderChannel>> = { NOTIFICATION_SMS: 'SMS', NOTIFICATION_USSD: 'USSD' }
@@ -64,4 +64,30 @@ export const AMOUNT_UNIT: Partial<Record<ActionType, string>> = {
 
 export const WA_TEMPLATES = ['unitel_promo_v3', 'unitel_welcome_v2', 'unitel_data_offer', 'unitel_umoney_kyc']
 export const EVENT_TEMPLATES = ['SIM_ACTIVATION_D0', 'TOPUP_FIRST_TIME', 'PACKAGE_EXPIRING_D3', 'BIRTHDAY']
-export const SMS_PARAMS = ['{{name}}', '{{isdn}}', '{{package}}', '{{link}}']
+
+// ───── Tham số nội dung tin: {{key}} hoặc {{key|mặc định}} — cùng cú pháp với BE (MessageParams.TOKEN) ─────
+const PARAM_RE = /\{\{\s*([A-Za-z0-9_]+)\s*(?:\|([^{}]*))?\}\}/g
+
+const byKey = (params: MessageParam[]) => new Map(params.map((p) => [p.key, p]))
+
+/** Tham số ngoài danh mục, giữ nguyên cách viết (vd `{{name}}`), không trùng lặp. */
+export function unknownParams(text: string | null | undefined, params: MessageParam[]): string[] {
+  if (!text) return []
+  const known = byKey(params)
+  return [...new Set([...text.matchAll(PARAM_RE)].filter((m) => !known.has(m[1].toLowerCase())).map((m) => m[0]))]
+}
+
+export const hasParams = (text: string | null | undefined) => !!text && new RegExp(PARAM_RE.source).test(text)
+
+/** Độ dài lớn nhất sau khi thay: tham số = độ dài tối đa của giá trị (hoặc của giá trị mặc định nếu dài hơn). */
+export function expandedLength(text: string | null | undefined, params: MessageParam[]): number {
+  if (!text) return 0
+  const known = byKey(params)
+  return text.replace(PARAM_RE, (_, key: string, def?: string) => 'x'.repeat(Math.max(known.get(key.toLowerCase())?.maxLength ?? 0, def?.trim().length ?? 0))).length
+}
+
+/** Xem trước với giá trị ví dụ; tham số lạ → mặc định hoặc rỗng (giống BE lúc gửi). */
+export function previewParams(text: string, params: MessageParam[]): string {
+  const known = byKey(params)
+  return text.replace(PARAM_RE, (_, key: string, def?: string) => known.get(key.toLowerCase())?.example ?? def?.trim() ?? '')
+}

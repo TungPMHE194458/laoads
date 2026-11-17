@@ -466,6 +466,17 @@ export interface SegmentAttribute {
   dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'DATE'
   options?: string[]
 }
+/** Tham số cá nhân hoá trong nội dung tin (GET /message-params): viết `{{key}}` hoặc `{{key|mặc định}}`. */
+export interface MessageParam {
+  key: string
+  /** `{{key}}` — chuỗi chèn vào nội dung */
+  token: string
+  /** TARGET = lấy từ thuê bao nhận tin; SUBSCRIBER = dữ liệu BI (LADS_SUBSCRIBER), có thể trống */
+  source: 'TARGET' | 'SUBSCRIBER'
+  /** Độ dài tối đa của giá trị — để ước tính độ dài tin sau khi thay */
+  maxLength: number
+  example: string
+}
 export interface SegmentMember {
   recipientKey: string
   phone: string

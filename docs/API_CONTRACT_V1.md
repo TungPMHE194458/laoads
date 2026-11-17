@@ -171,7 +171,8 @@ Shape chi tiết: springdoc (`/api/swagger-ui.html`) và `laoads-web/src/api/typ
 | 🏢 `GET/POST /campaigns`, `GET/PUT/DELETE /campaigns/{id}` (`?submit=true` = gửi duyệt luôn) | CAMPAIGN_VIEW / CREATE / UPDATE / DELETE | BE tự tính `targetCount`, `channels`, `expectedCost` |
 | 🏢 `POST /campaigns/{id}/submit` · `/pause` · `/resume` · `/cancel` · `/duplicate` | SUBMIT / UPDATE / UPDATE / UPDATE / CREATE | sai trạng thái → 409 `INVALID_TRANSITION`; sửa khi không phải Nháp / Bị từ chối → 409 `CAMPAIGN_LOCKED` |
 | 🏢 `GET /campaigns/{id}/report?bucket=DAY\|WEEK\|MONTH` | REPORT_VIEW | tổng, chuỗi thời gian, theo kênh, theo nhóm A/B (uplift = điểm %) |
-| 🏢 `POST /campaigns/test-send` `{campaignId?, isdns[≤20], actions?}` | CAMPAIGN_CREATE hoặc UPDATE | gửi ngay, không tính vào số liệu |
+| 🏢 `POST /campaigns/test-send` `{campaignId?, isdns[≤20], actions?}` | CAMPAIGN_CREATE hoặc UPDATE | gửi ngay, không tính vào số liệu; tham số nội dung được thay như khi gửi thật |
+| `GET /message-params` | đăng nhập | danh mục tham số nội dung tin `{key, token, source, maxLength, example}`, hiện có `{{isdn}}` (thuê bao nhận tin) và `{{package}}` (`REAL_PACKAGE_DATA` trong `LADS_SUBSCRIBER`). Viết `{{key}}` hoặc `{{key\|mặc định}}` trong `content` / `subject`; engine thay theo từng thuê bao lúc gửi, thiếu dữ liệu → giá trị mặc định hoặc rỗng. Gửi duyệt có tham số ngoài danh mục → 400 `VALIDATION_ERROR`, mỗi trường một lỗi `error.validation.unknownParam` |
 | 🏢 `POST /campaigns/{id}/conversions/import` (multipart `file`) | CAMPAIGN_UPDATE | mục tiêu MANUAL_FILE |
 | 🏢 `GET /campaign-approvals`, `POST /campaign-approvals/{id}/approve` · `/reject` `{reason}` | CAMPAIGN_APPROVE | từ chối bắt buộc lý do |
 | 🏢 `GET/POST /campaign-groups`, `PUT/DELETE /campaign-groups/{id}` | VIEW / CREATE / UPDATE / DELETE | trùng tên → 409 `GROUP_NAME_DUPLICATE`; còn chiến dịch → 409 `GROUP_IN_USE` |

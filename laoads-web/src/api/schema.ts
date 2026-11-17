@@ -1071,6 +1071,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/message-params": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Danh mục tham số nội dung tin
+         * @description Viết trong nội dung / tiêu đề dạng {{key}} hoặc {{key|giá trị mặc định}}. Engine thay theo từng thuê bao lúc gửi; thiếu dữ liệu → giá trị mặc định hoặc rỗng. Gửi duyệt chiến dịch có tham số ngoài danh mục → 400 VALIDATION_ERROR (error.validation.unknownParam).
+         */
+        get: operations["messageParams"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -2164,6 +2184,23 @@ export interface components {
             metaData?: components["schemas"]["PageMeta"];
             requestId?: string;
             errors?: components["schemas"]["ApiFieldError"][];
+        };
+        ApiResponseListMessageParamDto: {
+            success?: boolean;
+            data?: components["schemas"]["MessageParamDto"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        MessageParamDto: {
+            key?: string;
+            token?: string;
+            source?: string;
+            /** Format: int32 */
+            maxLength?: number;
+            example?: string;
         };
         ApiResponseMeResponse: {
             success?: boolean;
@@ -4464,6 +4501,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponsePriceQuoteDto"];
+                };
+            };
+        };
+    };
+    messageParams: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListMessageParamDto"];
                 };
             };
         };

@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, GripVertical, Plus, Trash2 } from 'lucide-react'
-import type { ActionGroup, ActionType, CampaignAction, SenderChannel } from '@/api/types'
+import type { ActionGroup, ActionType, CampaignAction, MessageParam, SenderChannel } from '@/api/types'
 import { NOTIFICATION_ACTIONS, TELECOM_ACTIONS } from '@/api/types'
-import { useAvailableSenders } from '@/features/campaign/api'
+import { useAvailableSenders, useMessageParams } from '@/features/campaign/api'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Field } from '@/components/common/dialogs'
 import { cn } from '@/lib/utils'
-import { actionIcon, AMOUNT_UNIT, NEEDS_AMOUNT, NEEDS_CONTENT, SENDER_CHANNEL_OF, SMS_PARAMS, WA_TEMPLATES } from './actionMeta'
+import { actionIcon, AMOUNT_UNIT, expandedLength, hasParams, NEEDS_AMOUNT, NEEDS_CONTENT, previewParams, SENDER_CHANNEL_OF, unknownParams, WA_TEMPLATES } from './actionMeta'
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 
@@ -24,8 +24,11 @@ export function newGroup(name: string, allocationPercent: number, isControl = fa
   return { id: uid(), name, allocationPercent, isControl, mode: 'SEQUENTIAL', actions: isControl ? [] : [newAction('NOTIFICATION_SMS', smsSender)] }
 }
 
-/** Kiểm tra cấu hình hành động; trả về key lỗi i18n hoặc null. */
-export function validateActions(groups: ActionGroup[]): string | null {
+/**
+ * Kiểm tra cấu hình hành động; trả về key lỗi i18n hoặc null.
+ * `params`: danh mục tham số nội dung — rỗng (chưa tải) thì bỏ qua kiểm tra tham số lạ, BE vẫn chặn khi gửi duyệt.
+ */
+export function validateActions(groups: ActionGroup[], params: MessageParam[] = []): string | null {
   const total = groups.reduce((s, g) => s + (Number(g.allocationPercent) || 0), 0)
   if (total !== 100) return 'campaign.wizard.err.allocation'
   if (!groups.some((g) => !g.isControl && g.actions.length)) return 'campaign.wizard.err.noAction'
@@ -33,7 +36,8 @@ export function validateActions(groups: ActionGroup[]): string | null {
     for (const a of g.actions) {
       if (a.type === 'NOTIFICATION_SMS' && !a.senderId) return 'campaign.wizard.err.sender'
       if (NEEDS_CONTENT.includes(a.type) && !a.content?.trim()) return 'campaign.wizard.err.content'
-      if (a.type === 'NOTIFICATION_SMS' && (a.content?.length ?? 0) > 459) return 'campaign.wizard.err.smsLong'
+      if (params.length && !g.isControl && (unknownParams(a.content, params).length || unknownParams(a.subject, params).length)) return 'campaign.wizard.err.unknownParam'
+      if (a.type === 'NOTIFICATION_SMS' && expandedLength(a.content, params) > 459) return 'campaign.wizard.err.smsLong'
       if (a.type === 'NOTIFICATION_EMAIL' && !a.subject?.trim()) return 'campaign.wizard.err.subject'
       if (NEEDS_AMOUNT.includes(a.type) && !(Number(a.amount) > 0)) return 'campaign.wizard.err.amount'
     }
@@ -71,8 +75,13 @@ function SenderSelect({ a, channel, defaultSms, onChange }: { a: CampaignAction;
 function ActionEditor({ a, index, sequential, defaultSms, onChange, onRemove }: { a: CampaignAction; index: number; sequential: boolean; defaultSms: string | null; onChange: (a: CampaignAction) => void; onRemove: () => void }) {
   const { t } = useTranslation()
   const senderChannel = SENDER_CHANNEL_OF[a.type]
-  const smsLen = a.content?.length ?? 0
+  const params = useMessageParams().data ?? []
+  const withParams = hasParams(a.content)
+  // có tham số → đếm theo độ dài tối đa sau khi thay (giá trị thật mỗi thuê bao có thể ngắn hơn)
+  const smsLen = expandedLength(a.content, params)
   const segments = smsLen <= 160 ? 1 : Math.ceil(smsLen / 153)
+  const unknown = [...unknownParams(a.content, params), ...unknownParams(a.subject, params)]
+  const sampleParam = params.find((p) => p.source === 'SUBSCRIBER') ?? params[0]
   const insert = (p: string) => onChange({ ...a, content: `${a.content ?? ''}${a.content && !a.content.endsWith(' ') ? ' ' : ''}${p}` })
   return (
     <div className="rounded-xl border bg-card">
@@ -113,18 +122,31 @@ function ActionEditor({ a, index, sequential, defaultSms, onChange, onRemove }: 
             required
             hint={
               a.type === 'NOTIFICATION_SMS' ? (
-                <span className={cn('tabular', smsLen > 459 && 'text-danger')}>{t('campaign.wizard.smsCounter', { n: smsLen, seg: segments })}</span>
+                <span className={cn('tabular', smsLen > 459 && 'text-danger')}>{t(withParams ? 'campaign.wizard.smsCounterParams' : 'campaign.wizard.smsCounter', { n: smsLen, seg: segments })}</span>
               ) : undefined
             }
           >
             <Textarea rows={a.type === 'NOTIFICATION_EMAIL' ? 6 : 3} value={a.content ?? ''} onChange={(e) => onChange({ ...a, content: e.target.value })} placeholder={t('campaign.wizard.contentPh')} />
+            {unknown.length > 0 && <p className="text-xs text-danger">{t('campaign.wizard.unknownParams', { list: unknown.join(', ') })}</p>}
+            {withParams && a.content && (
+              <p className="rounded-md bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{t('campaign.wizard.preview')}:</span> {previewParams(a.content, params)}
+              </p>
+            )}
             <div className="flex flex-wrap gap-1.5">
-              {SMS_PARAMS.map((p) => (
-                <button key={p} type="button" onClick={() => insert(p)} className="cursor-pointer rounded-md border border-dashed px-2 py-0.5 font-mono text-[11px] text-muted-foreground transition hover:border-brand-300 hover:text-brand-600">
-                  + {p}
+              {params.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => insert(p.token)}
+                  title={t('campaign.wizard.paramExample', { v: p.example })}
+                  className="cursor-pointer rounded-md border border-dashed px-2 py-0.5 text-[11px] text-muted-foreground transition hover:border-brand-300 hover:text-brand-600"
+                >
+                  + <span className="font-mono">{p.token}</span> {t(`campaign.param.${p.key}`)}
                 </button>
               ))}
             </div>
+            {sampleParam && <p className="text-xs text-muted-foreground">{t('campaign.wizard.paramHint', { example: `{{${sampleParam.key}|${t('campaign.wizard.paramDefaultSample')}}}` })}</p>}
             <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
               <Switch checked={!!a.trackLinks} onCheckedChange={(v) => onChange({ ...a, trackLinks: v })} />
               {t('campaign.wizard.trackLinks')}

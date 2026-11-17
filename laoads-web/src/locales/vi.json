@@ -531,13 +531,14 @@
         "allocation": "Tổng phân bổ các nhóm phải bằng 100%.",
         "noAction": "Cần ít nhất một hành động trong nhóm không phải đối chứng.",
         "content": "Có hành động gửi tin chưa nhập nội dung.",
-        "smsLong": "Nội dung SMS vượt quá 459 ký tự (3 tin).",
+        "smsLong": "Nội dung SMS vượt quá 459 ký tự (3 tin), tính cả độ dài tối đa của tham số.",
         "subject": "Email cần có tiêu đề.",
         "amount": "Hành động ưu đãi cần số lượng lớn hơn 0.",
         "start": "Vui lòng chọn thời gian bắt đầu.",
         "endBeforeStart": "Thời gian kết thúc phải sau thời gian bắt đầu.",
         "budget": "Ngân sách tối đa thấp hơn chi phí dự kiến.",
-        "sender": "Có hành động SMS chưa chọn đầu số gửi."
+        "sender": "Có hành động SMS chưa chọn đầu số gửi.",
+        "unknownParam": "Nội dung có tham số không được hỗ trợ."
       },
       "trackLinks": "Theo dõi click link (thay link trong nội dung bằng link tracking)",
       "newGroup": "Tạo nhóm chiến dịch",
@@ -546,7 +547,17 @@
       "senderNone": "Không chọn (gateway mặc định)",
       "senderUnavailable": "không còn dùng được",
       "senderUnavailableHint": "Đầu số này đã tắt, bị xoá hoặc workspace không còn được dùng — hãy chọn đầu số khác.",
-      "noSender": "Workspace chưa được cấp đầu số nào cho kênh này — liên hệ Super Admin."
+      "noSender": "Workspace chưa được cấp đầu số nào cho kênh này — liên hệ Super Admin.",
+      "smsCounterParams": "Tối đa {{n}} ký tự sau khi thay tham số · {{seg}} tin SMS",
+      "unknownParams": "Tham số không được hỗ trợ: {{list}}. Xoá hoặc sửa trước khi gửi duyệt.",
+      "preview": "Xem trước",
+      "paramExample": "Ví dụ: {{v}}",
+      "paramHint": "Tham số được thay theo từng thuê bao khi gửi. Thuê bao thiếu dữ liệu nhận giá trị mặc định nếu bạn khai báo, ví dụ {{example}}; không thì để trống.",
+      "paramDefaultSample": "gói mới"
+    },
+    "param": {
+      "isdn": "Số thuê bao",
+      "package": "Gói data hiện tại"
     }
   },
   "approval": {

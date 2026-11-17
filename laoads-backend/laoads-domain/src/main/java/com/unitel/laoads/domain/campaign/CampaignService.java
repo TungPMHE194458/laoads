@@ -423,6 +423,7 @@ public class CampaignService {
             validateGroups(def, errors);
             if (strict) {
                 validateSenders(ws, def, errors);
+                validateParams(def, errors);
             }
             if (in.type() != Type.EVENT) {
                 validateSchedule(def.schedule(), errors);
@@ -485,6 +486,31 @@ public class CampaignService {
                             "Đầu số " + code + " không dùng được cho hành động này", code));
                 }
             }
+        }
+    }
+
+    /** Khi gửi duyệt: nội dung / tiêu đề chỉ được dùng tham số trong danh mục {@link MessageParams}. */
+    static void validateParams(CampaignDefinition def, List<FieldViolation> errors) {
+        for (int gi = 0; gi < def.groups().size(); gi++) {
+            ActionGroupDef g = def.groups().get(gi);
+            if (g.isControl() || g.actions() == null) {
+                continue;
+            }
+            for (int ai = 0; ai < g.actions().size(); ai++) {
+                ActionDef a = g.actions().get(ai);
+                String path = "actionGroups[" + gi + "].actions[" + ai + "]";
+                addUnknownParams(path + ".subject", a.subject(), errors);
+                addUnknownParams(path + ".content", a.content(), errors);
+            }
+        }
+    }
+
+    private static void addUnknownParams(String path, String text, List<FieldViolation> errors) {
+        List<String> unknown = MessageParams.unknownTokens(text);
+        if (!unknown.isEmpty()) {
+            String list = String.join(", ", unknown);
+            errors.add(new FieldViolation(path, "error.validation.unknownParam",
+                    "Nội dung có tham số không được hỗ trợ: " + list, list));
         }
     }
 

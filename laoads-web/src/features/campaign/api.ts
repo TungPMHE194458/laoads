@@ -24,6 +24,7 @@ import type {
   PageQuery,
   Segment,
   SegmentAttribute,
+  MessageParam,
   SegmentCondition,
   SegmentMember,
   SenderChannel,
@@ -188,6 +189,10 @@ export function useSegmentMembers(id: number | null, page: number) {
 }
 export function useSegmentAttributes() {
   return useQuery({ queryKey: ['segment-attributes'], queryFn: () => request<SegmentAttribute[]>({ url: '/segment-attributes' }), staleTime: Infinity })
+}
+/** Danh mục tham số nội dung tin — cố định phía BE, dùng chung mọi workspace. */
+export function useMessageParams() {
+  return useQuery({ queryKey: ['message-params'], queryFn: () => request<MessageParam[]>({ url: '/message-params' }), staleTime: Infinity })
 }
 export function useEstimateSegment() {
   return useMutation({
