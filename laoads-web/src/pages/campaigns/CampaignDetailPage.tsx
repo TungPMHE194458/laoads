@@ -10,35 +10,39 @@ import {
   FlaskConical,
   Goal,
   History,
+  Info,
+  Lock,
   Megaphone,
   Pause,
   Pencil,
   Play,
   Rocket,
+  RotateCw,
   Send,
   Settings2,
   Users2,
   Wallet,
 } from 'lucide-react'
-import type { ActionGroup, CampaignDetail } from '@/api/types'
+import { errorMessage } from '@/api/client'
+import type { ActionGroup, CampaignDetail, Channel } from '@/api/types'
 import { useCampaign, useCampaignReport } from '@/features/campaign/api'
 import { useCan } from '@/features/auth/permissions'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ChartCard } from '@/components/common/ChartCard'
 import { CampaignStatusBadge, CHANNEL_META } from '@/components/common/status'
-import { FunnelBars, RateBar, TrendArea } from '@/components/charts/charts'
+import { FunnelBars, GroupedRateBars, MetricLines, RateDonut } from '@/components/charts/charts'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/button'
 import { ConversionImport } from './ConversionImport'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/misc'
+import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@/components/ui/misc'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { fmtCompact, fmtDate, fmtDateTime, fmtKip, fmtNumber, fmtPercent } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useCampaignOps } from './campaignActions'
 import { actionIcon } from './wizard/actionMeta'
-
-type Metric = 'sent' | 'opens' | 'clicks' | 'conversions'
 
 function Kpi({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
   return (
@@ -50,22 +54,113 @@ function Kpi({ label, value, sub }: { label: string; value: React.ReactNode; sub
   )
 }
 
+/** Biểu tượng (i) cạnh tiêu đề: giải thích công thức chỉ số (SRS 3.2.8.x). */
+function InfoTip({ text }: { text: string }) {
+  return (
+    <Tooltip content={<span className="block max-w-72 text-xs">{text}</span>}>
+      <button type="button" className="inline-grid cursor-help place-items-center text-muted-foreground hover:text-foreground" aria-label={text}>
+        <Info className="size-3.5" />
+      </button>
+    </Tooltip>
+  )
+}
+
+function TitleWithInfo({ title, info }: { title: string; info: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {title}
+      <InfoTip text={info} />
+    </span>
+  )
+}
+
+const METRIC_SERIES = [
+  { key: 'sent', color: 'var(--metric-sent)' },
+  { key: 'opens', color: 'var(--metric-opens)' },
+  { key: 'clicks', color: 'var(--metric-clicks)' },
+  { key: 'conversions', color: 'var(--metric-conversions)' },
+] as const
+
+const ratio = (a: number, b: number) => (b > 0 ? a / b : 0)
+const dateOnly = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString('sv-SE') : '')
+
+/** Báo cáo chiến dịch — SRS 3.2.8.1–3.2.8.7. */
 function ReportTab({ c }: { c: CampaignDetail }) {
   const { t } = useTranslation()
+  const can = useCan()
   const [bucket, setBucket] = React.useState<'DAY' | 'WEEK' | 'MONTH'>('DAY')
-  const [metric, setMetric] = React.useState<Metric>('conversions')
-  const r = useCampaignReport(c.id, bucket)
-  const started = ['RUNNING', 'PAUSED', 'COMPLETED'].includes(c.status)
+  // SRS 3.2.8.1: khoảng ngày — mặc định từ ngày bắt đầu chiến dịch đến hôm nay (giờ Lào)
+  const [range, setRange] = React.useState(() => ({ from: dateOnly(c.startAt ?? c.createdAt), to: new Date().toLocaleDateString('sv-SE') }))
+  const [channel, setChannel] = React.useState('')
+  const [donutChannel, setDonutChannel] = React.useState<Channel | ''>('')
+  // Đã chạy: đang chạy / tạm dừng / hoàn thành, hoặc đã huỷ sau khi chạy (lịch sử có START)
+  const started = ['RUNNING', 'PAUSED', 'COMPLETED'].includes(c.status) || c.history.some((h) => h.action === 'START')
+  const allowed = can('REPORT_VIEW')
+  const r = useCampaignReport(c.id, { bucket, from: range.from, to: range.to, channel }, started && allowed)
 
+  if (!allowed)
+    return (
+      <Card>
+        <EmptyState icon={<Lock />} title={t('status.forbiddenTitle')} description={t('campaign.detail.noReportPermission')} />
+      </Card>
+    )
   if (!started)
     return (
       <Card>
         <EmptyState icon={<CalendarClock />} title={t('campaign.detail.notStarted')} description={t('campaign.detail.notStartedDesc')} />
       </Card>
     )
+  if (r.isError)
+    return (
+      <Card>
+        <EmptyState
+          icon={<AlertOctagon />}
+          title={t('campaign.detail.reportError')}
+          description={errorMessage(r.error)}
+          action={
+            <Button variant="outline" onClick={() => r.refetch()}>
+              <RotateCw />
+              {t('common.retry')}
+            </Button>
+          }
+        />
+      </Card>
+    )
+
   const tot = r.data?.totals
+  const channels = r.data?.channels ?? []
+  const series = METRIC_SERIES.map((m) => ({ ...m, label: t(`metric.${m.key}`) }))
+  const chSeries = channels.map((ch) => ({ key: ch.channel, label: t(`channel.${ch.channel}`), color: CHANNEL_META[ch.channel].color }))
+  // Tỷ lệ tương tác theo kênh (3.2.8.3): mở / phản hồi (click) / đăng ký; SMS không đo lượt mở → null
+  const interaction = [
+    { metric: t('campaign.detail.rate.open'), ...Object.fromEntries(channels.map((ch) => [ch.channel, ch.channel === 'SMS' ? null : ratio(ch.opened, ch.delivered)])) },
+    { metric: t('campaign.detail.rate.click'), ...Object.fromEntries(channels.map((ch) => [ch.channel, ratio(ch.clicked, ch.delivered)])) },
+    { metric: t('campaign.detail.rate.signup'), ...Object.fromEntries(channels.map((ch) => [ch.channel, ratio(ch.converted, ch.sent)])) },
+  ]
+  // Donut 3.2.8.4–6: mặc định Email nếu chiến dịch có gửi Email, không thì kênh đầu tiên
+  const dCh = (donutChannel && channels.find((x) => x.channel === donutChannel)) || channels.find((x) => x.channel === 'EMAIL') || channels[0]
+  const dName = dCh ? t(`channel.${dCh.channel}`) : ''
+  const noGoal = c.goal.mode === 'NONE'
+  const groups = r.data?.groups ?? []
+
   return (
     <div className="grid gap-6">
+      {/* Bộ lọc thời gian (3.2.8.1 #1, #2) */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex rounded-lg border bg-card p-0.5 text-xs" role="group" aria-label={t('campaign.detail.bucketLabel')}>
+          {(['DAY', 'WEEK', 'MONTH'] as const).map((b) => (
+            <button key={b} aria-pressed={bucket === b} onClick={() => setBucket(b)} className={cn('cursor-pointer rounded-md px-2.5 py-1 transition', bucket === b ? 'bg-accent font-medium text-accent-foreground' : 'text-muted-foreground hover:text-foreground')}>
+              {t(`campaign.detail.bucket.${b}`)}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5 rounded-lg border bg-card px-2 py-0.5 text-xs">
+          <Input type="date" aria-label={t('campaign.detail.rangeFrom')} className="h-7 w-36 border-0 px-1 text-xs shadow-none" value={range.from} max={range.to || undefined} onChange={(e) => e.target.value && setRange((x) => ({ ...x, from: e.target.value }))} />
+          <span className="text-muted-foreground">–</span>
+          <Input type="date" aria-label={t('campaign.detail.rangeTo')} className="h-7 w-36 border-0 px-1 text-xs shadow-none" value={range.to} min={range.from || undefined} onChange={(e) => e.target.value && setRange((x) => ({ ...x, to: e.target.value }))} />
+        </div>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-6">
         {r.isLoading || !tot ? (
           Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[92px] rounded-xl" />)
@@ -73,147 +168,229 @@ function ReportTab({ c }: { c: CampaignDetail }) {
           <>
             <Kpi label={t('metric.target')} value={fmtCompact(tot.target)} />
             <Kpi label={t('metric.sent')} value={fmtCompact(tot.sent)} sub={t('metric.failedN', { n: fmtNumber(tot.failed) })} />
-            <Kpi label={t('metric.deliveryRate')} value={fmtPercent(tot.sent ? tot.delivered / tot.sent : 0)} />
-            <Kpi label={t('metric.openRate')} value={fmtPercent(tot.delivered ? tot.opens / tot.delivered : 0)} />
-            <Kpi label={t('metric.conversions')} value={fmtCompact(tot.conversions)} sub={fmtPercent(tot.target ? tot.conversions / tot.target : 0)} />
+            <Kpi label={t('metric.deliveryRate')} value={fmtPercent(ratio(tot.sent, tot.sent + tot.failed))} />
+            <Kpi label={t('metric.clicks')} value={fmtCompact(tot.clicks)} sub={t('metric.opensN', { n: fmtNumber(tot.opens) })} />
+            <Kpi label={t('metric.conversions')} value={fmtCompact(tot.conversions)} sub={fmtPercent(ratio(tot.conversions, tot.target))} />
             <Kpi label={t('metric.spent')} value={fmtCompact(tot.spent)} sub={t('campaign.detail.ofBudget', { v: fmtCompact(c.budget.max ?? c.budget.expected) })} />
           </>
         )}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-5">
-        <ChartCard
-          className="xl:col-span-3"
-          title={t('campaign.detail.trend')}
-          description={t(`metric.${metric}`)}
-          loading={r.isLoading}
-          actions={
-            <>
-              <div className="flex rounded-lg border p-0.5 text-xs">
-                {(['sent', 'opens', 'clicks', 'conversions'] as Metric[]).map((m) => (
-                  <button key={m} aria-pressed={metric === m} onClick={() => setMetric(m)} className={cn('cursor-pointer rounded-md px-2 py-1 transition', metric === m ? 'bg-accent font-medium text-accent-foreground' : 'text-muted-foreground hover:text-foreground')}>
-                    {t(`metric.${m}`)}
-                  </button>
-                ))}
-              </div>
-              <div className="flex rounded-lg border p-0.5 text-xs">
-                {(['DAY', 'WEEK', 'MONTH'] as const).map((b) => (
-                  <button key={b} aria-pressed={bucket === b} onClick={() => setBucket(b)} className={cn('cursor-pointer rounded-md px-2 py-1 transition', bucket === b ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')}>
-                    {t(`campaign.detail.bucket.${b}`)}
-                  </button>
-                ))}
-              </div>
-            </>
-          }
-          table={r.data && { columns: [t('chart.date'), t(`metric.${metric}`)], rows: r.data.timeseries.map((p) => [p.date, fmtNumber(p[metric])]) }}
-        >
-          {r.data && <TrendArea data={r.data.timeseries} xKey="date" yKey={metric} valueLabel={t(`metric.${metric}`)} xFormat={(d) => d.slice(8, 10) + '/' + d.slice(5, 7)} />}
-        </ChartCard>
-        <Card className="xl:col-span-2">
+      {/* 3.2.8.1 Hiệu quả kênh theo thời gian */}
+      <ChartCard
+        title={<TitleWithInfo title={t('campaign.detail.perfTitle')} info={t('campaign.detail.perfInfo')} />}
+        loading={r.isLoading}
+        height={320}
+        actions={<Select className="w-40" value={channel} onValueChange={setChannel} allLabel={t('campaign.detail.allChannels')} options={(['SMS', 'EMAIL', 'WHATSAPP', 'USSD'] as const).map((ch) => ({ value: ch, label: t(`channel.${ch}`) }))} />}
+        table={r.data && { columns: [t('chart.date'), ...series.map((s) => s.label)], rows: r.data.timeseries.map((p) => [p.date, ...series.map((s) => fmtNumber(p[s.key]))]) }}
+      >
+        {r.data && <MetricLines data={r.data.timeseries} xKey="date" series={series} xFormat={(d) => (bucket === 'MONTH' ? d.slice(5, 7) + '/' + d.slice(0, 4) : d.slice(8, 10) + '/' + d.slice(5, 7))} />}
+      </ChartCard>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        {/* 3.2.8.2 Tỷ lệ gửi thành công theo kênh */}
+        <Card>
           <CardHeader>
-            <div>
-              <CardTitle>{t('campaign.detail.funnel')}</CardTitle>
-              <CardDescription>{t('campaign.detail.funnelDesc')}</CardDescription>
-            </div>
+            <CardTitle>
+              <TitleWithInfo title={t('metric.deliveryRate')} info={t('campaign.detail.deliveryInfo')} />
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {tot ? (
-              <FunnelBars
-                steps={[
-                  { label: t('metric.target'), value: tot.target },
-                  { label: t('metric.sent'), value: tot.sent },
-                  { label: t('metric.delivered'), value: tot.delivered },
-                  { label: t('metric.opens'), value: tot.opens },
-                  { label: t('metric.clicks'), value: tot.clicks },
-                  { label: t('metric.conversions'), value: tot.conversions },
-                ]}
-              />
+            {channels.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted-foreground">{t('common.noData')}</p>
             ) : (
-              <Skeleton className="h-60" />
+              <ul className="grid gap-4">
+                {channels.map((ch) => {
+                  const M = CHANNEL_META[ch.channel]
+                  const rate = ratio(ch.sent, ch.sent + ch.failed)
+                  return (
+                    <li key={ch.channel} className="grid grid-cols-[104px_1fr_56px] items-center gap-3 text-[13px]">
+                      <span className="flex items-center gap-2 text-foreground/80">
+                        <M.icon className="size-4" style={{ color: M.color }} />
+                        {t(`channel.${ch.channel}`)}
+                      </span>
+                      <Tooltip content={t('campaign.detail.deliveryTip', { sent: fmtNumber(ch.sent), failed: fmtNumber(ch.failed) })}>
+                        <div className="h-6 rounded-md bg-muted/70">
+                          <div className="h-full rounded-md" style={{ width: `${Math.max(rate > 0 ? 1.5 : 0, rate * 100)}%`, background: M.color }} />
+                        </div>
+                      </Tooltip>
+                      <span className="text-right font-semibold tabular">{fmtPercent(rate)}</span>
+                    </li>
+                  )
+                })}
+              </ul>
             )}
           </CardContent>
         </Card>
+
+        {/* 3.2.8.3 Tỷ lệ tương tác theo kênh */}
+        <ChartCard
+          title={<TitleWithInfo title={t('campaign.detail.interactionTitle')} info={t('campaign.detail.interactionInfo')} />}
+          loading={r.isLoading}
+          height={260}
+          table={{ columns: [t('campaign.detail.metricCol'), ...chSeries.map((s) => s.label)], rows: interaction.map((row) => [row.metric, ...chSeries.map((s) => fmtPercent((row as Record<string, unknown>)[s.key] as number | null))]) }}
+        >
+          {channels.length ? <GroupedRateBars data={interaction} xKey="metric" series={chSeries} /> : <p className="py-10 text-center text-sm text-muted-foreground">{t('common.noData')}</p>}
+        </ChartCard>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('campaign.detail.byChannel')}</CardTitle>
-          </CardHeader>
-          <CardContent className="overflow-x-auto px-0">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-y bg-muted/50 text-xs text-muted-foreground uppercase">
-                  <th className="px-5 py-2 text-left font-medium">{t('campaign.col.channels')}</th>
-                  <th className="px-3 py-2 text-right font-medium">{t('metric.sent')}</th>
-                  <th className="px-3 py-2 text-left font-medium">{t('metric.deliveryRate')}</th>
-                  <th className="px-5 py-2 text-left font-medium">{t('metric.openRate')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.data?.channels.map((ch) => {
-                  const M = CHANNEL_META[ch.channel]
-                  return (
-                    <tr key={ch.channel} className="border-b last:border-0">
-                      <td className="px-5 py-3">
-                        <span className="flex items-center gap-2">
-                          <M.icon className="size-4" style={{ color: M.color }} />
-                          {t(`channel.${ch.channel}`)}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-right tabular">{fmtNumber(ch.sent)}</td>
-                      <td className="px-3 py-3">
-                        <RateBar value={ch.sent ? ch.delivered / ch.sent : 0} color={M.color} />
-                      </td>
-                      <td className="px-5 py-3">{ch.channel === 'SMS' ? <span className="text-xs text-muted-foreground">{t('campaign.detail.smsNoOpen')}</span> : <RateBar value={ch.delivered ? ch.opened / ch.delivered : 0} color={M.color} />}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>{t('campaign.detail.byGroup')}</CardTitle>
-              <CardDescription>{t('campaign.detail.byGroupDesc')}</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="overflow-x-auto px-0">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-y bg-muted/50 text-xs text-muted-foreground uppercase">
-                  <th className="px-5 py-2 text-left font-medium">{t('campaign.detail.group')}</th>
-                  <th className="px-3 py-2 text-right font-medium">{t('metric.target')}</th>
-                  <th className="px-3 py-2 text-right font-medium">{t('metric.conversionRate')}</th>
-                  <th className="px-5 py-2 text-right font-medium">Uplift</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.data?.groups.map((g) => (
-                  <tr key={g.groupName} className="border-b last:border-0">
-                    <td className="px-5 py-3">
-                      <span className="flex items-center gap-2">
-                        {g.groupName}
-                        {g.isControl && g.groupName !== t('campaign.wizard.control') && <Badge>{t('campaign.wizard.control')}</Badge>}
+      {/* 3.2.8.4–6 Donut tỷ lệ mở / click / đăng ký theo kênh */}
+      {dCh && (
+        <div className="grid gap-4">
+          <div className="flex items-center justify-end gap-2 text-sm">
+            <span className="text-muted-foreground">{t('campaign.detail.donutChannel')}</span>
+            <Select className="w-40" value={dCh.channel} onValueChange={(v) => setDonutChannel(v as Channel)} options={channels.map((ch) => ({ value: ch.channel, label: t(`channel.${ch.channel}`) }))} />
+          </div>
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  <TitleWithInfo title={t('campaign.detail.donutOpen', { channel: dName })} info={t('campaign.detail.donutOpenInfo')} />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {dCh.channel === 'SMS' ? (
+                  <p className="py-12 text-center text-sm text-muted-foreground">{t('campaign.detail.smsNoOpen')}</p>
+                ) : (
+                  <RateDonut rate={ratio(dCh.opened, dCh.delivered)} count={dCh.opened} centerValue={dCh.sent} centerLabel={t('campaign.detail.totalSent')} label={t('campaign.detail.rate.open')} />
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  <TitleWithInfo title={t('campaign.detail.donutClick', { channel: dName })} info={t('campaign.detail.donutClickInfo')} />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RateDonut rate={ratio(dCh.clicked, dCh.delivered)} count={dCh.clicked} centerValue={dCh.clicked} centerLabel={t('campaign.detail.totalClicks')} label={t('campaign.detail.rate.clickShort')} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  <TitleWithInfo title={t('campaign.detail.donutSignup', { channel: dName })} info={t('campaign.detail.donutSignupInfo')} />
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {noGoal ? (
+                  <p className="py-12 text-center text-sm text-muted-foreground">{t('campaign.detail.noGoal')}</p>
+                ) : (
+                  <RateDonut rate={ratio(dCh.converted, dCh.sent)} count={dCh.converted} centerValue={dCh.converted} centerLabel={t('campaign.detail.totalReg')} label={t('campaign.detail.rate.signup')} />
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* 3.2.8.7 Bảng hiệu quả theo nhóm hành động */}
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>
+              <TitleWithInfo title={t('campaign.detail.byGroup')} info={t('campaign.detail.byGroupInfo')} />
+            </CardTitle>
+            <CardDescription>{t('campaign.detail.byGroupDesc')}</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="overflow-x-auto px-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-y bg-muted/50 text-xs whitespace-nowrap text-muted-foreground uppercase">
+                <th className="px-5 py-2 text-right font-medium">{t('common.no')}</th>
+                <th className="px-3 py-2 text-left font-medium">{t('campaign.detail.group')}</th>
+                <th className="px-3 py-2 text-left font-medium">{t('campaign.col.segment')}</th>
+                <th className="px-3 py-2 text-right font-medium">{t('metric.deliveryRate')}</th>
+                <th className="px-3 py-2 text-right font-medium">{t('metric.delivered')}</th>
+                <th className="px-3 py-2 text-right font-medium">{t('metric.openRate')}</th>
+                <th className="px-3 py-2 text-right font-medium">{t('metric.opens')}</th>
+                <th className="px-3 py-2 text-right font-medium">{t('metric.conversionRate')}</th>
+                <th className="px-3 py-2 text-right font-medium">{t('metric.conversions')}</th>
+                <th className="px-5 py-2 text-right font-medium">Uplift</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((g, i) => (
+                <tr key={g.groupName + i} className="border-b whitespace-nowrap last:border-0">
+                  <td className="px-5 py-3 text-right text-muted-foreground tabular">{i + 1}</td>
+                  <td className="px-3 py-3">
+                    <span className="flex items-center gap-2">
+                      {g.groupName}
+                      {g.isControl && g.groupName !== t('campaign.wizard.control') && <Badge>{t('campaign.wizard.control')}</Badge>}
+                    </span>
+                  </td>
+                  <td className="max-w-48 truncate px-3 py-3 text-muted-foreground">{c.segmentName ?? '—'}</td>
+                  <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtPercent(g.sentRate)}</td>
+                  <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtNumber(g.delivered)}</td>
+                  <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtPercent(g.openRate)}</td>
+                  <td className="px-3 py-3 text-right tabular">{g.isControl ? '—' : fmtNumber(g.opens)}</td>
+                  <td className="px-3 py-3 text-right tabular">{fmtPercent(g.conversionRate)}</td>
+                  <td className="px-3 py-3 text-right tabular">{fmtNumber(g.conversions)}</td>
+                  <td className="px-5 py-3 text-right tabular">
+                    {g.uplift == null ? (
+                      '—'
+                    ) : (
+                      <span className={cn('font-semibold', g.uplift > 0 ? 'text-success' : g.uplift < 0 ? 'text-danger' : 'text-muted-foreground')}>
+                        {g.uplift > 0 ? '+' : ''}
+                        {g.uplift.toFixed(1)} pp
                       </span>
-                    </td>
-                    <td className="px-3 py-3 text-right tabular">{fmtNumber(g.target)}</td>
-                    <td className="px-3 py-3 text-right tabular">{fmtPercent(g.conversionRate)}</td>
-                    <td className="px-5 py-3 text-right whitespace-nowrap tabular">{g.uplift == null ? '—' : <span className="font-semibold text-success">+{g.uplift.toFixed(1)} pp</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>{t('campaign.detail.funnel')}</CardTitle>
+            <CardDescription>{t('campaign.detail.funnelDesc')}</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {tot ? (
+            <FunnelBars
+              steps={[
+                { label: t('metric.target'), value: tot.target },
+                { label: t('metric.sent'), value: tot.sent },
+                { label: t('metric.delivered'), value: tot.delivered },
+                { label: t('metric.opens'), value: tot.opens },
+                { label: t('metric.clicks'), value: tot.clicks },
+                { label: t('metric.conversions'), value: tot.conversions },
+              ]}
+            />
+          ) : (
+            <Skeleton className="h-60" />
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
 
-function GroupBlock({ g }: { g: ActionGroup }) {
+/** SRS 3.2.8.8 #11: diễn giải lịch chạy thành câu ("Mỗi 1 tuần vào T2, T5 lúc 09:00"). */
+function scheduleRule(c: CampaignDetail, t: (k: string, o?: Record<string, unknown>) => string): string | null {
+  const s = c.schedule
+  if (c.type === 'EVENT') return t('campaign.detail.ruleEvent', { event: c.eventTemplate ? t(`campaign.event.${c.eventTemplate}`, { defaultValue: c.eventTemplate }) : '—' })
+  if (s.type === 'NOW') return t('campaign.detail.ruleNow')
+  if (s.type === 'ONCE') return t('campaign.detail.ruleOnce', { at: fmtDateTime(s.startAt) })
+  const unit = t(`campaign.wizard.unit.${s.unit ?? 'WEEK'}`)
+  const days =
+    s.unit === 'WEEK' && s.weekdays?.length
+      ? ' · ' + [...s.weekdays].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => t(`weekday.${d}`)).join(', ')
+      : s.unit === 'MONTH' && s.monthDays?.length
+        ? ' · ' + t('campaign.detail.onDays', { days: s.monthDays.join(', ') })
+        : ''
+  const rule = t('campaign.detail.ruleRecurring', { every: s.every ?? 1, unit, days, time: s.sendTime ?? '09:00' })
+  return s.maxOccurrences ? `${rule} · ${t('campaign.detail.ruleMax', { n: s.maxOccurrences })}` : rule
+}
+
+/** `customers`: số KH của nhóm — số thực tế khi đã chạy, ≈ ước tính (target × %) khi chưa chạy. */
+function GroupBlock({ g, customers, estimated }: { g: ActionGroup; customers: number; estimated: boolean }) {
   const { t } = useTranslation()
   return (
     <div className="rounded-xl border">
@@ -223,7 +400,7 @@ function GroupBlock({ g }: { g: ActionGroup }) {
           {g.isControl && <Badge>{t('campaign.wizard.control')}</Badge>}
         </div>
         <div className="text-xs text-muted-foreground">
-          {g.allocationPercent}% · {t(`campaign.wizard.mode.${g.mode}`)}
+          {g.allocationPercent}% · {t(estimated ? 'campaign.detail.approxCustomers' : 'campaign.detail.customersN', { n: fmtNumber(customers) })} · {t(`campaign.wizard.mode.${g.mode}`)}
         </div>
       </div>
       {g.actions.length === 0 ? (
@@ -243,8 +420,19 @@ function GroupBlock({ g }: { g: ActionGroup }) {
                     {a.senderId && <Badge variant="outline">{a.senderId}</Badge>}
                     {a.delayMinutes > 0 && <span className="text-xs font-normal text-muted-foreground">+{Math.round(a.delayMinutes / 60)}h</span>}
                   </div>
+                  {a.subject && (
+                    <p className="mt-1 text-[13px]">
+                      <span className="text-muted-foreground">{t('campaign.wizard.subject')}:</span> {a.subject}
+                    </p>
+                  )}
                   {a.content && <p className="mt-1 rounded-lg bg-muted/60 px-3 py-2 text-[13px] whitespace-pre-wrap text-foreground/85">{a.content}</p>}
+                  {a.templateId && <p className="mt-1 font-mono text-xs text-muted-foreground">template: {a.templateId}</p>}
                   {a.amount != null && <p className="mt-1 text-[13px] text-muted-foreground">{t('campaign.wizard.amount')}: {fmtNumber(a.amount)}</p>}
+                  {a.packageCode && (
+                    <p className="mt-1 text-[13px] text-muted-foreground">
+                      {t('campaign.wizard.packageCode')}: <span className="font-mono text-foreground">{a.packageCode}</span>
+                    </p>
+                  )}
                 </div>
               </li>
             )
@@ -257,10 +445,47 @@ function GroupBlock({ g }: { g: ActionGroup }) {
 
 function ConfigTab({ c }: { c: CampaignDetail }) {
   const { t } = useTranslation()
-  const canUpdate = useCan()('CAMPAIGN_UPDATE')
+  const can = useCan()
+  const canUpdate = can('CAMPAIGN_UPDATE')
+  const started = ['RUNNING', 'PAUSED', 'COMPLETED'].includes(c.status) || c.history.some((h) => h.action === 'START')
+  // Số KH thực tế theo nhóm (đã chạy) lấy từ báo cáo; chưa chạy → ước tính target × tỷ lệ phân bổ
+  const report = useCampaignReport(c.id, { bucket: 'DAY' }, started && can('REPORT_VIEW'))
+  const rule = scheduleRule(c, t)
   const rows: [React.ElementType, string, React.ReactNode][] = [
-    [Users2, t('campaign.wizard.steps.audience'), c.segmentId ? <Link className="text-link hover:underline" to={`/segments/${c.segmentId}`}>{c.segmentName}</Link> : '—'],
-    [CalendarClock, t('campaign.wizard.steps.schedule'), `${t(`campaign.wizard.schedule.${c.schedule.type}`)} · ${fmtDateTime(c.schedule.startAt)}${c.schedule.endAt ? ' → ' + fmtDateTime(c.schedule.endAt) : ''}${c.schedule.silentHours?.enabled ? ` · ${t('campaign.wizard.silent')} ${c.schedule.silentHours.from}–${c.schedule.silentHours.to}` : ''}`],
+    [
+      Users2,
+      t('campaign.wizard.steps.audience'),
+      c.segmentId ? (
+        <span className="flex flex-wrap items-center gap-2">
+          <Link className="text-link hover:underline" to={`/segments/${c.segmentId}`}>
+            {c.segmentName}
+          </Link>
+          <Badge variant="outline">{t('campaign.detail.customersN', { n: fmtNumber(c.targetCount) })}</Badge>
+        </span>
+      ) : c.testIsdns.length ? (
+        t('campaign.detail.testList', { n: c.testIsdns.length })
+      ) : (
+        '—'
+      ),
+    ],
+    [
+      CalendarClock,
+      t('campaign.wizard.steps.schedule'),
+      <span className="grid gap-0.5">
+        {c.type !== 'EVENT' && (
+          <span>
+            {fmtDateTime(c.schedule.startAt)}
+            {c.schedule.endAt ? ' → ' + fmtDateTime(c.schedule.endAt) : ''}
+          </span>
+        )}
+        {rule && <span className="text-muted-foreground">{rule}</span>}
+        {c.schedule.silentHours?.enabled && (
+          <span className="text-muted-foreground">
+            {t('campaign.wizard.silent')} {c.schedule.silentHours.from}–{c.schedule.silentHours.to}
+          </span>
+        )}
+      </span>,
+    ],
     [Goal, t('campaign.wizard.steps.goal'), `${t(`campaign.wizard.goal.${c.goal.mode}`)} · ${t('campaign.wizard.window', { n: c.goal.attributionWindowDays })}`],
     [Wallet, t('campaign.wizard.budget'), `${fmtKip(c.budget.expected)}${c.budget.max ? ` (${t('campaign.wizard.maxBudget')}: ${fmtKip(c.budget.max)})` : ''}`],
   ]
@@ -271,9 +496,10 @@ function ConfigTab({ c }: { c: CampaignDetail }) {
           <CardTitle>{t('campaign.wizard.steps.actions')}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
-          {c.actionGroups.map((g) => (
-            <GroupBlock key={g.id} g={g} />
-          ))}
+          {c.actionGroups.map((g, i) => {
+            const actual = report.data?.groups[i]
+            return <GroupBlock key={g.id} g={g} customers={actual ? actual.target : Math.round((c.targetCount * g.allocationPercent) / 100)} estimated={!actual} />
+          })}
         </CardContent>
       </Card>
       <Card className="h-fit">

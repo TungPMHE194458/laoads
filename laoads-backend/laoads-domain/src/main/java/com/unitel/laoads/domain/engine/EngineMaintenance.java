@@ -133,38 +133,42 @@ public class EngineMaintenance {
         }
     }
 
-    /** Đo chuyển đổi cho chiến dịch có mục tiêu AUTO_OCS còn trong cửa sổ ghi nhận. */
+    /**
+     * Đo chuyển đổi cho chiến dịch có mục tiêu AUTO_OCS. Cửa sổ ghi nhận (SRS 3.2.6.1: "N ngày kể từ khi chiến dịch
+     * chạy") tính riêng cho từng khách hàng từ lúc lượt chạy đưa họ vào chiến dịch (TARGET.CREATED_AT), nên chiến dịch
+     * lên lịch xa ngày duyệt và các lượt sau của chiến dịch lặp lại vẫn được đo.
+     */
     public int measureConversions() {
         int total = 0;
+        Instant now = Instant.now();
         Set<Status> statuses = EnumSet.of(Status.RUNNING, Status.PAUSED, Status.COMPLETED);
         for (Campaign c : campaignRepo.findByStatusIn(statuses)) {
             CampaignDefinition def = campaignService.definitionOf(c);
             if (def.goal() == null || !"AUTO_OCS".equals(def.goal().mode())) {
                 continue;
             }
-            Instant since = c.getApprovedAt() == null ? c.getCreatedAt() : c.getApprovedAt();
             int window = Math.max(1, def.goal().attributionWindowDays());
-            if (Instant.now().isAfter(since.plus(Duration.ofDays(window + 1L)))) {
+            if (c.getCompletedAt() != null && now.isAfter(c.getCompletedAt().plus(Duration.ofDays(window + 1L)))) {
                 continue;
             }
-            total += measure(c, def);
+            total += measure(c, def, now.minus(Duration.ofDays(window)));
         }
         return total;
     }
 
-    private int measure(Campaign c, CampaignDefinition def) {
+    private int measure(Campaign c, CampaignDefinition def, Instant windowStart) {
         Instant cutoff = Instant.now().minus(CONVERSION_MIN_AGE);
         List<ConversionSource.Candidate> candidates = jdbc.query(
                 "SELECT * FROM (SELECT t.ID, t.ISDN, t.IS_CONTROL FROM LADS_CAMPAIGN_TARGET t WHERE t.CAMPAIGN_ID = ? "
-                        + "AND t.CONVERTED = 0 AND t.CREATED_AT <= ? AND (t.IS_CONTROL = 1 OR EXISTS (SELECT 1 FROM "
-                        + "LADS_CAMPAIGN_MESSAGE m WHERE m.TARGET_ID = t.ID AND m.STATUS IN ('SENT', 'DELIVERED') "
+                        + "AND t.CONVERTED = 0 AND t.CREATED_AT <= ? AND t.CREATED_AT >= ? AND (t.IS_CONTROL = 1 OR EXISTS "
+                        + "(SELECT 1 FROM LADS_CAMPAIGN_MESSAGE m WHERE m.TARGET_ID = t.ID AND m.STATUS IN ('SENT', 'DELIVERED') "
                         + "AND m.SENT_AT <= ?)) ORDER BY t.ID) WHERE ROWNUM <= ?",
                 (rs, i) -> new ConversionSource.Candidate(rs.getLong(1), rs.getString(2), rs.getInt(3) == 1),
-                c.getId(), Utc.ts(cutoff), Utc.ts(cutoff), CONVERSION_BATCH);
+                c.getId(), Utc.ts(cutoff), Utc.ts(windowStart), Utc.ts(cutoff), CONVERSION_BATCH);
         if (candidates.isEmpty()) {
             return 0;
         }
-        Set<Long> converted = conversionSource.converted(c.getId(), def.goal().description(), candidates);
+        Set<Long> converted = conversionSource.converted(c.getId(), def.goal(), candidates);
         if (converted.isEmpty()) {
             return 0;
         }

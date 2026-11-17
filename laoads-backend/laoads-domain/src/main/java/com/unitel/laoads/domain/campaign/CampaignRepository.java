@@ -15,11 +15,11 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
 
     Optional<Campaign> findByIdAndWorkspaceId(Long id, Long workspaceId);
 
+    /** Thứ tự sắp xếp lấy từ {@code pageable} (CampaignService thêm mặc định createdAt giảm dần). */
     @Query(value = "SELECT c FROM Campaign c WHERE c.workspaceId = :ws "
             + "AND (:q IS NULL OR LOWER(c.name) LIKE :q ESCAPE '!' OR LOWER(c.code) LIKE :q ESCAPE '!') "
             + "AND (:status IS NULL OR c.status = :status) AND (:mode IS NULL OR c.mode = :mode) "
-            + "AND (:groupId IS NULL OR c.groupId = :groupId) "
-            + "ORDER BY c.createdAt DESC, c.id DESC",
+            + "AND (:groupId IS NULL OR c.groupId = :groupId)",
             countQuery = "SELECT COUNT(c) FROM Campaign c WHERE c.workspaceId = :ws "
             + "AND (:q IS NULL OR LOWER(c.name) LIKE :q ESCAPE '!' OR LOWER(c.code) LIKE :q ESCAPE '!') "
             + "AND (:status IS NULL OR c.status = :status) AND (:mode IS NULL OR c.mode = :mode) "
@@ -30,6 +30,11 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
                           @Param("mode") CampaignEnums.Mode mode,
                           @Param("groupId") Long groupId,
                           Pageable pageable);
+
+    /** Trùng tên chiến dịch trong workspace (không phân biệt hoa/thường, bỏ qua chính nó khi sửa) — SRS 3.2.1.4–6. */
+    @Query("SELECT COUNT(c) FROM Campaign c WHERE c.workspaceId = :ws AND LOWER(c.name) = :name "
+            + "AND (:exceptId IS NULL OR c.id <> :exceptId)")
+    long countByName(@Param("ws") Long workspaceId, @Param("name") String lowerName, @Param("exceptId") Long exceptId);
 
     long countByWorkspaceIdAndStatus(Long workspaceId, CampaignEnums.Status status);
 

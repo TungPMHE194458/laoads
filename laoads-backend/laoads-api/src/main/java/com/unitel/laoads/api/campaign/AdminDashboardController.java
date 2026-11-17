@@ -49,7 +49,8 @@ public class AdminDashboardController {
     @Operation(summary = "Xuất Excel top workspace theo số chiến dịch")
     @Auditable(actionType = "EXPORT", entityType = "WORKSPACE", summary = "'Xuất Excel top workspace theo số chiến dịch'")
     public ResponseEntity<byte[]> export() {
-        List<ReportService.TopWorkspace> rows = reports.topWorkspaces(1000);
+        // SRS 3.1.7: file xuất khớp đúng dữ liệu đang hiển thị trên Dashboard
+        List<ReportService.TopWorkspace> rows = reports.topWorkspaces(ReportService.TOP_WORKSPACES);
         try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet("Top workspace");
             XSSFCellStyle bold = wb.createCellStyle();

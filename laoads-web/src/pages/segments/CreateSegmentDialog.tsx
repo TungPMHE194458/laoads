@@ -1,35 +1,34 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Calculator, Download, FileSpreadsheet, Filter, Plus, ServerCog, Trash2, UploadCloud } from 'lucide-react'
+import { Calculator, Download, FileSpreadsheet, Filter, ServerCog, UploadCloud } from 'lucide-react'
 import { ApiError, errorMessage } from '@/api/client'
-import type { SegmentCondition } from '@/api/types'
+import type { Segment, SegmentCondition } from '@/api/types'
 import {
   downloadSegmentTemplate,
   useAudienceColumns,
   useCreateAudienceSegment,
   useCreateSegment,
   useEstimateSegment,
-  useSegmentAttributes,
   useVerifyAudience,
 } from '@/features/campaign/api'
 import { type AudienceDraft, EMPTY_DRAFT, toAudienceRequest, validateAudience } from '@/features/campaign/audience'
 import { Field } from '@/components/common/dialogs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/misc'
 import { fmtNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { AudienceBuilder } from './AudienceBuilder'
+import { ConditionEditor } from './ConditionEditor'
+import { conditionComplete } from './conditionOps'
 
-const OPS: SegmentCondition['operator'][] = ['EQ', 'NEQ', 'GT', 'GTE', 'LT', 'LTE', 'BETWEEN', 'IN', 'IS_NULL']
 type CreateTab = 'QUERY' | 'FILE' | 'AUDIENCE'
 
-export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+/** `onCreated`: gọi sau khi tạo thành công (wizard chiến dịch dùng để chọn ngay tệp vừa tạo — SRS 3.5.1). */
+export function CreateSegmentDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; onCreated?: (s: Segment) => void }) {
   const { t } = useTranslation()
-  const attrs = useSegmentAttributes()
   const estimate = useEstimateSegment()
   const create = useCreateSegment()
   const createAudience = useCreateAudienceSegment()
@@ -45,13 +44,10 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
   const [file, setFile] = React.useState<File | null>(null)
   const [drag, setDrag] = React.useState(false)
   const [err, setErr] = React.useState<string | null>(null)
+  // SRS 3.5.1.2 TH4: tệp ước tính 0 khách hàng → cảnh báo, bấm Tạo lần nữa để vẫn lưu
+  const [emptyWarned, setEmptyWarned] = React.useState(false)
   // State form được làm mới mỗi lần mở: SegmentsPage chỉ mount dialog khi open=true
 
-  const upd = (i: number, p: Partial<SegmentCondition>) => {
-    setConds((c) => c.map((x, j) => (j === i ? { ...x, ...p } : x)))
-    estimate.reset()
-  }
-  const attrOf = (f: string) => attrs.data?.find((a) => a.field === f)
 
   const pickFile = (f: File | undefined) => {
     if (!f) return
@@ -118,8 +114,9 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
       return createAudience.mutate(
         { name: name.trim(), description: desc.trim() || null, ...r },
         {
-          onSuccess: () => {
+          onSuccess: (s) => {
             toast.success(t('segment.aud.created'))
+            onCreated?.(s)
             onOpenChange(false)
           },
           onError: (e) => {
@@ -130,7 +127,22 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
         },
       )
     }
-    if (tab === 'QUERY' && !conds.every((c) => c.field && (c.operator === 'IS_NULL' || c.value !== ''))) return setErr(t('segment.condInvalid'))
+    if (tab === 'QUERY' && !conds.every(conditionComplete)) return setErr(t('segment.condInvalid'))
+    if (tab === 'QUERY' && !emptyWarned) {
+      return estimate.mutate(conds, {
+        onSuccess: (r) => {
+          if (r.estimatedCount === 0) {
+            setEmptyWarned(true)
+            setErr(t('segment.emptyWarning'))
+          } else doCreate()
+        },
+        onError: (e) => setErr(errorMessage(e)),
+      })
+    }
+    doCreate()
+  }
+
+  const doCreate = () => {
     if (tab === 'FILE' && !file) return setErr(t('segment.fileRequired'))
     create.mutate(
       tab === 'QUERY'
@@ -140,6 +152,7 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
         onSuccess: (s) => {
           toast.success(t('segment.created'))
           if (s.invalidRows) toast.warning(t('segment.invalidRows', { n: s.invalidRows }))
+          onCreated?.(s)
           onOpenChange(false)
         },
         onError: (e) => setErr(errorMessage(e)),
@@ -186,43 +199,15 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
           <TabsContent value="QUERY" className="mt-4">
             <div className="rounded-xl border bg-muted/30 p-3">
               <div className="mb-2 px-1 text-xs text-muted-foreground">{t('segment.sourceNote')}</div>
-              <div className="grid gap-2">
-                {conds.map((c, i) => {
-                  const a = attrOf(c.field)
-                  return (
-                    <div key={i} className="grid grid-cols-[72px_1fr_120px_1fr_36px] items-center gap-2">
-                      {i === 0 ? (
-                        <span className="text-center text-xs font-medium text-muted-foreground">{t('segment.where')}</span>
-                      ) : (
-                        <Select size="sm" value={c.join} onValueChange={(v) => upd(i, { join: v as 'AND' | 'OR' })} options={[{ value: 'AND', label: 'AND' }, { value: 'OR', label: 'OR' }]} />
-                      )}
-                      <Select size="sm" value={c.field} onValueChange={(v) => upd(i, { field: v, value: '' })} options={(attrs.data ?? []).map((x) => ({ value: x.field, label: t(`attr.${x.field}`, { defaultValue: x.field }) }))} />
-                      <Select size="sm" value={c.operator} onValueChange={(v) => upd(i, { operator: v as SegmentCondition['operator'] })} options={OPS.map((o) => ({ value: o, label: t(`op.${o}`) }))} />
-                      {c.operator === 'IS_NULL' ? (
-                        <span />
-                      ) : a?.options || a?.dataType === 'BOOLEAN' ? (
-                        <Select size="sm" value={c.value} onValueChange={(v) => upd(i, { value: v })} placeholder={t('common.choose')} options={(a.dataType === 'BOOLEAN' ? ['true', 'false'] : a.options!).map((o) => ({ value: o, label: o }))} />
-                      ) : c.operator === 'BETWEEN' ? (
-                        <div className="flex gap-1.5">
-                          <Input className="h-8" type="number" step="any" value={c.value} onChange={(e) => upd(i, { value: e.target.value })} />
-                          <Input className="h-8" type="number" step="any" value={c.valueTo ?? ''} onChange={(e) => upd(i, { valueTo: e.target.value })} />
-                        </div>
-                      ) : (
-                        <Input className="h-8" type={a?.dataType === 'NUMBER' ? 'number' : 'text'} step="any" value={c.value} onChange={(e) => upd(i, { value: e.target.value })} />
-                      )}
-                      <Button variant="ghost" size="icon-sm" disabled={conds.length === 1} onClick={() => setConds((x) => x.filter((_, j) => j !== i))} aria-label={t('common.delete')}>
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  )
-                })}
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setConds((c) => [...c, { field: 'g_volume', operator: 'GT', value: '', join: 'AND' }])}>
-                  <Plus />
-                  {t('segment.addCondition')}
-                </Button>
-                <div className="ml-auto flex items-center gap-3">
+              <ConditionEditor
+                conditions={conds}
+                onChange={(c) => {
+                  setEmptyWarned(false)
+                  setConds(c)
+                  estimate.reset()
+                }}
+                footer={
+                  <div className="ml-auto flex items-center gap-3">
                   {estimate.data && (
                     <span className="text-sm">
                       {t('segment.estimated')}: <b className="tabular">{fmtNumber(estimate.data.estimatedCount)}</b>
@@ -233,7 +218,8 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
                     {t('segment.estimate')}
                   </Button>
                 </div>
-              </div>
+                }
+              />
             </div>
           </TabsContent>
           <TabsContent value="FILE" className="mt-4">
@@ -274,8 +260,8 @@ export function CreateSegmentDialog({ open, onOpenChange }: { open: boolean; onO
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={submit} loading={create.isPending || createAudience.isPending}>
-            {t('segment.createBtn')}
+          <Button onClick={submit} loading={create.isPending || createAudience.isPending || (tab === 'QUERY' && estimate.isPending)}>
+            {emptyWarned && tab === 'QUERY' ? t('segment.createAnyway') : t('segment.createBtn')}
           </Button>
         </DialogFooter>
       </DialogContent>

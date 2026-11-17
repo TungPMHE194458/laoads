@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/common/dialogs'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
+import { Tooltip } from '@/components/ui/misc'
 import { fmtDateTime, fmtNumber } from '@/lib/format'
 import { CreateSegmentDialog } from './CreateSegmentDialog'
 
@@ -27,12 +28,15 @@ export default function SegmentsPage() {
   const can = useCan()
   const [sp, setSp] = useSearchParams()
   const [page, setPage] = React.useState(0)
+  const [size, setSize] = React.useState(10)
   const [query, setQuery] = React.useState('')
   const [type, setType] = React.useState('')
   const [status, setStatus] = React.useState('')
   const [selected, setSelected] = React.useState<(string | number)[]>([])
   const [confirm, setConfirm] = React.useState(false)
-  const list = useSegments({ page, size: 10, query, type, status })
+  const list = useSegments({ page, size, query, type, status })
+  // xoá một dòng (SRS 3.5.2) dùng chung API xoá nhiều
+  const [rowDelete, setRowDelete] = React.useState<Segment | null>(null)
   const del = useDeleteSegments()
   const retry = useRetrySegment()
   const createOpen = sp.get('create') === '1'
@@ -50,6 +54,7 @@ export default function SegmentsPage() {
   }
 
   const columns: Column<Segment>[] = [
+    { key: 'id', header: 'ID', width: '64px', cell: (s) => <span className="text-muted-foreground tabular">{s.id}</span> },
     {
       key: 'name',
       header: t('segment.name'),
@@ -121,6 +126,31 @@ export default function SegmentsPage() {
     { key: 'used', header: t('segment.usedBy'), align: 'right', cell: (s) => <span className="text-[13px] tabular">{s.referencedBy}</span> },
     { key: 'created', header: t('common.createdAt'), cell: (s) => <span className="text-[13px] tabular text-foreground/80">{fmtDateTime(s.createdAt)}<span className="block text-xs text-muted-foreground">{s.createdBy}</span></span> },
   ]
+  if (can('SEGMENT_MANAGE'))
+    columns.push({
+      key: 'delete',
+      header: '',
+      width: '48px',
+      cell: (s) => (
+        <Tooltip content={s.referencedBy > 0 ? t('segment.inUseNoDelete') : t('common.delete')}>
+          <span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('common.delete')}
+              disabled={s.referencedBy > 0}
+              className="text-muted-foreground hover:text-danger"
+              onClick={(e) => {
+                e.stopPropagation()
+                setRowDelete(s)
+              }}
+            >
+              <Trash2 />
+            </Button>
+          </span>
+        </Tooltip>
+      ),
+    })
 
   return (
     <>
@@ -165,15 +195,43 @@ export default function SegmentsPage() {
         rowKey={(s) => s.id}
         loading={list.isLoading}
         meta={list.data?.meta}
+        error={list.isError ? errorMessage(list.error) : undefined}
         onPageChange={(p) => refilter(() => setPage(p))}
+        onPageSizeChange={(n) => refilter(() => setSize(n))}
         onRowClick={(s) => navigate(`/segments/${s.id}`)}
         selectable={can('SEGMENT_MANAGE')}
         selectedIds={selected}
         onSelectionChange={setSelected}
         isRowSelectable={(s) => s.referencedBy === 0}
-        empty={<EmptyState icon={<UsersRound />} title={t('segment.emptyTitle')} description={t('segment.emptyDesc')} />}
+        empty={
+          query || type || status ? (
+            <EmptyState icon={<UsersRound />} title={t('common.noResult')} description={t('common.noResultDesc')} />
+          ) : (
+            <EmptyState icon={<UsersRound />} title={t('segment.emptyTitle')} description={t('segment.emptyDesc')} />
+          )
+        }
       />
       {createOpen && <CreateSegmentDialog open onOpenChange={setCreate} />}
+      <ConfirmDialog
+        open={!!rowDelete}
+        onOpenChange={(o) => !o && setRowDelete(null)}
+        destructive
+        title={t('segment.deleteOneTitle')}
+        description={t('segment.deleteOneDesc', { name: rowDelete?.name })}
+        confirmLabel={t('common.delete')}
+        loading={del.isPending}
+        onConfirm={() =>
+          rowDelete &&
+          del.mutate([rowDelete.id], {
+            onSuccess: (r) => {
+              if (r.failed.length) toast.error(r.failed[0].reason)
+              else toast.success(t('bulk.done', { n: r.deleted }))
+              setRowDelete(null)
+            },
+            onError: (e) => toast.error(errorMessage(e)),
+          })
+        }
+      />
       <ConfirmDialog
         open={confirm}
         onOpenChange={setConfirm}

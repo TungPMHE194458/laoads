@@ -78,6 +78,8 @@ export interface AuditQuery extends PageQuery {
   entityType?: string
   from?: string
   to?: string
+  /** SUCCESS | FAILURE */
+  result?: string
 }
 export function useAuditLogs(q: AuditQuery) {
   return useQuery({

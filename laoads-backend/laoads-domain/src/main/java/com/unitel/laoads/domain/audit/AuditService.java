@@ -19,6 +19,6 @@ public class AuditService {
         return repo.search(Texts.likePattern(f.actor()),
                 Texts.trimToNull(f.actionType()),
                 Texts.trimToNull(f.entityType()),
-                f.workspaceId(), f.from(), f.to(), pageable);
+                f.workspaceId(), f.from(), f.to(), Texts.trimToNull(f.result()), pageable);
     }
 }

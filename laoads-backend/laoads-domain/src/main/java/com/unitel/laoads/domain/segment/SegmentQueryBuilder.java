@@ -23,7 +23,8 @@ public final class SegmentQueryBuilder {
     }
 
     private static final Set<String> NUMBER_OPS = Set.of("EQ", "NEQ", "GT", "GTE", "LT", "LTE", "BETWEEN", "IN", "IS_NULL");
-    private static final Set<String> STRING_OPS = Set.of("EQ", "NEQ", "IN", "IS_NULL");
+    /** CONTAINS (SRS 3.5.1.2 "chứa"): LIKE %giá trị% không phân biệt hoa thường, ký tự đại diện trong giá trị được escape. */
+    private static final Set<String> STRING_OPS = Set.of("EQ", "NEQ", "IN", "CONTAINS", "IS_NULL");
     private static final Set<String> BOOLEAN_OPS = Set.of("EQ", "NEQ", "IS_NULL");
     private static final int MAX_CONDITIONS = 20;
     private static final int MAX_IN_VALUES = 200;
@@ -73,6 +74,12 @@ public final class SegmentQueryBuilder {
                 params.add(value(a, c.value(), path + ".value"));
                 params.add(value(a, c.valueTo(), path + ".valueTo"));
                 return col + " BETWEEN ? AND ?";
+            }
+            case "CONTAINS" -> {
+                String v = String.valueOf(value(a, c.value(), path + ".value")).toLowerCase(Locale.ROOT)
+                        .replace("!", "!!").replace("%", "!%").replace("_", "!_");
+                params.add("%" + v + "%");
+                return "LOWER(" + col + ") LIKE ? ESCAPE '!'";
             }
             case "IN" -> {
                 List<String> parts = Arrays.stream((c.value() == null ? "" : c.value()).split(","))

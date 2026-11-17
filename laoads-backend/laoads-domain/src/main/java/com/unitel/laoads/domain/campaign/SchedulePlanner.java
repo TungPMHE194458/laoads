@@ -51,10 +51,12 @@ public final class SchedulePlanner {
         String unit = s.unit() == null ? "DAY" : s.unit();
         Set<Integer> weekdays = s.weekdays() == null || s.weekdays().isEmpty()
                 ? Set.of(startDate.getDayOfWeek().getValue() % 7) : new HashSet<>(s.weekdays());
+        Set<Integer> monthDays = s.monthDays() == null || s.monthDays().isEmpty()
+                ? Set.of(startDate.getDayOfMonth()) : new HashSet<>(s.monthDays());
         LocalDate afterDate = after.atZone(ZONE).toLocalDate();
         LocalDate d = afterDate.isAfter(startDate) ? afterDate : startDate;
         for (int i = 0; i < MAX_SCAN_DAYS; i++, d = d.plusDays(1)) {
-            if (!matches(unit, every, weekdays, startDate, d)) {
+            if (!matches(unit, every, weekdays, monthDays, startDate, d)) {
                 continue;
             }
             Instant candidate = ZonedDateTime.of(d, time, ZONE).toInstant();
@@ -69,7 +71,8 @@ public final class SchedulePlanner {
         return null;
     }
 
-    private static boolean matches(String unit, int every, Set<Integer> weekdays, LocalDate start, LocalDate d) {
+    private static boolean matches(String unit, int every, Set<Integer> weekdays, Set<Integer> monthDays,
+                                   LocalDate start, LocalDate d) {
         return switch (unit) {
             case "WEEK" -> {
                 long weeks = ChronoUnit.WEEKS.between(weekStart(start), weekStart(d));
@@ -77,7 +80,11 @@ public final class SchedulePlanner {
             }
             case "MONTH" -> {
                 long months = ChronoUnit.MONTHS.between(start.withDayOfMonth(1), d.withDayOfMonth(1));
-                yield months % every == 0 && d.getDayOfMonth() == Math.min(start.getDayOfMonth(), d.lengthOfMonth());
+                // ngày 29–31 ở tháng ngắn hơn → chạy vào ngày cuối tháng
+                int dom = d.getDayOfMonth();
+                boolean day = monthDays.contains(dom)
+                        || (dom == d.lengthOfMonth() && monthDays.stream().anyMatch(m -> m > d.lengthOfMonth()));
+                yield months % every == 0 && day;
             }
             default -> ChronoUnit.DAYS.between(start, d) % every == 0;
         };

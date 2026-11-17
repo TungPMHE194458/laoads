@@ -5,6 +5,8 @@ import com.unitel.laoads.api.common.ApiResponse;
 import com.unitel.laoads.domain.audit.AuditWriter;
 import com.unitel.laoads.domain.audit.Auditable;
 import com.unitel.laoads.domain.auth.AuthUser;
+import com.unitel.laoads.domain.common.ErrorCode;
+import com.unitel.laoads.domain.common.LaoadsException;
 import com.unitel.laoads.domain.user.SystemRole;
 import com.unitel.laoads.domain.workspace.WorkspaceStatus;
 import org.junit.jupiter.api.Test;
@@ -115,5 +117,20 @@ public class AuditAspectTest {
 
         AuthUser sa = new AuthUser(1L, "superadmin", SystemRole.SUPER_ADMIN, null);
         assertThat(build("export", new Object[]{"adm"}, ApiResponse.ok(null), sa, 10L).workspaceId()).isNull();
+    }
+
+    @Test
+    void failedActionIsRecordedWithErrorCode() {
+        // SRS 3.1.8: thao tác lỗi vẫn ghi nhật ký với trạng thái Thất bại và mã lỗi
+        assertThat(AuditAspect.errorCode(new LaoadsException(ErrorCode.CAMPAIGN_NAME_DUPLICATE, "trùng tên")))
+                .isEqualTo("CAMPAIGN_NAME_DUPLICATE");
+        assertThat(AuditAspect.errorCode(new IllegalStateException("x"))).isEqualTo("IllegalStateException");
+
+        AuditWriter.AuditEvent ok = build("login", new Object[]{new Login("owner_bsd", "secret")}, ApiResponse.ok(null), null, null);
+        assertThat(ok.result()).isEqualTo(AuditWriter.SUCCESS);
+        AuditWriter.AuditEvent failed = ok.failed("UNAUTHORIZED");
+        assertThat(failed.result()).isEqualTo(AuditWriter.FAILURE);
+        assertThat(failed.errorCode()).isEqualTo("UNAUTHORIZED");
+        assertThat(failed.actor()).isEqualTo(ok.actor());
     }
 }

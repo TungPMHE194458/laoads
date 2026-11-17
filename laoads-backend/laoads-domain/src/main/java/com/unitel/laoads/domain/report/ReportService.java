@@ -6,6 +6,8 @@ import com.unitel.laoads.domain.campaign.CampaignDefinition.ActionGroupDef;
 import com.unitel.laoads.domain.campaign.CampaignEnums.Status;
 import com.unitel.laoads.domain.campaign.CampaignRepository;
 import com.unitel.laoads.domain.campaign.CampaignService;
+import com.unitel.laoads.domain.common.FieldViolation;
+import com.unitel.laoads.domain.common.LaoadsException;
 import com.unitel.laoads.domain.engine.Utc;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,11 +44,22 @@ public class ReportService {
     public record TimePoint(String date, long sent, long opens, long clicks, long conversions) {
     }
 
-    public record ChannelStat(String channel, long sent, long delivered, long opened, long clicked, long converted) {
+    /**
+     * {@code sent}: tin gửi thành công (SENT + DELIVERED); {@code failed}: tin gửi lỗi (FAILED).
+     * Tỷ lệ gửi thành công (SRS 3.2.8.2) = sent / (sent + failed).
+     */
+    public record ChannelStat(String channel, long sent, long failed, long delivered, long opened, long clicked,
+                              long converted) {
     }
 
-    public record GroupStat(String groupName, boolean isControl, long target, double sentRate, double openRate,
-                            double conversionRate, Double uplift) {
+    /**
+     * Theo nhóm hành động (SRS 3.2.8.7): {@code delivered} = khách hàng đã nhận ít nhất một tin,
+     * {@code sentRate} = delivered / target, {@code opens} = khách hàng đã mở, {@code openRate} = opens / delivered,
+     * {@code conversions} = khách hàng chuyển đổi, {@code conversionRate} = conversions / target,
+     * {@code uplift} = conversionRate − conversionRate nhóm đối chứng (điểm %).
+     */
+    public record GroupStat(String groupName, boolean isControl, long target, long delivered, double sentRate,
+                            long opens, double openRate, long conversions, double conversionRate, Double uplift) {
     }
 
     public record CampaignReport(Totals totals, List<TimePoint> timeseries, List<ChannelStat> channels, List<GroupStat> groups) {
@@ -73,38 +86,120 @@ public class ReportService {
 
     // ───────────── Báo cáo chiến dịch ─────────────
 
+    /** Kênh gửi tin có báo cáo (OCS = hành động viễn thông, không phải tin nhắn). */
+    public static final List<String> MESSAGE_CHANNELS = List.of("SMS", "EMAIL", "WHATSAPP", "USSD");
+    /** Số mốc tối đa được điền 0 cho khoảng ngày (tránh sinh quá nhiều điểm khi chọn khoảng rất dài). */
+    private static final int MAX_FILLED_POINTS = 400;
+
     @Transactional(readOnly = true)
     public CampaignReport campaignReport(long ws, long campaignId, String bucket) {
+        return campaignReport(ws, campaignId, bucket, null, null, null);
+    }
+
+    /**
+     * SRS 3.2.8. {@code from}/{@code to}: khoảng ngày (giờ Lào, gồm cả hai đầu) chỉ áp cho chuỗi thời gian (3.2.8.1);
+     * {@code channel}: lọc chuỗi thời gian theo một kênh. Mỗi chỉ số được tính theo thời điểm phát sinh của nó
+     * (gửi theo SENT_AT, mở theo OPENED_AT, click theo CLICKED_AT, chuyển đổi theo CONVERTED_AT).
+     */
+    @Transactional(readOnly = true)
+    public CampaignReport campaignReport(long ws, long campaignId, String bucket, LocalDate from, LocalDate to,
+                                         String channel) {
         Campaign c = campaignService.get(ws, campaignId);
-        String fmt = switch (bucket == null ? "DAY" : bucket) {
+        String unit = bucket == null ? "DAY" : bucket;
+        String fmt = switch (unit) {
             case "WEEK" -> "IW";
             case "MONTH" -> "MM";
             default -> "DD";
         };
+        String ch = channel == null || channel.isBlank() ? null : channel.trim().toUpperCase(java.util.Locale.ROOT);
+        if (ch != null && !MESSAGE_CHANNELS.contains(ch)) {
+            throw LaoadsException.validation(List.of(new FieldViolation("channel", "error.validation.invalidValue",
+                    "Giá trị không hợp lệ")));
+        }
+        if (from != null && to != null && to.isBefore(from)) {
+            throw LaoadsException.validation(List.of(new FieldViolation("to", "error.validation.endBeforeStart",
+                    "Thời gian kết thúc phải sau thời gian bắt đầu")));
+        }
+        Instant fromTs = from == null ? null : from.atStartOfDay(ZONE).toInstant();
+        Instant toTs = to == null ? null : to.plusDays(1).atStartOfDay(ZONE).toInstant();
+
         Long runTargets = jdbc.queryForObject("SELECT SUM(TARGET_COUNT) FROM LADS_CAMPAIGN_RUN WHERE CAMPAIGN_ID = ?",
                 Long.class, campaignId);
         long target = runTargets != null && runTargets > 0 ? runTargets : c.getTargetCount();
         Totals totals = new Totals(target, c.getSentCount(), c.getDeliveredCount(), c.getFailedCount(), c.getOpenCount(),
                 c.getClickCount(), c.getConversionCount(), c.getSpent());
 
-        Map<String, long[]> series = new LinkedHashMap<>();
-        String day = String.format(LOCAL_DAY, "SENT_AT", fmt);
-        jdbc.query("SELECT TO_CHAR(" + day + ", 'YYYY-MM-DD') D, COUNT(*), COUNT(OPENED_AT), COUNT(CLICKED_AT) "
-                + "FROM LADS_CAMPAIGN_MESSAGE WHERE CAMPAIGN_ID = ? AND SENT_AT IS NOT NULL GROUP BY " + day
-                + " ORDER BY " + day, rs -> {
-            series.put(rs.getString(1), new long[]{rs.getLong(2), rs.getLong(3), rs.getLong(4), 0});
-        }, campaignId);
-        String convDay = String.format(LOCAL_DAY, "CONVERTED_AT", fmt);
-        jdbc.query("SELECT TO_CHAR(" + convDay + ", 'YYYY-MM-DD'), COUNT(*) FROM LADS_CAMPAIGN_TARGET WHERE CAMPAIGN_ID = ? "
-                + "AND CONVERTED = 1 AND IS_CONTROL = 0 GROUP BY " + convDay, rs -> {
+        Map<String, long[]> series = new java.util.TreeMap<>();
+        if (from != null && to != null) {
+            fillBuckets(series, from, to, unit);
+        }
+        countMessages(series, 0, "SENT_AT", "AND m.STATUS IN ('SENT', 'DELIVERED') ", fmt, campaignId, ch, fromTs, toTs);
+        countMessages(series, 1, "OPENED_AT", "", fmt, campaignId, ch, fromTs, toTs);
+        countMessages(series, 2, "CLICKED_AT", "", fmt, campaignId, ch, fromTs, toTs);
+        String convDay = String.format(LOCAL_DAY, "t.CONVERTED_AT", fmt);
+        List<Object> params = new ArrayList<>(List.of(campaignId));
+        StringBuilder sql = new StringBuilder("SELECT TO_CHAR(" + convDay + ", 'YYYY-MM-DD'), COUNT(*) FROM LADS_CAMPAIGN_TARGET t "
+                + "WHERE t.CAMPAIGN_ID = ? AND t.CONVERTED = 1 AND t.IS_CONTROL = 0 AND t.CONVERTED_AT IS NOT NULL ");
+        if (ch != null) {
+            sql.append("AND EXISTS (SELECT 1 FROM LADS_CAMPAIGN_MESSAGE m WHERE m.TARGET_ID = t.ID AND m.CHANNEL = ?) ");
+            params.add(ch);
+        }
+        appendRange(sql, params, "t.CONVERTED_AT", fromTs, toTs);
+        sql.append("GROUP BY ").append(convDay);
+        jdbc.query(sql.toString(), rs -> {
             series.computeIfAbsent(rs.getString(1), k -> new long[4])[3] = rs.getLong(2);
-        }, campaignId);
-        List<TimePoint> timeseries = series.entrySet().stream().sorted(Map.Entry.comparingByKey())
+        }, params.toArray());
+        List<TimePoint> timeseries = series.entrySet().stream()
                 .map(e -> new TimePoint(e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2], e.getValue()[3]))
                 .toList();
 
         List<ChannelStat> channels = channelStats("m.CAMPAIGN_ID = ?", campaignId);
         return new CampaignReport(totals, timeseries, channels, groupStats(c));
+    }
+
+    private void countMessages(Map<String, long[]> series, int idx, String column, String extra, String fmt,
+                               long campaignId, String channel, Instant fromTs, Instant toTs) {
+        String day = String.format(LOCAL_DAY, "m." + column, fmt);
+        List<Object> params = new ArrayList<>(List.of(campaignId));
+        StringBuilder sql = new StringBuilder("SELECT TO_CHAR(" + day + ", 'YYYY-MM-DD'), COUNT(*) FROM LADS_CAMPAIGN_MESSAGE m "
+                + "WHERE m.CAMPAIGN_ID = ? AND m.CHANNEL <> 'OCS' AND m." + column + " IS NOT NULL " + extra);
+        if (channel != null) {
+            sql.append("AND m.CHANNEL = ? ");
+            params.add(channel);
+        }
+        appendRange(sql, params, "m." + column, fromTs, toTs);
+        sql.append("GROUP BY ").append(day);
+        jdbc.query(sql.toString(), rs -> {
+            series.computeIfAbsent(rs.getString(1), k -> new long[4])[idx] = rs.getLong(2);
+        }, params.toArray());
+    }
+
+    private static void appendRange(StringBuilder sql, List<Object> params, String column, Instant fromTs, Instant toTs) {
+        if (fromTs != null) {
+            sql.append("AND ").append(column).append(" >= ? ");
+            params.add(Utc.ts(fromTs));
+        }
+        if (toTs != null) {
+            sql.append("AND ").append(column).append(" < ? ");
+            params.add(Utc.ts(toTs));
+        }
+    }
+
+    /** Điền mốc 0 cho cả khoảng (đầu tuần ISO = Thứ 2 như TRUNC(..., 'IW'); đầu tháng như TRUNC(..., 'MM')). */
+    static void fillBuckets(Map<String, long[]> series, LocalDate from, LocalDate to, String unit) {
+        LocalDate x = switch (unit) {
+            case "WEEK" -> from.with(java.time.DayOfWeek.MONDAY);
+            case "MONTH" -> from.withDayOfMonth(1);
+            default -> from;
+        };
+        for (int n = 0; !x.isAfter(to) && n < MAX_FILLED_POINTS; n++) {
+            series.put(x.toString(), new long[4]);
+            x = switch (unit) {
+                case "WEEK" -> x.plusWeeks(1);
+                case "MONTH" -> x.plusMonths(1);
+                default -> x.plusDays(1);
+            };
+        }
     }
 
     private List<GroupStat> groupStats(Campaign c) {
@@ -138,8 +233,8 @@ public class ReportService {
             double conv = ratio(r.converted(), r.target());
             Double uplift = g.isControl() || Double.isNaN(controlRate) || r.target() == 0 ? null
                     : Math.round((conv - controlRate) * 1000) / 10.0;
-            out.add(new GroupStat(names.getOrDefault(key, key), g.isControl(), r.target(), ratio(r.reached(), r.target()),
-                    ratio(r.opened(), r.reached()), conv, uplift));
+            out.add(new GroupStat(names.getOrDefault(key, key), g.isControl(), r.target(), r.reached(),
+                    ratio(r.reached(), r.target()), r.opened(), ratio(r.opened(), r.reached()), r.converted(), conv, uplift));
         }
         return out;
     }
@@ -213,18 +308,20 @@ public class ReportService {
 
     private List<ChannelStat> channelStats(String where, Object... params) {
         Map<String, ChannelStat> byChannel = new LinkedHashMap<>();
-        for (String ch : List.of("SMS", "EMAIL", "WHATSAPP", "USSD")) {
-            byChannel.put(ch, new ChannelStat(ch, 0, 0, 0, 0, 0));
+        for (String ch : MESSAGE_CHANNELS) {
+            byChannel.put(ch, new ChannelStat(ch, 0, 0, 0, 0, 0, 0));
         }
         jdbc.query("SELECT m.CHANNEL, SUM(CASE WHEN m.STATUS IN ('SENT', 'DELIVERED') THEN 1 ELSE 0 END), "
+                + "SUM(CASE WHEN m.STATUS = 'FAILED' THEN 1 ELSE 0 END), "
                 + "SUM(CASE WHEN m.STATUS = 'DELIVERED' THEN 1 ELSE 0 END), COUNT(m.OPENED_AT), COUNT(m.CLICKED_AT), "
                 + "COUNT(DISTINCT CASE WHEN t.CONVERTED = 1 THEN t.ID END) FROM LADS_CAMPAIGN_MESSAGE m "
                 + "JOIN LADS_CAMPAIGN_TARGET t ON t.ID = m.TARGET_ID WHERE m.CHANNEL <> 'OCS' AND " + where
                 + " GROUP BY m.CHANNEL", rs -> {
             byChannel.put(rs.getString(1), new ChannelStat(rs.getString(1), rs.getLong(2), rs.getLong(3), rs.getLong(4),
-                    rs.getLong(5), rs.getLong(6)));
+                    rs.getLong(5), rs.getLong(6), rs.getLong(7)));
         }, params);
-        return byChannel.values().stream().filter(s -> s.sent() > 0).toList();
+        // kênh lỗi 100% vẫn hiện (tỷ lệ gửi thành công 0%) — SRS 3.2.8.2
+        return byChannel.values().stream().filter(s -> s.sent() + s.failed() > 0).toList();
     }
 
     // ───────────── Dashboard Super Admin ─────────────
@@ -239,15 +336,23 @@ public class ReportService {
         long usersBefore = count("SELECT COUNT(*) FROM LADS_USER WHERE CREATED_AT < ?", before);
         long campaigns = count("SELECT COUNT(*) FROM LADS_CAMPAIGN");
         long campaignsBefore = count("SELECT COUNT(*) FROM LADS_CAMPAIGN WHERE CREATED_AT < ?", before);
+        // SRS 3.1.2: số chiến dịch đang chạy tại cùng thời điểm kỳ trước — có lượt chạy đã bắt đầu và chưa kết thúc
+        long runningBefore = count("SELECT COUNT(DISTINCT CAMPAIGN_ID) FROM LADS_CAMPAIGN_RUN WHERE STARTED_AT <= ? "
+                + "AND (FINISHED_AT IS NULL OR FINISHED_AT > ?)", before, before);
         return new AdminDashboard(Metric.of(activeWs, activeWsBefore), Metric.of(users, usersBefore),
-                Metric.of(campaignRepo.countRunning(), null), Metric.of(campaigns, campaignsBefore), topWorkspaces(10), days);
+                Metric.of(campaignRepo.countRunning(), runningBefore), Metric.of(campaigns, campaignsBefore),
+                topWorkspaces(TOP_WORKSPACES), days);
     }
 
+    /** Số workspace trong bảng Top (SRS 3.1.6) — file Excel xuất (3.1.7) dùng cùng số này để khớp màn hình. */
+    public static final int TOP_WORKSPACES = 10;
+
+    /** SRS 3.1.6: chỉ workspace có ít nhất một chiến dịch, giảm dần theo số chiến dịch. */
     @Transactional(readOnly = true)
     public List<TopWorkspace> topWorkspaces(int limit) {
         return jdbc.query("SELECT * FROM (SELECT w.ID, w.CODE, w.NAME, COUNT(c.ID) TOTAL, "
                         + "NVL(SUM(CASE WHEN c.STATUS = 'RUNNING' THEN 1 ELSE 0 END), 0) RUNNING FROM LADS_WORKSPACE w "
-                        + "LEFT JOIN LADS_CAMPAIGN c ON c.WORKSPACE_ID = w.ID GROUP BY w.ID, w.CODE, w.NAME "
+                        + "JOIN LADS_CAMPAIGN c ON c.WORKSPACE_ID = w.ID GROUP BY w.ID, w.CODE, w.NAME "
                         + "ORDER BY COUNT(c.ID) DESC, w.CODE) WHERE ROWNUM <= ?",
                 (rs, i) -> new TopWorkspace(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getLong(4), rs.getLong(5)),
                 limit);

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowDown, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, GripVertical, Link2, Plus, Trash2 } from 'lucide-react'
 import type { ActionGroup, ActionType, CampaignAction, MessageParam, SenderChannel } from '@/api/types'
 import { NOTIFICATION_ACTIONS, TELECOM_ACTIONS } from '@/api/types'
 import { useAvailableSenders, useMessageParams } from '@/features/campaign/api'
@@ -12,13 +12,13 @@ import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Field } from '@/components/common/dialogs'
 import { cn } from '@/lib/utils'
-import { actionIcon, AMOUNT_UNIT, expandedLength, hasParams, NEEDS_AMOUNT, NEEDS_CONTENT, previewParams, SENDER_CHANNEL_OF, unknownParams, WA_TEMPLATES } from './actionMeta'
+import { actionIcon, AMOUNT_UNIT, CONTENT_LIMITED, CONTENT_MAX, expandedLength, hasParams, NEEDS_AMOUNT, NEEDS_CONTENT, previewParams, SENDER_CHANNEL_OF, unknownParams } from './actionMeta'
 
 const uid = () => Math.random().toString(36).slice(2, 9)
 
 /** `smsSender`: đầu số SMS mặc định (đầu tiên workspace được dùng); null = để trống, wizard tự điền khi lưu. */
 export function newAction(type: ActionType, smsSender: string | null = null): CampaignAction {
-  return { id: uid(), type, delayMinutes: 0, senderId: type === 'NOTIFICATION_SMS' ? smsSender : null, subject: null, content: '', templateId: type === 'NOTIFICATION_WHATSAPP' ? WA_TEMPLATES[0] : null, amount: NEEDS_AMOUNT.includes(type) ? 0 : null, packageCode: null }
+  return { id: uid(), type, delayMinutes: 0, senderId: type === 'NOTIFICATION_SMS' ? smsSender : null, subject: null, content: '', templateId: null, amount: NEEDS_AMOUNT.includes(type) ? 0 : null, packageCode: null }
 }
 export function newGroup(name: string, allocationPercent: number, isControl = false, smsSender: string | null = null): ActionGroup {
   return { id: uid(), name, allocationPercent, isControl, mode: 'SEQUENTIAL', actions: isControl ? [] : [newAction('NOTIFICATION_SMS', smsSender)] }
@@ -37,7 +37,7 @@ export function validateActions(groups: ActionGroup[], params: MessageParam[] = 
       if (a.type === 'NOTIFICATION_SMS' && !a.senderId) return 'campaign.wizard.err.sender'
       if (NEEDS_CONTENT.includes(a.type) && !a.content?.trim()) return 'campaign.wizard.err.content'
       if (params.length && !g.isControl && (unknownParams(a.content, params).length || unknownParams(a.subject, params).length)) return 'campaign.wizard.err.unknownParam'
-      if (a.type === 'NOTIFICATION_SMS' && expandedLength(a.content, params) > 459) return 'campaign.wizard.err.smsLong'
+      if (CONTENT_LIMITED.includes(a.type) && expandedLength(a.content, params) > CONTENT_MAX) return 'campaign.wizard.err.contentLong'
       if (a.type === 'NOTIFICATION_EMAIL' && !a.subject?.trim()) return 'campaign.wizard.err.subject'
       if (NEEDS_AMOUNT.includes(a.type) && !(Number(a.amount) > 0)) return 'campaign.wizard.err.amount'
     }
@@ -78,8 +78,20 @@ function ActionEditor({ a, index, sequential, defaultSms, onChange, onRemove }: 
   const params = useMessageParams().data ?? []
   const withParams = hasParams(a.content)
   // có tham số → đếm theo độ dài tối đa sau khi thay (giá trị thật mỗi thuê bao có thể ngắn hơn)
-  const smsLen = expandedLength(a.content, params)
-  const segments = smsLen <= 160 ? 1 : Math.ceil(smsLen / 153)
+  const len = expandedLength(a.content, params)
+  const segments = len <= 160 ? 1 : Math.ceil(len / 153)
+  const limited = CONTENT_LIMITED.includes(a.type)
+  const counterKey = a.type === 'NOTIFICATION_SMS' ? (withParams ? 'campaign.wizard.smsCounterParams' : 'campaign.wizard.smsCounter') : withParams ? 'campaign.wizard.contentCounterParams' : 'campaign.wizard.contentCounter'
+  const [link, setLink] = React.useState('')
+  const linkOk = /^https?:\/\/\S+$/i.test(link.trim())
+  // SRS 3.2.3.6: chèn link vào cuối nội dung và bật theo dõi click (engine thay bằng link tracking khi gửi)
+  const insertLink = () => {
+    if (!linkOk) return
+    onChange({ ...a, content: `${a.content ?? ''}${a.content && !a.content.endsWith(' ') ? ' ' : ''}${link.trim()}`, trackLinks: true })
+    setLink('')
+  }
+  // SRS 3.2.3 TH4: đổi loại hành động tại chỗ — giữ id và thời gian chờ, các trường khác theo loại mới
+  const changeType = (type: ActionType) => onChange({ ...newAction(type, defaultSms), id: a.id, delayMinutes: a.delayMinutes, content: NEEDS_CONTENT.includes(type) ? a.content : '' })
   const unknown = [...unknownParams(a.content, params), ...unknownParams(a.subject, params)]
   const sampleParam = params.find((p) => p.source === 'SUBSCRIBER') ?? params[0]
   const insert = (p: string) => onChange({ ...a, content: `${a.content ?? ''}${a.content && !a.content.endsWith(' ') ? ' ' : ''}${p}` })
@@ -90,9 +102,14 @@ function ActionEditor({ a, index, sequential, defaultSms, onChange, onRemove }: 
         <span className="grid size-7 place-items-center rounded-md bg-accent text-brand-600">
           {React.createElement(actionIcon(a.type), { className: 'size-4' })}
         </span>
-        <span className="text-sm font-semibold">
-          {index + 1}. {t(`actionType.${a.type}`)}
-        </span>
+        <span className="text-sm font-semibold tabular">{index + 1}.</span>
+        <Select
+          className="h-8 w-56 text-sm font-semibold"
+          aria-label={t('campaign.wizard.changeType')}
+          value={a.type}
+          onValueChange={(v) => v !== a.type && changeType(v as ActionType)}
+          options={[...NOTIFICATION_ACTIONS, ...TELECOM_ACTIONS].map((x) => ({ value: x, label: t(`actionType.${x}`) }))}
+        />
         {sequential && index > 0 && (
           <span className="ml-2 flex items-center gap-1.5 text-xs text-muted-foreground">
             {t('campaign.wizard.waitAfter')}
@@ -111,22 +128,13 @@ function ActionEditor({ a, index, sequential, defaultSms, onChange, onRemove }: 
             <Input value={a.subject ?? ''} onChange={(e) => onChange({ ...a, subject: e.target.value })} />
           </Field>
         )}
-        {a.type === 'NOTIFICATION_WHATSAPP' && (
-          <Field label={t('campaign.wizard.waTemplate')} required hint={t('campaign.wizard.waHint')}>
-            <Select value={a.templateId ?? ''} onValueChange={(v) => onChange({ ...a, templateId: v })} options={WA_TEMPLATES.map((w) => ({ value: w, label: w }))} />
-          </Field>
-        )}
         {NEEDS_CONTENT.includes(a.type) && (
           <Field
             label={t('campaign.wizard.content')}
             required
-            hint={
-              a.type === 'NOTIFICATION_SMS' ? (
-                <span className={cn('tabular', smsLen > 459 && 'text-danger')}>{t(withParams ? 'campaign.wizard.smsCounterParams' : 'campaign.wizard.smsCounter', { n: smsLen, seg: segments })}</span>
-              ) : undefined
-            }
+            hint={limited ? <span className={cn('tabular', len > CONTENT_MAX && 'text-danger')}>{t(counterKey, { n: len, max: CONTENT_MAX, seg: segments })}</span> : undefined}
           >
-            <Textarea rows={a.type === 'NOTIFICATION_EMAIL' ? 6 : 3} value={a.content ?? ''} onChange={(e) => onChange({ ...a, content: e.target.value })} placeholder={t('campaign.wizard.contentPh')} />
+            <Textarea rows={a.type === 'NOTIFICATION_EMAIL' ? 6 : 3} maxLength={limited ? CONTENT_MAX : undefined} value={a.content ?? ''} onChange={(e) => onChange({ ...a, content: e.target.value })} placeholder={t('campaign.wizard.contentPh')} />
             {unknown.length > 0 && <p className="text-xs text-danger">{t('campaign.wizard.unknownParams', { list: unknown.join(', ') })}</p>}
             {withParams && a.content && (
               <p className="rounded-md bg-muted/60 px-2.5 py-1.5 text-xs text-muted-foreground">
@@ -147,6 +155,13 @@ function ActionEditor({ a, index, sequential, defaultSms, onChange, onRemove }: 
               ))}
             </div>
             {sampleParam && <p className="text-xs text-muted-foreground">{t('campaign.wizard.paramHint', { example: `{{${sampleParam.key}|${t('campaign.wizard.paramDefaultSample')}}}` })}</p>}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input value={link} onChange={(e) => setLink(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), insertLink())} placeholder="https://…" className="h-8 font-mono text-xs" aria-label={t('campaign.wizard.trackLinkUrl')} />
+              <Button type="button" variant="outline" size="sm" disabled={!linkOk} onClick={insertLink}>
+                <Link2 />
+                {t('campaign.wizard.insertTrackLink')}
+              </Button>
+            </div>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
               <Switch checked={!!a.trackLinks} onCheckedChange={(v) => onChange({ ...a, trackLinks: v })} />
               {t('campaign.wizard.trackLinks')}

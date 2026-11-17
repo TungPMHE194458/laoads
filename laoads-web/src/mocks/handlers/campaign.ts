@@ -20,7 +20,7 @@ import type {
 } from '@/api/types'
 import { CHANNELS, SENDER_CHANNELS } from '@/api/types'
 import type { AudienceRequest, AudienceSource, Segment } from '@/api/types'
-import { activeUnitPrice, audienceCatalog, audit, campaigns, campaignSeq, groups, messageParams, notificationSettings, rand, refreshGroupCounts, segmentAttributes, segments, segmentSeq, senderPasswords, senders, senderSeq, users, workspaces } from '../db'
+import { activeUnitPrice, audienceCatalog, audit, campaigns, campaignSeq, eventTemplates, groups, messageParams, notificationSettings, rand, refreshGroupCounts, segmentAttributes, segments, segmentSeq, senderPasswords, senders, senderSeq, users, workspaces } from '../db'
 import { currentUser, fail, guard, includes, ok, paged, q, workspaceId } from '../utils'
 import { validateAudience } from '@/features/campaign/audience'
 
@@ -148,12 +148,12 @@ function applySender(s: SenderNumber, b: SenderNumberInput) {
 }
 
 // Chuỗi thời gian ổn định theo seed riêng cho mỗi campaign
-function series(days: number, base: number, seedN: number): TimePoint[] {
+function series(days: number, base: number, seedN: number, end = '2026-11-15'): TimePoint[] {
   let s = seedN * 9301
   const r = () => ((s = (s * 9301 + 49297) % 233280) / 233280)
   const out: TimePoint[] = []
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(Date.parse('2026-11-15T00:00:00+07:00') - i * 86400_000)
+    const d = new Date(Date.parse(end + 'T00:00:00+07:00') - i * 86400_000)
     const wave = 0.75 + 0.35 * Math.sin((days - i) / 3.2) + r() * 0.25
     const sent = Math.round(base * wave)
     const opens = Math.round(sent * (0.22 + r() * 0.12))
@@ -172,11 +172,14 @@ function channelStats(channels: Channel[], total: number): ChannelStat[] {
     const delivered = Math.round(sent * deliv[c])
     const opened = Math.round(delivered * open[c])
     const clicked = Math.round(delivered * (c === 'EMAIL' ? 0.06 : c === 'WHATSAPP' ? 0.11 : 0.04))
-    return { channel: c, sent, delivered, opened, clicked, converted: Math.round(clicked * 0.32 + delivered * 0.01) }
+    return { channel: c, sent, failed: Math.round(sent * (1 - deliv[c]) * 0.4), delivered, opened, clicked, converted: Math.round(clicked * 0.32 + delivered * 0.01) }
   })
 }
 
 const listOf = (r: Request) => campaigns.filter((c) => c.workspaceId === wsOf(r))
+/** Giống BE CampaignRepository.countByName: trùng tên trong workspace, không phân biệt hoa/thường. */
+const nameTaken = (r: Request, name: string, exceptId?: number) =>
+  listOf(r).some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === name.trim().toLowerCase())
 const summary = ({ actionGroups: _a, schedule: _s, goal: _g, budget: _b, history: _h, testIsdns: _t, description: _d, language: _l, rejectReason: _r, ...rest }: CampaignDetail) => {
   void [_a, _s, _g, _b, _h, _t, _d, _l, _r]
   return rest
@@ -263,9 +266,15 @@ export const campaignHandlers = [
     const c = listOf(request).find((x) => x.id === Number(params.id))
     if (!c) return fail(404, 'NOT_FOUND', 'Không tìm thấy chiến dịch')
     const started = ['RUNNING', 'PAUSED', 'COMPLETED'].includes(c.status)
-    const bucket = new URL(request.url).searchParams.get('bucket') ?? 'DAY'
-    const days = bucket === 'MONTH' ? 6 : bucket === 'WEEK' ? 10 : 14
-    const ts = started ? series(days, Math.max(400, (c.targetCount / 14) * (bucket === 'DAY' ? 1 : bucket === 'WEEK' ? 5 : 18)), c.id) : []
+    const url = new URL(request.url)
+    const bucket = url.searchParams.get('bucket') ?? 'DAY'
+    // khoảng ngày (SRS 3.2.8.1): mock sinh số mốc theo khoảng, kết thúc ở ngày "to"
+    const to = url.searchParams.get('to') ?? '2026-11-15'
+    const from = url.searchParams.get('from')
+    const span = from ? Math.max(1, Math.round((Date.parse(to) - Date.parse(from)) / 86400_000) + 1) : 14
+    const days = Math.min(60, bucket === 'MONTH' ? Math.ceil(span / 30) : bucket === 'WEEK' ? Math.ceil(span / 7) : span)
+    const scale = (bucket === 'DAY' ? 1 : bucket === 'WEEK' ? 5 : 18) * (url.searchParams.get('channel') ? 0.35 : 1)
+    const ts = started ? series(days, Math.max(400, (c.targetCount / 14) * scale), c.id, to) : []
     const target = c.targetCount
     const sent = Math.round(target * c.sentRate * 0.9)
     const delivered = Math.round(sent * 0.93)
@@ -273,15 +282,18 @@ export const campaignHandlers = [
     const clicks = Math.round(opens * 0.31)
     const conversions = Math.round(target * c.conversionRate * 0.9)
     return ok({
-      totals: { target, sent, delivered, failed: sent - delivered, opens, clicks, conversions, spent: started ? Math.round(c.expectedCost * 0.62) : 0 },
+      totals: { target, sent, delivered, failed: Math.round(sent * 0.03), opens, clicks, conversions, spent: started ? Math.round(c.expectedCost * 0.62) : 0 },
       timeseries: ts,
       channels: started ? channelStats(c.channels, sent) : [],
       groups: c.actionGroups.map((g) => ({
         groupName: g.name,
         isControl: g.isControl,
         target: Math.round((target * g.allocationPercent) / 100),
+        delivered: g.isControl ? 0 : Math.round(((target * g.allocationPercent) / 100) * c.sentRate),
         sentRate: g.isControl ? 0 : c.sentRate,
+        opens: g.isControl ? 0 : Math.round(((target * g.allocationPercent) / 100) * c.sentRate * c.openRate),
         openRate: g.isControl ? 0 : c.openRate,
+        conversions: Math.round(((target * g.allocationPercent) / 100) * (g.isControl ? c.conversionRate * 0.35 : c.conversionRate)),
         conversionRate: g.isControl ? c.conversionRate * 0.35 : c.conversionRate,
         uplift: g.isControl ? null : c.uplift,
       })),
@@ -291,6 +303,7 @@ export const campaignHandlers = [
     const g = guard(request, 'CAMPAIGN_CREATE')
     if (g) return g
     const body = (await request.json()) as CampaignInput
+    if (nameTaken(request, body.name)) return fail(409, 'CAMPAIGN_NAME_DUPLICATE', 'Tên chiến dịch đã tồn tại trong workspace, vui lòng đặt tên khác')
     const submit = new URL(request.url).searchParams.get('submit') === 'true'
     const seg = segments.find((s) => s.id === body.segmentId)
     const grp = groups.find((x) => x.id === body.groupId)
@@ -326,7 +339,9 @@ export const campaignHandlers = [
     const c = listOf(request).find((x) => x.id === Number(params.id))
     if (!c) return fail(404, 'NOT_FOUND', 'Không tìm thấy chiến dịch')
     if (!['DRAFT', 'REJECTED'].includes(c.status)) return fail(409, 'CAMPAIGN_LOCKED', 'Chỉ sửa được chiến dịch Nháp hoặc Bị từ chối')
-    Object.assign(c, await request.json())
+    const body = (await request.json()) as CampaignInput
+    if (nameTaken(request, body.name, c.id)) return fail(409, 'CAMPAIGN_NAME_DUPLICATE', 'Tên chiến dịch đã tồn tại trong workspace, vui lòng đặt tên khác')
+    Object.assign(c, body)
     c.expectedCost = expectedCostOf(c)
     if (new URL(request.url).searchParams.get('submit') === 'true') transition(c, 'PENDING_APPROVAL', actor(request), 'SUBMIT')
     return ok(c)
@@ -398,6 +413,7 @@ export const campaignHandlers = [
   // ───── Tệp khách hàng ─────
   http.get(`${B}/segment-attributes`, () => ok(segmentAttributes)),
   http.get(`${B}/message-params`, () => ok(messageParams)),
+  http.get(`${B}/event-templates`, () => ok(eventTemplates)),
 
   // ───── Audience API (OCS / BCCS3) ─────
   http.get(`${B}/segments/audience/sources`, ({ request }) => {

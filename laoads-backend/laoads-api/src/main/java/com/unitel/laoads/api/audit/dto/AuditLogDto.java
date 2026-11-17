@@ -15,11 +15,14 @@ public record AuditLogDto(
         String detailJson,
         Long workspaceId,
         String ip,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        /** SUCCESS | FAILURE (SRS 3.1.8) */
+        String result,
+        String errorCode
 ) {
     public static AuditLogDto from(AuditLog a) {
         return new AuditLogDto(a.getId(), a.getActor(), a.getActionType(), a.getEntityType(), a.getEntityId(),
                 a.getSummary(), a.getDetailJson(), a.getWorkspaceId(), a.getClientIp(),
-                Times.toOffset(a.getCreatedAt()));
+                Times.toOffset(a.getCreatedAt()), a.getResult(), a.getErrorCode());
     }
 }

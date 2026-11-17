@@ -2,7 +2,7 @@ import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Ban, Copy, Eye, MoreHorizontal, Pause, Pencil, Play, Send, Trash2 } from 'lucide-react'
+import { Ban, Copy, Eye, MoreHorizontal, Pause, Pencil, Play, Send, Square, Trash2 } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { CampaignStatus, CampaignSummary } from '@/api/types'
 import { useCampaignCommand, useDeleteCampaign, type CampaignCommand } from '@/features/campaign/api'
@@ -10,6 +10,7 @@ import { useCan } from '@/features/auth/permissions'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ConfirmDialog } from '@/components/common/dialogs'
+import { Tooltip } from '@/components/ui/misc'
 
 export const EDITABLE: CampaignStatus[] = ['DRAFT', 'REJECTED']
 
@@ -88,9 +89,30 @@ export function useCampaignOps(c: Pick<CampaignSummary, 'id' | 'name' | 'status'
 export function CampaignRowMenu({ c }: { c: CampaignSummary }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { ops, run, setConfirm, dialogs } = useCampaignOps(c)
+  const { ops, run, setConfirm, dialogs, pending } = useCampaignOps(c)
+  // SRS 3.2.7.1: chạy / tạm dừng / dừng ngay trên dòng
+  const quick = (label: string, icon: React.ReactNode, onClick: () => void, danger = false) => (
+    <Tooltip content={label}>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={label}
+        disabled={pending}
+        className={danger ? 'text-muted-foreground hover:text-danger' : 'text-muted-foreground hover:text-foreground'}
+        onClick={(e) => {
+          e.stopPropagation()
+          onClick()
+        }}
+      >
+        {icon}
+      </Button>
+    </Tooltip>
+  )
   return (
-    <>
+    <div className="flex items-center justify-end gap-0.5">
+      {ops.resume && quick(t('campaign.ops.resume'), <Play />, () => run('resume'))}
+      {ops.pause && quick(t('campaign.ops.pause'), <Pause />, () => run('pause'))}
+      {ops.cancel && quick(t('campaign.ops.cancel'), <Square />, () => setConfirm('cancel'), true)}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-sm" aria-label={t('common.actions')} onClick={(e) => e.stopPropagation()}>
@@ -147,7 +169,7 @@ export function CampaignRowMenu({ c }: { c: CampaignSummary }) {
           )}
         </DropdownMenuContent>
       </DropdownMenu>
-      {dialogs}
-    </>
+      <span onClick={(e) => e.stopPropagation()}>{dialogs}</span>
+    </div>
   )
 }

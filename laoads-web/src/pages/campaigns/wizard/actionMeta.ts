@@ -49,8 +49,13 @@ export const ACTION_CHANNEL: Partial<Record<ActionType, Channel>> = {
   NOTIFICATION_USSD: 'USSD',
 }
 
-/** Hành động cần nội dung văn bản */
-export const NEEDS_CONTENT: ActionType[] = ['NOTIFICATION_SMS', 'NOTIFICATION_EMAIL', 'NOTIFICATION_USSD']
+/** Hành động cần nội dung văn bản (SRS 3.2.3.3–5: SMS / WhatsApp / Email nhập nội dung tự do). */
+export const NEEDS_CONTENT: ActionType[] = ['NOTIFICATION_SMS', 'NOTIFICATION_WHATSAPP', 'NOTIFICATION_EMAIL', 'NOTIFICATION_USSD']
+/** SRS 3.2.3.3–5: nội dung SMS / WhatsApp / Email tối đa 360 ký tự (BE CampaignService.CONTENT_MAX). */
+export const CONTENT_MAX = 360
+export const CONTENT_LIMITED: ActionType[] = ['NOTIFICATION_SMS', 'NOTIFICATION_WHATSAPP', 'NOTIFICATION_EMAIL']
+/** SRS 3.2.1.4–6: mô tả chiến dịch tối đa 360 ký tự. */
+export const DESCRIPTION_MAX = 360
 /** Hành động viễn thông cần số lượng */
 export const NEEDS_AMOUNT: ActionType[] = ['TOP_UP', 'ADD_MONEY', 'ADD_PROMOTION', 'ADD_DATA', 'ADD_SMS', 'ADD_CALL_MINUTES']
 export const AMOUNT_UNIT: Partial<Record<ActionType, string>> = {
@@ -62,8 +67,6 @@ export const AMOUNT_UNIT: Partial<Record<ActionType, string>> = {
   ADD_CALL_MINUTES: 'min',
 }
 
-export const WA_TEMPLATES = ['unitel_promo_v3', 'unitel_welcome_v2', 'unitel_data_offer', 'unitel_umoney_kyc']
-export const EVENT_TEMPLATES = ['SIM_ACTIVATION_D0', 'TOPUP_FIRST_TIME', 'PACKAGE_EXPIRING_D3', 'BIRTHDAY']
 
 // ───── Tham số nội dung tin: {{key}} hoặc {{key|mặc định}} — cùng cú pháp với BE (MessageParams.TOKEN) ─────
 const PARAM_RE = /\{\{\s*([A-Za-z0-9_]+)\s*(?:\|([^{}]*))?\}\}/g

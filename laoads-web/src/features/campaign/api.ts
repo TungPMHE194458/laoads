@@ -58,6 +58,9 @@ export function useDashboardChannels(days = 30) {
 
 // ───── Chiến dịch ─────
 export interface CampaignQuery extends PageQuery {
+  /** createdAt | startAt | endAt | name — SRS 3.2.7.1 */
+  sort?: string
+  dir?: 'asc' | 'desc'
   status?: string
   groupId?: number | ''
   mode?: string
@@ -76,11 +79,19 @@ export function useCampaign(id: number | null) {
     enabled: id != null && Number.isFinite(id),
   })
 }
-export function useCampaignReport(id: number | null, bucket: 'DAY' | 'WEEK' | 'MONTH') {
+export interface CampaignReportQuery {
+  bucket: 'DAY' | 'WEEK' | 'MONTH'
+  /** yyyy-MM-dd (giờ Lào) — khoảng ngày của chuỗi thời gian (SRS 3.2.8.1) */
+  from?: string
+  to?: string
+  channel?: string
+}
+export function useCampaignReport(id: number | null, q: CampaignReportQuery, enabled = true) {
   return useQuery({
-    queryKey: ['campaign', id, 'report', bucket],
-    queryFn: () => request<CampaignReport>({ url: `/campaigns/${id}/report`, params: { bucket } }),
-    enabled: id != null && Number.isFinite(id),
+    queryKey: ['campaign', id, 'report', q],
+    queryFn: () => request<CampaignReport>({ url: `/campaigns/${id}/report`, params: cleanParams({ ...q }) }),
+    enabled: enabled && id != null && Number.isFinite(id),
+    placeholderData: keepPreviousData,
   })
 }
 export function useCampaignGroups() {
@@ -194,6 +205,10 @@ export function useSegmentAttributes() {
 export function useMessageParams() {
   return useQuery({ queryKey: ['message-params'], queryFn: () => request<MessageParam[]>({ url: '/message-params' }), staleTime: Infinity })
 }
+/** Danh mục template sự kiện cho chiến dịch EVENT (SRS 3.2.1.6) — nhãn dịch ở campaign.event.<code>. */
+export function useEventTemplates() {
+  return useQuery({ queryKey: ['event-templates'], queryFn: () => request<{ code: string }[]>({ url: '/event-templates' }), staleTime: Infinity })
+}
 export function useEstimateSegment() {
   return useMutation({
     mutationFn: (conditions: SegmentCondition[]) =>
@@ -218,6 +233,10 @@ export function useCreateSegment() {
   })
 }
 /** File mẫu import tệp KH: sheet ISDN (cột isdn định dạng Text) + sheet hướng dẫn theo ngôn ngữ đang chọn. */
+/** File mẫu danh sách khách hàng đạt mục tiêu (SRS 3.2.6.2). */
+export function downloadConversionTemplate() {
+  return download('/campaigns/conversions/template', {}, 'conversion_template.xlsx')
+}
 export function downloadSegmentTemplate() {
   return download('/segments/import/template', {}, 'isdn_template.xlsx')
 }

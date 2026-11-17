@@ -304,6 +304,7 @@ export const coreHandlers = [
         includes(a.actor, q(url, 'actor')) &&
         (!q(url, 'actionType') || a.actionType === q(url, 'actionType')) &&
         (!q(url, 'entityType') || a.entityType === q(url, 'entityType')) &&
+        (!q(url, 'result') || a.result === q(url, 'result')) &&
         (!from || a.createdAt >= from) &&
         (!to || a.createdAt <= to + 'T23:59:59'),
     )

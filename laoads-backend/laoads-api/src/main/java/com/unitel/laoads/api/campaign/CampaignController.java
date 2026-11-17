@@ -20,12 +20,23 @@ import com.unitel.laoads.domain.engine.EngineMaintenance;
 import com.unitel.laoads.domain.engine.TestSendService;
 import com.unitel.laoads.domain.report.ReportService;
 import com.unitel.laoads.domain.segment.IsdnFileParser;
+import com.unitel.laoads.domain.segment.IsdnFileTemplate;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,8 +52,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 /** Chiến dịch (SRS 3.2) — theo workspace. */
 @RestController
@@ -58,6 +73,7 @@ public class CampaignController {
     private final EngineMaintenance maintenance;
     private final WorkspaceContext workspaceContext;
     private final CampaignViews views;
+    private final MessageSource messages;
 
     @GetMapping
     @PreAuthorize("@perm.has('CAMPAIGN_VIEW')")
@@ -67,9 +83,18 @@ public class CampaignController {
                                            @RequestParam(required = false) String query,
                                            @RequestParam(required = false) CampaignEnums.Status status,
                                            @RequestParam(required = false) CampaignEnums.Mode mode,
-                                           @RequestParam(required = false) Long groupId) {
+                                           @RequestParam(required = false) Long groupId,
+                                           @Parameter(description = "createdAt | startAt | endAt | name (mặc định createdAt)")
+                                           @RequestParam(required = false) String sort,
+                                           @Parameter(description = "asc | desc (mặc định desc)")
+                                           @RequestParam(required = false) String dir) {
         long ws = ws();
-        Page<Campaign> p = service.list(ws, query, status, mode, groupId, PageParams.of(page, size));
+        Pageable pageable = PageParams.of(page, size);
+        if (sort != null && CampaignService.SORTABLE.contains(sort)) {
+            Sort.Direction d = "asc".equalsIgnoreCase(dir) ? Sort.Direction.ASC : Sort.Direction.DESC;
+            pageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(d, sort));
+        }
+        Page<Campaign> p = service.list(ws, query, status, mode, groupId, pageable);
         return summaries(ws, p);
     }
 
@@ -83,9 +108,16 @@ public class CampaignController {
     @GetMapping("/{id}/report")
     @PreAuthorize("@perm.has('REPORT_VIEW')")
     @Operation(summary = "Báo cáo hiệu quả: tổng, chuỗi thời gian (DAY/WEEK/MONTH), theo kênh, theo nhóm A/B")
-    public ApiResponse<ReportService.CampaignReport> report(@PathVariable Long id,
-                                                            @RequestParam(required = false) String bucket) {
-        return ApiResponse.ok(reportService.campaignReport(ws(), id, bucket));
+    public ApiResponse<ReportService.CampaignReport> report(
+            @PathVariable Long id,
+            @RequestParam(required = false) String bucket,
+            @Parameter(description = "Ngày bắt đầu (yyyy-MM-dd, giờ Lào) — chỉ lọc chuỗi thời gian")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @Parameter(description = "Ngày kết thúc (gồm cả ngày này)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @Parameter(description = "SMS | EMAIL | WHATSAPP | USSD — lọc chuỗi thời gian theo kênh")
+            @RequestParam(required = false) String channel) {
+        return ApiResponse.ok(reportService.campaignReport(ws(), id, bucket, from, to, channel));
     }
 
     @PostMapping
@@ -170,6 +202,24 @@ public class CampaignController {
     @Operation(summary = "Bắn tin thử tới danh sách ISDN (tối đa 20 số)")
     public ApiResponse<List<TestSendService.Result>> testSend(@RequestBody TestSendRequest req) {
         return ApiResponse.ok(testSendService.send(ws(), req.campaignId(), req.isdns(), req.actions(), user()));
+    }
+
+    @GetMapping("/conversions/template")
+    @PreAuthorize("@perm.has('CAMPAIGN_VIEW')")
+    @Operation(summary = "Tải file mẫu danh sách khách hàng đạt mục tiêu (.xlsx) — SRS 3.2.6.2",
+            description = "Sheet 1 chỉ có tiêu đề isdn (cột định dạng Text); sheet 2 là hướng dẫn theo Accept-Language.")
+    public ResponseEntity<byte[]> conversionTemplate() {
+        Locale locale = LocaleContextHolder.getLocale();
+        List<String> lines = IntStream.rangeClosed(1, 4)
+                .mapToObj(i -> messages.getMessage("conversion.template.line" + i, null, "", locale)).toList();
+        byte[] body = IsdnFileTemplate.xlsx(new IsdnFileTemplate.Guide(
+                messages.getMessage("conversion.template.sheet", null, "Huong dan", locale),
+                messages.getMessage("conversion.template.title", null, "", locale), lines));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("conversion_template.xlsx", StandardCharsets.UTF_8).build().toString())
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(body);
     }
 
     @PostMapping(value = "/{id}/conversions/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

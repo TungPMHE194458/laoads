@@ -49,7 +49,9 @@ public class AuditExcelService {
             {"audit.export.workspace", "Workspace"},
             {"audit.export.summary", "Tóm tắt"},
             {"audit.export.ip", "IP"},
-            {"audit.export.detail", "Chi tiết"}
+            {"audit.export.detail", "Chi tiết"},
+            {"audit.export.result", "Kết quả"},
+            {"audit.export.errorCode", "Mã lỗi"}
     };
 
     private static final DateTimeFormatter TS_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -87,6 +89,9 @@ public class AuditExcelService {
                 String detail = nullSafe(a.getDetailJson());
                 out.createCell(8).setCellValue(detail.length() > EXCEL_CELL_MAX
                         ? detail.substring(0, EXCEL_CELL_MAX) : detail);
+                out.createCell(9).setCellValue(messages.getMessage("audit.result." + nullSafe(a.getResult()), null,
+                        nullSafe(a.getResult()), locale));
+                out.createCell(10).setCellValue(nullSafe(a.getErrorCode()));
             }
             try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
                 wb.write(bos);

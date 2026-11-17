@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router-dom'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useApprovals } from '@/features/campaign/api'
-import { useCan, useIsSuperAdmin } from '@/features/auth/permissions'
+import { useCan, useCurrentWorkspace, useIsSuperAdmin } from '@/features/auth/permissions'
 import { useUiStore } from '@/stores/ui'
 import { Tooltip } from '@/components/ui/misc'
 import { cn } from '@/lib/utils'
@@ -13,7 +13,9 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 function useVisible() {
   const can = useCan()
   const isSa = useIsSuperAdmin()
-  return (i: NavItem) => (i.superAdmin ? isSa : i.perm ? can(i.perm) : true)
+  const ws = useCurrentWorkspace()
+  // Mục theo quyền workspace chỉ hiện khi đã chọn workspace (Super Admin chưa có workspace vẫn vào trang quản trị)
+  return (i: NavItem) => (i.superAdmin ? isSa : i.perm ? !!ws && can(i.perm) : true)
 }
 
 function ApprovalCount() {

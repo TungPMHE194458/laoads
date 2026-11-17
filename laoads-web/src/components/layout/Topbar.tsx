@@ -81,7 +81,8 @@ function ThemeMenu() {
 function Notifications() {
   const { t } = useTranslation()
   const can = useCan()
-  const enabled = can('CAMPAIGN_APPROVE')
+  const ws = useCurrentWorkspace()
+  const enabled = !!ws && can('CAMPAIGN_APPROVE')
   const { data } = useApprovals({ page: 0, size: 5 }, enabled)
   const items = enabled ? (data?.items ?? []) : []
   return (
@@ -172,6 +173,7 @@ function UserMenu() {
 export function Topbar() {
   const { t } = useTranslation()
   const can = useCan()
+  const ws = useCurrentWorkspace()
   const [mobileOpen, setMobileOpen] = React.useState(false)
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur-md md:px-6">
@@ -182,7 +184,7 @@ export function Topbar() {
         <Brand />
       </div>
       <div className="ml-auto flex items-center gap-1">
-        {can('CAMPAIGN_CREATE') && (
+        {ws && can('CAMPAIGN_CREATE') && (
           <Button asChild size="sm" className="mr-2 hidden sm:inline-flex">
             <Link to="/campaigns/new">
               <Plus />

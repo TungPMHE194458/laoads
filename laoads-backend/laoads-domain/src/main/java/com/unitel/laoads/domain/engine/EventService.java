@@ -4,6 +4,7 @@ import com.unitel.laoads.domain.campaign.Campaign;
 import com.unitel.laoads.domain.campaign.CampaignEnums.Status;
 import com.unitel.laoads.domain.campaign.CampaignEnums.Type;
 import com.unitel.laoads.domain.campaign.CampaignRepository;
+import com.unitel.laoads.domain.campaign.CampaignService;
 import com.unitel.laoads.domain.common.FieldViolation;
 import com.unitel.laoads.domain.common.Isdns;
 import com.unitel.laoads.domain.common.LaoadsException;
@@ -30,6 +31,7 @@ public class EventService {
 
     private final ApiKeyService apiKeyService;
     private final CampaignRepository campaignRepo;
+    private final CampaignService campaignService;
     private final CampaignRunner runner;
     private final JdbcTemplate jdbc;
 
@@ -43,7 +45,7 @@ public class EventService {
         String isdn = Isdns.normalize(rawIsdn).orElseThrow(() -> LaoadsException.validation(List.of(
                 new FieldViolation("isdn", "error.validation.isdnInvalid", "Số thuê bao không hợp lệ", rawIsdn))));
         List<Campaign> campaigns = campaignRepo.findByWorkspaceIdAndTypeAndStatus(ws, Type.EVENT, Status.RUNNING).stream()
-                .filter(c -> type.equals(c.eventTemplate())).toList();
+                .filter(c -> type.equals(campaignService.eventTemplateOf(c))).toList();
         int enrolled = 0;
         for (Campaign c : campaigns) {
             if (runner.addEventTarget(c.getId(), isdn)) {

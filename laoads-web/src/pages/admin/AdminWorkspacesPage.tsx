@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Layers, Lock, LockOpen, Plus } from 'lucide-react'
+import { Eye, Layers, Lock, LockOpen, Plus } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { Workspace } from '@/api/types'
 import { useAdminWorkspaces, useCreateWorkspace, useSetWorkspaceStatus } from '@/features/workspace/api'
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { fmtDate } from '@/lib/format'
+import { WorkspaceDetailSheet } from './WorkspaceDetailSheet'
 
 export default function AdminWorkspacesPage() {
   const { t } = useTranslation()
@@ -26,6 +27,7 @@ export default function AdminWorkspacesPage() {
   const [open, setOpen] = React.useState(false)
   const [form, setForm] = React.useState({ code: '', name: '', description: '', ownerUsername: '' })
   const [target, setTarget] = React.useState<Workspace | null>(null)
+  const [viewing, setViewing] = React.useState<Workspace | null>(null)
 
   const columns: Column<Workspace>[] = [
     {
@@ -50,10 +52,16 @@ export default function AdminWorkspacesPage() {
       header: '',
       align: 'right',
       cell: (w) => (
-        <Button size="sm" variant="ghost" onClick={() => setTarget(w)}>
-          {w.status === 'ACTIVE' ? <Lock /> : <LockOpen />}
-          {w.status === 'ACTIVE' ? t('common.lock') : t('common.unlock')}
-        </Button>
+        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button size="sm" variant="ghost" onClick={() => setViewing(w)}>
+            <Eye />
+            {t('common.view')}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setTarget(w)}>
+            {w.status === 'ACTIVE' ? <Lock /> : <LockOpen />}
+            {w.status === 'ACTIVE' ? t('common.lock') : t('common.unlock')}
+          </Button>
+        </div>
       ),
     },
   ]
@@ -139,6 +147,7 @@ export default function AdminWorkspacesPage() {
           )
         }
       />
+      <WorkspaceDetailSheet workspace={viewing} onClose={() => setViewing(null)} />
     </>
   )
 }

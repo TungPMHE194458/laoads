@@ -11,6 +11,7 @@ import { useDashboardSummary } from '@/features/campaign/api'
 import { PageHeader } from '@/components/common/PageHeader'
 import { FormDialog, Field } from '@/components/common/dialogs'
 import { StatCard } from '@/components/common/StatCard'
+import { EmptyState } from '@/components/common/EmptyState'
 import { ActiveBadge } from '@/components/common/status'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -24,7 +25,7 @@ export default function WorkspacePage() {
   const { t } = useTranslation()
   const can = useCan()
   const cur = useCurrentWorkspace()
-  const { data: ws, isLoading } = useWorkspace(cur?.id ?? null)
+  const { data: ws, isLoading, isError, error } = useWorkspace(cur?.id ?? null)
   const summary = useDashboardSummary(7)
   const update = useUpdateWorkspace(cur?.id ?? 0)
   const [open, setOpen] = React.useState(false)
@@ -36,6 +37,7 @@ export default function WorkspacePage() {
     setOpen(true)
   }
 
+  if (isError) return <EmptyState icon={<Building2 />} title={t('status.notFoundTitle')} description={errorMessage(error)} />
   if (isLoading || !ws) return <Skeleton className="h-96 rounded-xl" />
 
   return (

@@ -1,13 +1,18 @@
 import { useTranslation } from 'react-i18next'
+import { Pencil, Trash2 } from 'lucide-react'
 import type { Member } from '@/api/types'
 import { ActiveBadge } from '@/components/common/status'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogDescription, DialogTitle, SheetContent } from '@/components/ui/dialog'
 import { fmtDateTime } from '@/lib/format'
 import { initials } from '@/lib/utils'
 
-/** Chi tiết một thành viên (SRS 3.4.5) — drawer mở khi bấm vào dòng trong danh sách thành viên. */
-export function MemberDetailSheet({ member, onClose }: { member: Member | null; onClose: () => void }) {
+/**
+ * Chi tiết một thành viên (SRS 3.4.5) — drawer mở khi bấm vào dòng trong danh sách thành viên.
+ * Nút Chỉnh sửa / Gỡ chỉ hiện khi được phép (không phải chính mình, không phải Chủ sở hữu, có quyền quản lý).
+ */
+export function MemberDetailSheet({ member, onClose, onEdit, onRemove }: { member: Member | null; onClose: () => void; onEdit?: () => void; onRemove?: () => void }) {
   const { t } = useTranslation()
   return (
     <Dialog open={!!member} onOpenChange={(o) => !o && onClose()}>
@@ -40,6 +45,22 @@ export function MemberDetailSheet({ member, onClose }: { member: Member | null; 
               <dt className="text-muted-foreground">{t('members.joined')}</dt>
               <dd className="tabular">{fmtDateTime(member.joinedAt)}</dd>
             </dl>
+            {(onEdit || onRemove) && (
+              <div className="flex flex-wrap gap-2 border-t pt-4">
+                {onEdit && (
+                  <Button variant="outline" onClick={onEdit}>
+                    <Pencil />
+                    {t('members.editMember')}
+                  </Button>
+                )}
+                {onRemove && (
+                  <Button variant="outline" className="text-danger hover:text-danger" onClick={onRemove}>
+                    <Trash2 />
+                    {t('members.remove')}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </SheetContent>

@@ -62,4 +62,11 @@ public class AuditLog {
 
     @Column(name = "CREATED_AT", nullable = false)
     private Instant createdAt;
+
+    /** SUCCESS | FAILURE (SRS 3.1.8). */
+    @Column(name = "RESULT", nullable = false, length = 16)
+    private String result = AuditWriter.SUCCESS;
+
+    @Column(name = "ERROR_CODE", length = 64)
+    private String errorCode;
 }

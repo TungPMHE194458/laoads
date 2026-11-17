@@ -134,7 +134,11 @@ export async function download(url: string, params: Record<string, unknown>, fil
 
 /** Lấy message hiển thị từ lỗi bất kỳ. */
 export function errorMessage(e: unknown): string {
-  if (e instanceof ApiError) return e.message
+  if (e instanceof ApiError) {
+    // Lỗi theo từng trường (VALIDATION_ERROR): hiện kèm tối đa 3 lỗi cụ thể thay vì chỉ câu chung
+    const details = [...new Set(e.errors.map((x) => x.message).filter(Boolean))]
+    return details.length ? `${e.message.replace(/[.:]\s*$/, '')}: ${details.slice(0, 3).join(' · ')}` : e.message
+  }
   if (e instanceof Error) return e.message
   return String(e)
 }

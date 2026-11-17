@@ -63,8 +63,10 @@ public class AuditLogController {
                                                @RequestParam(required = false) String from,
                                                @RequestParam(required = false) String to,
                                                @Parameter(description = "Chỉ SUPER_ADMIN")
-                                               @RequestParam(required = false) Long workspaceId) {
-        AuditFilter f = filter(actor, actionType, entityType, from, to, workspaceId);
+                                               @RequestParam(required = false) Long workspaceId,
+                                               @Parameter(description = "SUCCESS | FAILURE")
+                                               @RequestParam(required = false) String result) {
+        AuditFilter f = filter(actor, actionType, entityType, from, to, workspaceId, result);
         return ApiResponse.page(auditService.search(f, PageParams.of(page, size)), AuditLogDto::from);
     }
 
@@ -80,8 +82,9 @@ public class AuditLogController {
                                          @RequestParam(required = false) String entityType,
                                          @RequestParam(required = false) String from,
                                          @RequestParam(required = false) String to,
-                                         @RequestParam(required = false) Long workspaceId) {
-        AuditFilter f = filter(actor, actionType, entityType, from, to, workspaceId);
+                                         @RequestParam(required = false) Long workspaceId,
+                                         @RequestParam(required = false) String result) {
+        AuditFilter f = filter(actor, actionType, entityType, from, to, workspaceId, result);
         byte[] body = excelService.export(f);
         String filename = "audit_log_" + LocalDateTime.now(Times.ZONE).format(FILE_TS) + ".xlsx";
         return ResponseEntity.ok()
@@ -91,10 +94,11 @@ public class AuditLogController {
     }
 
     private AuditFilter filter(String actor, String actionType, String entityType, String from, String to,
-                               Long workspaceIdParam) {
+                               Long workspaceIdParam, String result) {
         AuthUser user = CurrentUser.require();
         Long ws = user.isSuperAdmin() ? workspaceIdParam : Long.valueOf(workspaceContext.requireWorkspaceId());
         return new AuditFilter(actor, actionType, entityType, ws,
-                DateParams.from("from", from), DateParams.to("to", to));
+                DateParams.from("from", from), DateParams.to("to", to),
+                result == null || result.isBlank() ? null : result.trim().toUpperCase(java.util.Locale.ROOT));
     }
 }

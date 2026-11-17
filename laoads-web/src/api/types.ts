@@ -218,6 +218,9 @@ export interface AuditLog {
   workspaceId: number | null
   ip: string | null
   createdAt: string
+  /** SUCCESS | FAILURE (SRS 3.1.8) */
+  result: 'SUCCESS' | 'FAILURE'
+  errorCode: string | null
 }
 
 // ───────────── Chiến dịch / tệp KH / dashboard (BE đợt 2–3; mock: handlers/campaign.ts) ─────────────
@@ -288,6 +291,10 @@ export interface CampaignSchedule {
   every?: number
   unit?: 'DAY' | 'WEEK' | 'MONTH'
   weekdays?: number[]
+  /** SRS 3.2.5.3: các ngày trong tháng (unit = MONTH), trống = ngày của startAt */
+  monthDays?: number[] | null
+  /** SRS 3.2.5.3: hoàn thành sau N lần lặp; null = chạy tới thời gian kết thúc */
+  maxOccurrences?: number | null
   sendTime?: string
   silentHours?: { enabled: boolean; from: string; to: string }
 }
@@ -296,7 +303,12 @@ export interface CampaignGoal {
   description: string
   attributionWindowDays: number
   stopOnGoal: boolean
+  /** Điều kiện dừng (SRS 3.2.6.1): không phản hồi sau N thông báo liên tiếp; null = tắt */
   maxNoResponse: number | null
+  /** Cho phép khách hàng bị loại quay lại chiến dịch sau N ngày; null = tắt (loại vĩnh viễn) */
+  reentryDays?: number | null
+  /** SRS 3.2.6.1: điều kiện đạt mục tiêu trên dữ liệu BI (all_report_stl_new); bắt buộc khi gửi duyệt AUTO_OCS */
+  conditions?: SegmentCondition[] | null
 }
 export interface CampaignDetail extends CampaignSummary {
   description: string | null
@@ -306,6 +318,10 @@ export interface CampaignDetail extends CampaignSummary {
   schedule: CampaignSchedule
   goal: CampaignGoal
   budget: { expected: number; max: number | null }
+  /** Template sự kiện (bắt buộc khi type = EVENT, danh mục GET /event-templates) — SRS 3.2.1.6 */
+  eventTemplate?: string | null
+  /** Số khách hàng tối đa của chiến dịch TEST (1–1000, mặc định 10) — SRS 3.2.1.4 */
+  testLimit?: number | null
   rejectReason: string | null
   history: { at: string; actor: string; action: string; note?: string | null }[]
 }
@@ -337,7 +353,10 @@ export interface CampaignGroup {
 
 export interface ChannelStat {
   channel: Channel
+  /** tin gửi thành công (SENT + DELIVERED) */
   sent: number
+  /** tin gửi lỗi — tỷ lệ gửi thành công = sent / (sent + failed) (SRS 3.2.8.2) */
+  failed: number
   delivered: number
   opened: number
   clicked: number
@@ -354,7 +373,8 @@ export interface CampaignReport {
   totals: { target: number; sent: number; delivered: number; failed: number; opens: number; clicks: number; conversions: number; spent: number }
   timeseries: TimePoint[]
   channels: ChannelStat[]
-  groups: { groupName: string; isControl: boolean; target: number; sentRate: number; openRate: number; conversionRate: number; uplift: number | null }[]
+  /** Theo nhóm hành động (SRS 3.2.8.7): delivered = KH đã nhận ≥ 1 tin, sentRate = delivered / target, openRate = opens / delivered */
+  groups: { groupName: string; isControl: boolean; target: number; delivered: number; sentRate: number; opens: number; openRate: number; conversions: number; conversionRate: number; uplift: number | null }[]
 }
 
 export interface Metric {
@@ -431,7 +451,7 @@ export interface AudienceVerifyResult {
 }
 export interface SegmentCondition {
   field: string
-  operator: 'EQ' | 'NEQ' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'BETWEEN' | 'IN' | 'IS_NULL'
+  operator: 'EQ' | 'NEQ' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'BETWEEN' | 'IN' | 'CONTAINS' | 'IS_NULL'
   value: string
   valueTo?: string
   join: 'AND' | 'OR'

@@ -12,6 +12,7 @@ import com.unitel.laoads.api.common.WorkspaceContext;
 import com.unitel.laoads.domain.audit.AuditWriter;
 import com.unitel.laoads.domain.audit.Auditable;
 import com.unitel.laoads.domain.auth.AuthUser;
+import com.unitel.laoads.domain.common.LaoadsException;
 import com.unitel.laoads.web.filter.RequestIdFilter;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
@@ -46,10 +47,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
- * AOP {@code @Around @Auditable} (adapt từ BOC AuditAspect). Sau khi method trả thành công:
+ * AOP {@code @Around @Auditable} (adapt từ BOC AuditAspect). Sau khi method chạy xong:
  * resolve actor / entityId / workspaceId / summary bằng SpEL, dựng detailJson (tham số + kết quả, đã che
  * password/token/secret/ticket), rồi {@link AuditWriter#writeAsync} — không block request.
- * Method ném exception → KHÔNG ghi. Lỗi trong aspect chỉ log warn, không ảnh hưởng response.
+ * Method ném exception → vẫn ghi với RESULT = FAILURE và mã lỗi (SRS 3.1.8: trạng thái Thành công / Thất bại),
+ * rồi ném lại nguyên exception. Lỗi trong aspect chỉ log warn, không ảnh hưởng response.
  */
 @Aspect
 @Component
@@ -69,7 +71,18 @@ public class AuditAspect {
 
     @Around("@annotation(auditable)")
     public Object intercept(ProceedingJoinPoint jp, Auditable auditable) throws Throwable {
-        Object result = jp.proceed();
+        Object result;
+        try {
+            result = jp.proceed();
+        } catch (Throwable failure) {
+            record(jp, auditable, null, failure);
+            throw failure;
+        }
+        record(jp, auditable, result, null);
+        return result;
+    }
+
+    private void record(ProceedingJoinPoint jp, Auditable auditable, Object result, Throwable failure) {
         try {
             Method method = ((MethodSignature) jp.getSignature()).getMethod();
             HttpServletRequest req = currentRequest();
@@ -77,46 +90,68 @@ public class AuditAspect {
                     req == null ? null : parseLong(req.getHeader(WorkspaceContext.HEADER)),
                     req == null ? null : ClientInfos.clientIp(req),
                     req == null ? null : req.getHeader("User-Agent"),
-                    MDC.get(RequestIdFilter.MDC_KEY));
+                    MDC.get(RequestIdFilter.MDC_KEY), failure != null);
+            if (failure != null) {
+                ev = ev.failed(errorCode(failure));
+                if (ev.summary() == null && failure.getMessage() != null) {
+                    ev = new AuditWriter.AuditEvent(ev.actor(), ev.actorId(), ev.actionType(), ev.entityType(), ev.entityId(),
+                            ev.workspaceId(), failure.getMessage(), ev.detailJson(), ev.clientIp(), ev.userAgent(),
+                            ev.requestId(), ev.createdAt(), ev.result(), ev.errorCode());
+                }
+            }
             auditWriter.writeAsync(ev);
         } catch (Exception e) {
             log.warn("[AUDIT] aspect post-process failed: {}", e.getMessage());
         }
-        return result;
+    }
+
+    /** Mã lỗi nghiệp vụ (ErrorCode) hoặc tên exception. */
+    static String errorCode(Throwable t) {
+        return t instanceof LaoadsException le && le.getCode() != null ? le.getCode().name()
+                : t.getClass().getSimpleName();
     }
 
     AuditWriter.AuditEvent buildEvent(Method method, Object[] args, Auditable ann, Object result,
                                       AuthUser currentUser, Long workspaceHeader,
                                       String ip, String userAgent, String requestId) {
+        return buildEvent(method, args, ann, result, currentUser, workspaceHeader, ip, userAgent, requestId, false);
+    }
+
+    /** {@code failed}: method ném exception — biểu thức tham chiếu #result sẽ lỗi, không log cảnh báo cho trường hợp này. */
+    AuditWriter.AuditEvent buildEvent(Method method, Object[] args, Auditable ann, Object result,
+                                      AuthUser currentUser, Long workspaceHeader,
+                                      String ip, String userAgent, String requestId, boolean failed) {
         Object data = unwrap(result);
         MethodBasedEvaluationContext ctx = new MethodBasedEvaluationContext(null, method, args, NAMES);
         ctx.setVariable("result", data);
         ctx.setVariable("currentUser", currentUser);
         ctx.setVariable("workspaceHeader", workspaceHeader);
 
-        String actionType = firstNonBlank(asString(eval(ann.actionTypeExpr(), ctx)), ann.actionType());
-        String actor = firstNonBlank(asString(eval(ann.actor(), ctx)),
+        String actionType = firstNonBlank(asString(eval(failed, ann.actionTypeExpr(), ctx)), ann.actionType());
+        String actor = firstNonBlank(asString(eval(failed, ann.actor(), ctx)),
                 currentUser == null ? "anonymous" : currentUser.username());
-        Long actorId = asLong(eval(ann.actorId(), ctx));
+        Long actorId = asLong(eval(failed, ann.actorId(), ctx));
         if (actorId == null && currentUser != null && ann.actor().isBlank()) {
             actorId = currentUser.id();
         }
-        String entityId = ann.entityId().isBlank() ? reflectId(data) : asString(eval(ann.entityId(), ctx));
-        Long workspaceId = asLong(eval(ann.workspaceId(), ctx));
-        String summary = asString(eval(ann.summary(), ctx));
+        String entityId = ann.entityId().isBlank() ? reflectId(data) : asString(eval(failed, ann.entityId(), ctx));
+        Long workspaceId = asLong(eval(failed, ann.workspaceId(), ctx));
+        String summary = asString(eval(failed, ann.summary(), ctx));
 
         return new AuditWriter.AuditEvent(actor, actorId, actionType, ann.entityType(), entityId, workspaceId,
                 summary, detailJson(method, args, data, result), ip, userAgent, requestId, Instant.now());
     }
 
-    private Object eval(String expr, EvaluationContext ctx) {
+    private Object eval(boolean quiet, String expr, EvaluationContext ctx) {
         if (expr == null || expr.isBlank()) {
             return null;
         }
         try {
             return expressionCache.computeIfAbsent(expr, PARSER::parseExpression).getValue(ctx);
         } catch (Exception e) {
-            log.warn("[AUDIT] SpEL lỗi '{}': {}", expr, e.getMessage());
+            if (!quiet) {
+                log.warn("[AUDIT] SpEL lỗi '{}': {}", expr, e.getMessage());
+            }
             return null;
         }
     }

@@ -6,7 +6,7 @@
  */
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from 'recharts'
 import type { Channel } from '@/api/types'
 import { CHANNEL_META } from '@/components/common/status'
 import { Tooltip } from '@/components/ui/misc'
@@ -135,6 +135,190 @@ export function RateBar({ value, color = 'var(--series-brand)' }: { value: numbe
         <div className="h-full rounded-full" style={{ width: `${Math.min(100, value * 100)}%`, background: color }} />
       </div>
       <span className="w-12 text-right text-[13px] tabular">{fmtPercent(value)}</span>
+    </div>
+  )
+}
+
+export interface SeriesDef {
+  key: string
+  label: string
+  color: string
+}
+
+/** Chú thích chuỗi: chấm màu + nhãn màu chữ; bấm để ẩn / hiện chuỗi (giữ nguyên màu theo entity). */
+function SeriesLegend({ series, hidden, onToggle, marker = 'line' }: { series: SeriesDef[]; hidden?: Set<string>; onToggle?: (key: string) => void; marker?: 'line' | 'dot' }) {
+  return (
+    <ul className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1.5 text-[13px]">
+      {series.map((s) => {
+        const off = hidden?.has(s.key)
+        const mark = <span className={marker === 'line' ? 'h-[2px] w-4 rounded-full' : 'size-2.5 rounded-full'} style={{ background: s.color }} />
+        return (
+          <li key={s.key}>
+            {onToggle ? (
+              <button type="button" aria-pressed={!off} onClick={() => onToggle(s.key)} className={cn('flex cursor-pointer items-center gap-2 rounded px-1 text-foreground/80 hover:text-foreground', off && 'opacity-40')}>
+                {mark}
+                {s.label}
+              </button>
+            ) : (
+              <span className="flex items-center gap-2 text-foreground/80">
+                {mark}
+                {s.label}
+              </span>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function MultiTooltip({
+  active,
+  payload,
+  label,
+  labelFormat,
+  valueFormat,
+}: {
+  active?: boolean
+  payload?: { dataKey?: string | number; name?: string; value?: number | null; color?: string }[]
+  label?: string
+  labelFormat?: (l: string) => string
+  valueFormat: (v: number) => string
+}) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-pop">
+      <div className="text-muted-foreground">{labelFormat && label ? labelFormat(label) : label}</div>
+      {payload.map((p) => (
+        <div key={String(p.dataKey)} className="mt-1 flex items-center gap-2">
+          <span className="size-2 rounded-full" style={{ background: p.color }} />
+          <span className="text-foreground/80">{p.name}</span>
+          <span className="ml-auto pl-4 font-semibold text-foreground tabular">{p.value == null ? '—' : valueFormat(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Biểu đồ đường nhiều chỉ số trên một trục (SRS 3.2.8.1): legend luôn hiện, bấm legend để ẩn chuỗi lớn
+ * (vd "Đã gửi") khi muốn xem rõ chuỗi nhỏ; tooltip liệt kê mọi chỉ số tại mốc.
+ */
+export function MetricLines({ data, xKey, series, xFormat }: { data: object[]; xKey: string; series: SeriesDef[]; xFormat?: (v: string) => string }) {
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set())
+  const toggle = (k: string) =>
+    setHidden((h) => {
+      const n = new Set(h)
+      if (n.has(k)) n.delete(k)
+      else if (n.size < series.length - 1) n.add(k)
+      return n
+    })
+  return (
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
+            <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+            <XAxis dataKey={xKey} tickLine={false} axisLine={false} tick={axisTick} tickFormatter={xFormat} minTickGap={24} dy={6} />
+            <YAxis tickLine={false} axisLine={false} tick={axisTick} tickFormatter={(v: number) => fmtCompact(v)} width={52} allowDecimals={false} />
+            <RTooltip cursor={{ stroke: 'var(--chart-axis)', strokeDasharray: '3 3' }} content={<MultiTooltip labelFormat={xFormat} valueFormat={fmtNumber} />} />
+            {series
+              .filter((s) => !hidden.has(s.key))
+              .map((s) => (
+                <Line
+                  key={s.key}
+                  type="monotone"
+                  dataKey={s.key}
+                  name={s.label}
+                  stroke={s.color}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--card)', fill: s.color }}
+                  isAnimationActive={false}
+                />
+              ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <SeriesLegend series={series} hidden={hidden} onToggle={toggle} />
+    </div>
+  )
+}
+
+/**
+ * Cột nhóm (SRS 3.2.8.3): mỗi nhóm trên trục X là một chỉ số tỷ lệ, mỗi cột là một kênh (màu cố định theo kênh).
+ * Giá trị null = kênh không đo được chỉ số đó (vd SMS không có lượt mở) → không vẽ cột.
+ */
+export function GroupedRateBars({ data, xKey, series }: { data: object[]; xKey: string; series: SeriesDef[] }) {
+  return (
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -8 }} barGap={2} barCategoryGap="24%">
+            <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+            <XAxis dataKey={xKey} tickLine={false} axisLine={false} tick={axisTick} dy={6} interval={0} />
+            <YAxis tickLine={false} axisLine={false} tick={axisTick} tickFormatter={(v: number) => fmtPercent(v, 0)} width={52} domain={[0, (max: number) => (max > 0 ? Math.min(1, Math.max(0.05, max * 1.25)) : 1)]} />
+            <RTooltip cursor={{ fill: 'var(--muted)', opacity: 0.5 }} content={<MultiTooltip valueFormat={(v) => fmtPercent(v)} />} />
+            {series.map((s) => (
+              <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <SeriesLegend series={series} marker="dot" />
+    </div>
+  )
+}
+
+/**
+ * Donut tỷ lệ (SRS 3.2.8.4–6): phần màu = tỷ lệ, phần còn lại màu nền; giữa vòng là tổng (Total Sent / Clicks / Reg),
+ * bên cạnh là "nhãn: số (tỷ lệ)" và chú thích màu.
+ */
+export function RateDonut({
+  rate,
+  count,
+  centerValue,
+  centerLabel,
+  label,
+  color = 'var(--series-brand)',
+}: {
+  rate: number
+  count: number
+  centerValue: number
+  centerLabel: string
+  label: string
+  color?: string
+}) {
+  const v = Math.max(0, Math.min(1, rate))
+  const data = [
+    { name: 'value', value: v },
+    { name: 'rest', value: 1 - v },
+  ]
+  return (
+    <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-6">
+      <div className="relative size-40 shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} dataKey="value" innerRadius="72%" outerRadius="100%" startAngle={90} endAngle={-270} stroke="var(--card)" strokeWidth={2} isAnimationActive={false}>
+              <Cell fill={color} />
+              <Cell fill="var(--muted)" />
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
+          <div className="text-xl font-semibold tabular">{fmtCompact(centerValue)}</div>
+          <div className="text-[11px] text-muted-foreground">{centerLabel}</div>
+        </div>
+      </div>
+      <div className="text-center sm:text-left">
+        <div className="flex items-center justify-center gap-2 text-[13px] text-muted-foreground sm:justify-start">
+          <span className="size-2.5 rounded-full" style={{ background: color }} />
+          {label}
+        </div>
+        <div className="mt-1 text-lg font-semibold tabular">
+          {fmtNumber(count)} <span className="text-muted-foreground">({fmtPercent(v)})</span>
+        </div>
+      </div>
     </div>
   )
 }

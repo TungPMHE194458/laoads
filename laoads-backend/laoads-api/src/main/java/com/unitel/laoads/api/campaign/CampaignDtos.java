@@ -55,8 +55,8 @@ public final class CampaignDtos {
                          OffsetDateTime createdAt, String createdBy, BigDecimal expectedCost, double sentRate,
                          double openRate, double conversionRate, BigDecimal uplift,
                          String description, String language, List<String> testIsdns, List<ActionGroupDef> actionGroups,
-                         ScheduleDef schedule, GoalDef goal, BudgetDef budget, String rejectReason,
-                         List<HistoryItem> history) {
+                         ScheduleDef schedule, GoalDef goal, BudgetDef budget, String eventTemplate, Integer testLimit,
+                         String rejectReason, List<HistoryItem> history) {
 
         public static Detail from(Campaign c, CampaignDefinition def, String groupName, String segmentName,
                                   List<CampaignHistory> history) {
@@ -67,20 +67,27 @@ public final class CampaignDtos {
                     s.createdBy(), s.expectedCost(), s.sentRate(), s.openRate(), s.conversionRate(), s.uplift(),
                     c.getDescription(), c.getLanguage(),
                     c.getTestIsdns() == null ? List.of() : Arrays.asList(c.getTestIsdns().split(",")),
-                    def.groups(), def.schedule(), def.goal(), budget, c.getRejectReason(),
+                    def.groups(), def.schedule(), def.goal(), budget,
+                    def.eventTemplate() != null ? def.eventTemplate() : c.eventTemplate(),
+                    c.getMode() == CampaignEnums.Mode.TEST ? Integer.valueOf(def.testLimitOrDefault()) : null,
+                    c.getRejectReason(),
                     history.stream().map(HistoryItem::from).toList());
         }
     }
 
-    /** Body tạo / sửa chiến dịch. targetCount / channels / expectedCost FE gửi kèm bị bỏ qua — BE tự tính. */
+    /**
+     * Body tạo / sửa chiến dịch. targetCount / channels / expectedCost FE gửi kèm bị bỏ qua — BE tự tính.
+     * {@code eventTemplate}: bắt buộc khi type = EVENT (danh mục {@code GET /event-templates});
+     * {@code testLimit}: số khách hàng tối đa của chiến dịch TEST (1–1000, mặc định 10).
+     */
     public record Request(@NotBlank @Size(max = 255) String name, @Size(max = 2000) String description,
                           @NotNull CampaignEnums.Mode mode, @NotNull CampaignEnums.Type type, Long groupId,
                           Long segmentId, String language, List<String> testIsdns, List<ActionGroupDef> actionGroups,
-                          ScheduleDef schedule, GoalDef goal, BudgetDef budget) {
+                          ScheduleDef schedule, GoalDef goal, BudgetDef budget, String eventTemplate, Integer testLimit) {
 
         public CampaignInput toInput() {
             return new CampaignInput(name, description, mode, type, groupId, segmentId, language, testIsdns,
-                    new CampaignDefinition(actionGroups, schedule, goal, budget));
+                    new CampaignDefinition(actionGroups, schedule, goal, budget, eventTemplate, testLimit));
         }
     }
 

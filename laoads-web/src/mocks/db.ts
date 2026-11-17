@@ -116,6 +116,9 @@ export const priceSeq = { v: 3 }
 export const activeUnitPrice = (a: ActionType) => priceQuotes.find((p) => p.status === 'LOCKED')?.items.find((i) => i.actionType === a)?.unitPrice ?? 0
 
 // ── Tệp khách hàng ──
+// Giống BE EventTemplates.CODES (GET /event-templates)
+export const eventTemplates = ['SIM_ACTIVATION_D0', 'TOPUP_FIRST_TIME', 'PACKAGE_EXPIRING_D3', 'BIRTHDAY'].map((code) => ({ code }))
+
 // Giống BE MessageParams.PARAMS (GET /message-params)
 export const messageParams: MessageParam[] = [
   { key: 'isdn', token: '{{isdn}}', source: 'TARGET', maxLength: 13, example: '8562055512345' },
@@ -257,8 +260,8 @@ function mkCampaign(
     delayMinutes: i === 0 ? 0 : 60 * 24,
     senderId: c === 'SMS' ? '118' : null,
     subject: c === 'EMAIL' ? name : null,
-    content: c === 'SMS' ? `[Unitel] ${name}. Soạn DK gửi 118 để nhận ưu đãi. Chi tiết: https://unitel.com.la/uu-dai` : c === 'WHATSAPP' ? null : `Ưu đãi dành riêng cho thuê bao {{isdn}}, gói hiện tại {{package|chưa có}}`,
-    templateId: c === 'WHATSAPP' ? 'unitel_promo_v3' : null,
+    content: c === 'SMS' ? `[Unitel] ${name}. Soạn DK gửi 118 để nhận ưu đãi. Chi tiết: https://unitel.com.la/uu-dai` : c === 'WHATSAPP' ? `Unitel: ${name}. Xem chi tiết ưu đãi tại https://unitel.com.la/uu-dai` : `Ưu đãi dành riêng cho thuê bao {{isdn}}, gói hiện tại {{package|chưa có}}`,
+    templateId: null,
   }))
   if (opts.type !== 'EVENT' && id % 3 === 0) actions.push({ id: `a${id}-gift`, type: 'ADD_DATA', delayMinutes: 0, senderId: null, subject: null, content: null, templateId: null, amount: 1024, packageCode: null } as never)
   const expectedCost = Math.round(seg.totalUsers * actions.reduce((s, a) => s + activeUnitPrice(a.type), 0) * 0.9)
@@ -289,6 +292,8 @@ function mkCampaign(
     description: null,
     language: 'LO',
     testIsdns: [],
+    eventTemplate: opts.type === 'EVENT' ? 'SIM_ACTIVATION_D0' : null,
+    testLimit: null,
     actionGroups: [
       { id: `g${id}-a`, name: 'Nhóm A', allocationPercent: 90, isControl: false, mode: 'SEQUENTIAL', actions },
       { id: `g${id}-c`, name: 'Nhóm đối chứng', allocationPercent: 10, isControl: true, mode: 'SEQUENTIAL', actions: [] },
@@ -337,8 +342,22 @@ refreshGroupCounts()
 // ── Nhật ký ──
 export const auditLogs: AuditLog[] = []
 let auditSeq = 0
-export function audit(actor: string, actionType: string, entityType: string, entityId: string | null, summary: string, workspaceId: number | null = 1, at?: string) {
-  auditLogs.unshift({ id: ++auditSeq, actor, actionType, entityType, entityId, summary, detailJson: null, workspaceId, ip: '10.120.30.' + rint(10, 250), createdAt: at ?? new Date().toISOString() })
+export function audit(actor: string, actionType: string, entityType: string, entityId: string | null, summary: string, workspaceId: number | null = 1, at?: string, errorCode: string | null = null) {
+  auditLogs.unshift({
+    id: ++auditSeq,
+    actor,
+    actionType,
+    entityType,
+    entityId,
+    summary,
+    detailJson: JSON.stringify({ params: { id: entityId } }),
+    workspaceId,
+    ip: '10.120.30.' + rint(10, 250),
+    createdAt: at ?? new Date().toISOString(),
+    // SRS 3.1.8: thao tác lỗi vẫn được ghi với trạng thái Thất bại
+    result: errorCode ? 'FAILURE' : 'SUCCESS',
+    errorCode,
+  })
 }
 ;[
   ['superadmin', 'LOCK', 'PRICE_QUOTE', '2', 'Khoá bảng giá "Bảng giá Q4/2026"', null, 45],
@@ -352,7 +371,9 @@ export function audit(actor: string, actionType: string, entityType: string, ent
   ['member_bsd', 'LOGIN', 'AUTH', null, 'Đăng nhập', null, 0],
   ['superadmin', 'UPDATE', 'ROLE', 'MEMBER', 'Cập nhật quyền vai trò Thành viên', null, 9],
   ['admin_bsd', 'IMPORT', 'SEGMENT', '4', 'Import file vip_vientiane_2026-11.xlsx (4.812 dòng)', 1, 8],
-].reverse().forEach(([a, t, e, id, s, w, d]) => audit(a as string, t as string, e as string, id as string | null, s as string, w as number | null, daysAgo(d as number, rint(8, 17))))
+  ['member_bsd', 'CREATE', 'CAMPAIGN', null, 'Tên chiến dịch đã tồn tại trong workspace, vui lòng đặt tên khác', 1, 1, 'CAMPAIGN_NAME_DUPLICATE'],
+  ['ngo.linh', 'LOGIN', 'USER', null, 'Sai tên đăng nhập hoặc mật khẩu', null, 0, 'UNAUTHORIZED'],
+].reverse().forEach(([a, t, e, id, s, w, d, err]) => audit(a as string, t as string, e as string, id as string | null, s as string, w as number | null, daysAgo(d as number, rint(8, 17)), (err as string | undefined) ?? null))
 
 // ── Cài đặt gửi tin ──
 const noGateway = (): SenderNumber['gateway'] => ({ protocol: 'NONE', host: null, port: null, systemType: null, url: null, username: null, hasPassword: false, tps: null, lastTest: null })

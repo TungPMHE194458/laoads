@@ -63,6 +63,11 @@
   --series-3: #1baf7a;
   --series-4: #eda100;
   --series-brand: #f85000;
+  /* Chỉ số theo thời gian (báo cáo chiến dịch) — khác hẳn màu kênh; đã chạy dataviz validator (adjacent, light) */
+  --metric-sent: #6250d6;
+  --metric-opens: #e87ba4;
+  --metric-clicks: #e34948;
+  --metric-conversions: #008300;
   --chart-grid: #ececef;
   --chart-axis: #8b8f99;
 
@@ -111,6 +116,10 @@
   --series-3: #199e70;
   --series-4: #c98500;
   --series-brand: #ff6a1f;
+  --metric-sent: #9085e9;
+  --metric-opens: #d55181;
+  --metric-clicks: #e66767;
+  --metric-conversions: #0ca30c;
   --chart-grid: #26282e;
   --chart-axis: #8b8f99;
 

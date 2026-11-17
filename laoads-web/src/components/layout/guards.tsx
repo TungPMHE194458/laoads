@@ -15,7 +15,22 @@ export function FullScreenLoader() {
   )
 }
 
-/** Cần đăng nhập + /me đã tải. Không có workspace hợp lệ → /select-workspace. */
+/**
+ * Trang theo workspace (gửi X-Workspace-Id): cần workspace hợp lệ, không có → /select-workspace.
+ * SUPER_ADMIN khi hệ thống chưa có workspace hoạt động nào → trang Quản lý workspace để tạo workspace đầu tiên.
+ */
+export function RequireWorkspace() {
+  const { data } = useMe()
+  const wsId = useUiStore((s) => s.workspaceId)
+  const isSa = useIsSuperAdmin()
+  const active = data?.workspaces.filter((w) => w.status === 'ACTIVE') ?? []
+  if (active.some((w) => w.id === wsId)) return <Outlet />
+  if (active.length === 1) return <FullScreenLoader />
+  if (isSa && active.length === 0) return <Navigate to="/admin/workspaces" replace />
+  return <Navigate to="/select-workspace" replace />
+}
+
+/** Cần đăng nhập + /me đã tải. Không có workspace hợp lệ → /select-workspace (trừ khi needWorkspace = false). */
 export function RequireAuth({ needWorkspace = true }: { needWorkspace?: boolean }) {
   const token = useAuthStore((s) => s.accessToken)
   const loc = useLocation()

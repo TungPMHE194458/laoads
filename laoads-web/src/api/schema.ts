@@ -1108,6 +1108,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/event-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Danh mục template sự kiện
+         * @description Chiến dịch chạy theo sự kiện chọn một template; hệ thống ngoài gọi POST /v1/events với eventType = mã template. Nhãn hiển thị do FE dịch (campaign.event.<code>).
+         */
+        get: operations["eventTemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/dashboard/trend": {
         parameters: {
             query?: never;
@@ -1168,6 +1188,26 @@ export interface paths {
         };
         /** Báo cáo hiệu quả: tổng, chuỗi thời gian (DAY/WEEK/MONTH), theo kênh, theo nhóm A/B */
         get: operations["report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/campaigns/conversions/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tải file mẫu danh sách khách hàng đạt mục tiêu (.xlsx) — SRS 3.2.6.2
+         * @description Sheet 1 chỉ có tiêu đề isdn (cột định dạng Text); sheet 2 là hướng dẫn theo Accept-Language.
+         */
+        get: operations["conversionTemplate"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1604,6 +1644,9 @@ export interface components {
             stopOnGoal?: boolean;
             /** Format: int32 */
             maxNoResponse?: number;
+            /** Format: int32 */
+            reentryDays?: number;
+            conditions?: components["schemas"]["SegmentCondition"][];
         };
         Request: {
             name: string;
@@ -1622,6 +1665,9 @@ export interface components {
             schedule?: components["schemas"]["ScheduleDef"];
             goal?: components["schemas"]["GoalDef"];
             budget?: components["schemas"]["BudgetDef"];
+            eventTemplate?: string;
+            /** Format: int32 */
+            testLimit?: number;
         };
         ScheduleDef: {
             type?: string;
@@ -1635,6 +1681,16 @@ export interface components {
             weekdays?: number[];
             sendTime?: string;
             silentHours?: components["schemas"]["SilentHoursDef"];
+            monthDays?: number[];
+            /** Format: int32 */
+            maxOccurrences?: number;
+        };
+        SegmentCondition: {
+            field?: string;
+            operator?: string;
+            value?: string;
+            valueTo?: string;
+            join?: string;
         };
         SilentHoursDef: {
             enabled?: boolean;
@@ -1692,6 +1748,9 @@ export interface components {
             schedule?: components["schemas"]["ScheduleDef"];
             goal?: components["schemas"]["GoalDef"];
             budget?: components["schemas"]["BudgetDef"];
+            eventTemplate?: string;
+            /** Format: int32 */
+            testLimit?: number;
             rejectReason?: string;
             history?: components["schemas"]["HistoryItem"][];
         };
@@ -1811,13 +1870,6 @@ export interface components {
             description?: string;
             type?: string;
             conditions?: components["schemas"]["SegmentCondition"][];
-        };
-        SegmentCondition: {
-            field?: string;
-            operator?: string;
-            value?: string;
-            valueTo?: string;
-            join?: string;
         };
         ApiResponseSegmentDto: {
             success?: boolean;
@@ -2215,6 +2267,18 @@ export interface components {
             user?: components["schemas"]["UserDto"];
             workspaces?: components["schemas"]["MyWorkspace"][];
         };
+        ApiResponseListEventTemplateDto: {
+            success?: boolean;
+            data?: components["schemas"]["EventTemplateDto"][];
+            message?: string;
+            statusCode?: string;
+            metaData?: components["schemas"]["PageMeta"];
+            requestId?: string;
+            errors?: components["schemas"]["ApiFieldError"][];
+        };
+        EventTemplateDto: {
+            code?: string;
+        };
         ApiResponseListTimePoint: {
             success?: boolean;
             data?: components["schemas"]["TimePoint"][];
@@ -2273,6 +2337,8 @@ export interface components {
             channel?: string;
             /** Format: int64 */
             sent?: number;
+            /** Format: int64 */
+            failed?: number;
             /** Format: int64 */
             delivered?: number;
             /** Format: int64 */
@@ -2347,10 +2413,16 @@ export interface components {
             isControl?: boolean;
             /** Format: int64 */
             target?: number;
+            /** Format: int64 */
+            delivered?: number;
             /** Format: double */
             sentRate?: number;
+            /** Format: int64 */
+            opens?: number;
             /** Format: double */
             openRate?: number;
+            /** Format: int64 */
+            conversions?: number;
             /** Format: double */
             conversionRate?: number;
             /** Format: double */
@@ -2418,6 +2490,8 @@ export interface components {
             ip?: string;
             /** Format: date-time */
             createdAt?: string;
+            result?: string;
+            errorCode?: string;
         };
         ApiResponseListWorkspaceDto: {
             success?: boolean;
@@ -3533,6 +3607,10 @@ export interface operations {
                 status?: "DRAFT" | "PENDING_APPROVAL" | "SCHEDULED" | "RUNNING" | "PAUSED" | "COMPLETED" | "REJECTED" | "CANCELLED";
                 mode?: "OFFICIAL" | "TEST";
                 groupId?: number;
+                /** @description createdAt | startAt | endAt | name (mặc định createdAt) */
+                sort?: string;
+                /** @description asc | desc (mặc định desc) */
+                dir?: string;
             };
             header: {
                 /** @description Workspace hiện hành (bắt buộc) */
@@ -4549,6 +4627,28 @@ export interface operations {
             };
         };
     };
+    eventTemplates: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListEventTemplateDto"];
+                };
+            };
+        };
+    };
     trend: {
         parameters: {
             query?: {
@@ -4631,6 +4731,12 @@ export interface operations {
         parameters: {
             query?: {
                 bucket?: string;
+                /** @description Ngày bắt đầu (yyyy-MM-dd, giờ Lào) — chỉ lọc chuỗi thời gian */
+                from?: string;
+                /** @description Ngày kết thúc (gồm cả ngày này) */
+                to?: string;
+                /** @description SMS | EMAIL | WHATSAPP | USSD — lọc chuỗi thời gian theo kênh */
+                channel?: string;
             };
             header: {
                 /** @description Workspace hiện hành (bắt buộc) */
@@ -4651,6 +4757,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseCampaignReport"];
+                };
+            };
+        };
+    };
+    conversionTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Workspace hiện hành (bắt buộc) */
+                "X-Workspace-Id": number;
+                "Accept-Language"?: "vi" | "en" | "lo";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
                 };
             };
         };
@@ -4718,6 +4848,8 @@ export interface operations {
                 to?: string;
                 /** @description Chỉ SUPER_ADMIN */
                 workspaceId?: number;
+                /** @description SUCCESS | FAILURE */
+                result?: string;
             };
             header?: {
                 /** @description Workspace hiện hành (bắt buộc với user không phải SUPER_ADMIN) */
@@ -4749,6 +4881,7 @@ export interface operations {
                 from?: string;
                 to?: string;
                 workspaceId?: number;
+                result?: string;
             };
             header?: {
                 /** @description Workspace hiện hành (bắt buộc với user không phải SUPER_ADMIN) */

@@ -7,5 +7,9 @@ import java.time.Instant;
  * (chỉ SUPER_ADMIN; user thường luôn bị ép theo X-Workspace-Id).
  */
 public record AuditFilter(String actor, String actionType, String entityType, Long workspaceId,
-                          Instant from, Instant to) {
+                          Instant from, Instant to, String result) {
+
+    public AuditFilter(String actor, String actionType, String entityType, Long workspaceId, Instant from, Instant to) {
+        this(actor, actionType, entityType, workspaceId, from, to, null);
+    }
 }

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
-import { ChevronLeft, ChevronRight, Inbox } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Inbox } from 'lucide-react'
 import type { PageMeta } from '@/api/types'
 import { Button } from '@/components/ui/button'
 import { Checkbox, Skeleton } from '@/components/ui/misc'
@@ -29,6 +29,8 @@ interface Props<T> {
   meta?: PageMeta
   onPageChange?: (page: number) => void
   onPageSizeChange?: (size: number) => void
+  /** Các lựa chọn số dòng mỗi trang (mặc định 10/20/50/100) */
+  pageSizes?: number[]
   /** Bật cột checkbox chọn nhiều dòng */
   selectable?: boolean
   selectedIds?: (string | number)[]
@@ -50,6 +52,7 @@ export function DataTable<T>({
   meta,
   onPageChange,
   onPageSizeChange,
+  pageSizes,
   selectable,
   selectedIds = [],
   onSelectionChange,
@@ -176,9 +179,39 @@ export function DataTable<T>({
         </table>
       </div>
       {meta && meta.totalItems > 0 && (
-        <Pagination meta={meta} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
+        <Pagination meta={meta} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} pageSizes={pageSizes} />
       )}
     </div>
+  )
+}
+
+/** Lựa chọn số dòng mỗi trang mặc định; truyền `pageSizes` để đổi (vd khối nhật ký trên Dashboard: 5 dòng). */
+const PAGE_SIZES = [10, 20, 50, 100]
+
+/** Ô "Đến trang" — chỉ nhận khi Enter / rời ô, giá trị ngoài khoảng bị kẹp (SRS 3.1.8, 3.4.1). */
+function GoToPage({ total, onGo }: { total: number; onGo: (p: number) => void }) {
+  const { t } = useTranslation()
+  const [v, setV] = React.useState('')
+  const go = () => {
+    const n = Math.floor(Number(v))
+    if (Number.isFinite(n) && n >= 1) onGo(Math.min(total, n) - 1)
+    setV('')
+  }
+  return (
+    <label className="ml-2 flex items-center gap-1.5 whitespace-nowrap">
+      {t('table.goTo')}
+      <input
+        type="number"
+        min={1}
+        max={total}
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && go()}
+        onBlur={() => v && go()}
+        className="h-8 w-14 rounded-md border bg-card px-2 text-[13px] tabular outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+        aria-label={t('table.goTo')}
+      />
+    </label>
   )
 }
 
@@ -186,10 +219,12 @@ export function Pagination({
   meta,
   onPageChange,
   onPageSizeChange,
+  pageSizes = PAGE_SIZES,
 }: {
   meta: PageMeta
   onPageChange?: (p: number) => void
   onPageSizeChange?: (s: number) => void
+  pageSizes?: number[]
 }) {
   const { t } = useTranslation()
   const from = meta.currentPage * meta.pageSize + 1
@@ -208,10 +243,13 @@ export function Pagination({
               aria-label={t('table.pageSize')}
               value={String(meta.pageSize)}
               onValueChange={(v) => onPageSizeChange(Number(v))}
-              options={[10, 20, 50, 100].map((n) => ({ value: String(n), label: t('table.perPage', { n }) }))}
+              options={[...new Set([...pageSizes, meta.pageSize])].sort((a, b) => a - b).map((n) => ({ value: String(n), label: t('table.perPage', { n }) }))}
             />
           </div>
         )}
+        <Button variant="ghost" size="icon-sm" aria-label={t('table.first')} disabled={meta.currentPage <= 0} onClick={() => onPageChange?.(0)}>
+          <ChevronsLeft />
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -248,6 +286,10 @@ export function Pagination({
         >
           <ChevronRight />
         </Button>
+        <Button variant="ghost" size="icon-sm" aria-label={t('table.last')} disabled={meta.currentPage >= meta.totalPages - 1} onClick={() => onPageChange?.(meta.totalPages - 1)}>
+          <ChevronsRight />
+        </Button>
+        {meta.totalPages > 7 && onPageChange && <GoToPage total={meta.totalPages} onGo={onPageChange} />}
       </div>
     </div>
   )

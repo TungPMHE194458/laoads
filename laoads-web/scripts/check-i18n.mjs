@@ -35,6 +35,7 @@ const DYNAMIC = {
   'campaign.type': ['STATIC', 'EVENT', 'STATIC_desc', 'EVENT_desc'],
   'campaign.ops': ['submitDone', 'pauseDone', 'resumeDone', 'cancelDone', 'duplicateDone'],
   'campaign.detail.bucket': ['DAY', 'WEEK', 'MONTH'],
+  'campaign.detail': ['approxCustomers', 'customersN'],
   'campaign.history': ['CREATE', 'SUBMIT', 'APPROVE', 'REJECT', 'PAUSE', 'RESUME', 'CANCEL', 'START', 'COMPLETE'],
   'campaign.event': ['SIM_ACTIVATION_D0', 'TOPUP_FIRST_TIME', 'PACKAGE_EXPIRING_D3', 'BIRTHDAY'],
   'campaign.wizard.steps': ['basics', 'audience', 'actions', 'schedule', 'goal', 'review'],
@@ -43,12 +44,14 @@ const DYNAMIC = {
   'campaign.wizard.schedule': ['NOW', 'ONCE', 'RECURRING', 'NOW_desc', 'ONCE_desc', 'RECURRING_desc'],
   'campaign.wizard.unit': ['DAY', 'WEEK', 'MONTH'],
   'campaign.wizard.goal': ['AUTO_OCS', 'MANUAL_FILE', 'NONE', 'AUTO_OCS_desc', 'MANUAL_FILE_desc', 'NONE_desc'],
-  'campaign.wizard.err': ['name', 'segment', 'allocation', 'noAction', 'sender', 'content', 'smsLong', 'subject', 'amount', 'unknownParam', 'start', 'endBeforeStart', 'budget'],
+  'campaign.wizard.err': ['name', 'segment', 'allocation', 'noAction', 'sender', 'content', 'contentLong', 'subject', 'amount', 'unknownParam', 'start', 'startInPast', 'endRequired', 'endBeforeStart', 'budget', 'eventTemplate', 'description', 'testLimit', 'goalConditions'],
   weekday: ['0', '1', '2', '3', '4', '5', '6'],
   langName: ['LO', 'EN', 'VI'],
-  op: ['EQ', 'NEQ', 'GT', 'GTE', 'LT', 'LTE', 'BETWEEN', 'IN', 'IS_NULL'],
+  op: ['EQ', 'NEQ', 'GT', 'GTE', 'LT', 'LTE', 'BETWEEN', 'IN', 'CONTAINS', 'IS_NULL'],
   attr: ['province_code_active', 'customer_age', 'gender', 'tenure', 'act_status', 'device_type', 'infras_data_4g', 'is_smartphone', 'real_package_data', 'data_package', 'g_volume', 't_org_charge', 'laostv_total_volume', 'login_superapp', 'active_umoney', 'balance_basic', 'province', 'package', 'g_volume_gb'],
   auditAction: ['LOGIN', 'CREATE', 'UPDATE', 'DELETE', 'LOCK', 'UNLOCK', 'APPROVE', 'REJECT', 'SUBMIT', 'CHANGE_ROLE', 'RESET_PASSWORD', 'IMPORT', 'PAUSE', 'RESUME', 'CANCEL', 'EXPORT', 'CHANGE_PASSWORD', 'TEST'],
+  auditResult: ['SUCCESS', 'FAILURE'],
+  memberStatus: ['ACTIVE', 'REVOKED'],
   auditEntity: ['AUTH', 'USER', 'WORKSPACE', 'MEMBER', 'ROLE', 'PRICE_QUOTE', 'CAMPAIGN', 'SEGMENT', 'SENDER_NUMBER', 'SETTING', 'CAMPAIGN_GROUP', 'API_KEY', 'ROLE_PERMISSION', 'AUDIT_LOG'],
   'sending.kind': ['SHORTCODE', 'BRANDNAME'],
   'sending.status': ['enabled', 'disabled'],
@@ -63,7 +66,7 @@ const DYNAMIC = {
   adminWs: ['lockDesc', 'unlockDesc'],
   // tham số nội dung tin (GET /message-params) + bộ đếm SMS chọn trong ternary
   'campaign.param': ['isdn', 'package'],
-  'campaign.wizard': ['smsCounter', 'smsCounterParams'],
+  'campaign.wizard': ['smsCounter', 'smsCounterParams', 'contentCounter', 'contentCounterParams'],
 }
 
 function walk(dir) {

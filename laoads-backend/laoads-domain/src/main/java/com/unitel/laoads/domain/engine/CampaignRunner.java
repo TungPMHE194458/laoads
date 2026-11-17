@@ -76,13 +76,15 @@ public class CampaignRunner {
                 + "VALUES (?, ?, ?, 'RUNNING', ?, ?, 0)", runId, campaignId, runNo, Utc.ts(scheduledAt), Utc.ts(now));
 
         List<GroupRange> ranges = ranges(def);
-        int targets = materializeTargets(c, ranges, runId, now);
+        int targets = materializeTargets(c, def, ranges, runId, now);
         createMessages(c, def, ranges, "t.RUN_ID = ?", runId, now);
         jdbc.update("UPDATE LADS_CAMPAIGN_RUN SET TARGET_COUNT = ? WHERE ID = ?", targets, runId);
 
         c.setRunCount(runNo);
         c.setStatus(Status.RUNNING);
-        c.setNextRunAt(SchedulePlanner.nextAfter(def.schedule(), scheduledAt));
+        // SRS 3.2.5.3: "Hoàn thành sau N lần lặp" — hết số lần thì không lên lịch lượt kế tiếp
+        Integer max = def.schedule() == null ? null : def.schedule().maxOccurrences();
+        c.setNextRunAt(max != null && max > 0 && runNo >= max ? null : SchedulePlanner.nextAfter(def.schedule(), scheduledAt));
         c.setUpdatedAt(now);
         historyRepo.save(CampaignHistory.of(campaignId, "system", "START",
                 "Lượt #" + runNo + ": " + targets + " thuê bao"));
@@ -163,11 +165,16 @@ public class CampaignRunner {
         return ranges.get(ranges.size() - 1);
     }
 
-    private int materializeTargets(Campaign c, List<GroupRange> ranges, long runId, Instant now) {
+    private int materializeTargets(Campaign c, CampaignDefinition def, List<GroupRange> ranges, long runId, Instant now) {
         List<String> testIsdns = c.getTestIsdns() == null ? List.of() : List.of(c.getTestIsdns().split(","));
+        // SRS 3.2.1.4: chiến dịch thử nghiệm chỉ chạy tối đa testLimit khách hàng (mặc định 10)
+        int testLimit = def.testLimitOrDefault();
         if (c.getMode() == Mode.TEST && !testIsdns.isEmpty()) {
+            // điều kiện dừng (SRS 3.2.6.1): bỏ các số đã đạt mục tiêu / không phản hồi ở lượt trước
+            java.util.Set<String> excluded = StopConditions.excluded(jdbc, def.goal(), c.getId(), testIsdns, now);
+            List<String> chosen = testIsdns.stream().filter(i -> !excluded.contains(i)).limit(testLimit).toList();
             List<Object[]> batch = new ArrayList<>();
-            for (String isdn : testIsdns) {
+            for (String isdn : chosen) {
                 GroupRange g = rangeOf(ranges, bucket(isdn, c.getId()));
                 batch.add(new Object[]{runId, c.getId(), isdn, g.key(), g.control() ? 1 : 0, Utc.ts(now)});
             }
@@ -196,9 +203,11 @@ public class CampaignRunner {
         params.add(Utc.ts(now));
         params.add(":" + c.getId());
         params.add(c.getSegmentId());
+        // điều kiện dừng (SRS 3.2.6.1): lượt mới của chiến dịch lặp lại không gửi lại cho khách hàng đã bị loại
+        String exclude = StopConditions.exclusionSql(def.goal(), c.getId(), "ISDN", now, params);
         String source = c.getMode() == Mode.TEST
-                ? "SELECT ISDN FROM LADS_SEGMENT_MEMBER WHERE SEGMENT_ID = ? AND ROWNUM <= " + CampaignService.TEST_LIMIT
-                : "SELECT ISDN FROM LADS_SEGMENT_MEMBER WHERE SEGMENT_ID = ?";
+                ? "SELECT ISDN FROM LADS_SEGMENT_MEMBER WHERE SEGMENT_ID = ?" + exclude + " AND ROWNUM <= " + testLimit
+                : "SELECT ISDN FROM LADS_SEGMENT_MEMBER WHERE SEGMENT_ID = ?" + exclude;
         String sql = "INSERT INTO LADS_CAMPAIGN_TARGET (ID, RUN_ID, CAMPAIGN_ID, ISDN, GROUP_KEY, IS_CONTROL, CONVERTED, "
                 + "CREATED_AT) SELECT LADS_CAMPAIGN_TARGET_SEQ.NEXTVAL, ?, ?, x.ISDN, " + keyCase + ", " + ctlCase
                 + ", 0, ? FROM (SELECT s.ISDN, MOD(ORA_HASH(s.ISDN || ?), 100) B FROM (" + source + ") s) x";

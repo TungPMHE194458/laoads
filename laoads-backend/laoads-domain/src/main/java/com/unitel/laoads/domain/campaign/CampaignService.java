@@ -18,13 +18,16 @@ import com.unitel.laoads.domain.pricing.ActionType;
 import com.unitel.laoads.domain.pricing.PriceQuoteItem;
 import com.unitel.laoads.domain.pricing.PriceQuoteService;
 import com.unitel.laoads.domain.segment.Segment;
+import com.unitel.laoads.domain.segment.SegmentQueryBuilder;
 import com.unitel.laoads.domain.segment.SegmentRepository;
 import com.unitel.laoads.domain.settings.SenderNumber;
 import com.unitel.laoads.domain.settings.SenderNumberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,7 +59,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class CampaignService {
 
-    public static final int TEST_LIMIT = 1000;
+    /** SRS 3.2.1.4–6: mô tả chiến dịch tối đa 360 ký tự. */
+    public static final int DESCRIPTION_MAX = 360;
+    /** SRS 3.2.3.3–5: nội dung SMS / WhatsApp / Email tối đa 360 ký tự. */
+    public static final int CONTENT_MAX = 360;
+    private static final Set<Channel> CONTENT_LIMITED = EnumSet.of(Channel.SMS, Channel.WHATSAPP, Channel.EMAIL);
     private static final Pattern HH_MM = Pattern.compile("^([01]\\d|2[0-3]):[0-5]\\d$");
     private static final Set<String> SCHEDULE_TYPES = Set.of("NOW", "ONCE", "RECURRING");
     private static final Set<String> UNITS = Set.of("DAY", "WEEK", "MONTH");
@@ -79,14 +86,23 @@ public class CampaignService {
 
     // ───────────── Đọc ─────────────
 
+    /** Cột cho phép sắp xếp danh sách chiến dịch (SRS 3.2.7.1: Starts / Ends / Created At). */
+    public static final Set<String> SORTABLE = Set.of("createdAt", "startAt", "endAt", "name");
+
     @Transactional(readOnly = true)
     public Page<Campaign> list(long ws, String query, Status status, Mode mode, Long groupId, Pageable pageable) {
-        return repo.search(ws, Texts.likePattern(query), status, mode, groupId, pageable);
+        return repo.search(ws, Texts.likePattern(query), status, mode, groupId, sorted(pageable));
     }
 
     @Transactional(readOnly = true)
     public Page<Campaign> pendingApprovals(long ws, String query, Mode mode, Pageable pageable) {
-        return repo.search(ws, Texts.likePattern(query), Status.PENDING_APPROVAL, mode, null, pageable);
+        return repo.search(ws, Texts.likePattern(query), Status.PENDING_APPROVAL, mode, null, sorted(pageable));
+    }
+
+    /** Mặc định mới tạo trước; luôn thêm id giảm dần làm tiebreaker để phân trang ổn định. */
+    private static Pageable sorted(Pageable p) {
+        Sort sort = p.getSort().isSorted() ? p.getSort() : Sort.by(Sort.Direction.DESC, "createdAt");
+        return PageRequest.of(p.getPageNumber(), p.getPageSize(), sort.and(Sort.by(Sort.Direction.DESC, "id")));
     }
 
     @Transactional(readOnly = true)
@@ -148,7 +164,7 @@ public class CampaignService {
 
     @Transactional
     public Campaign create(long ws, CampaignInput in, boolean submit, String actor) {
-        Validated v = validate(ws, in, submit);
+        Validated v = validate(ws, in, submit, null);
         Campaign c = new Campaign();
         c.setWorkspaceId(ws);
         c.setCode("N" + System.nanoTime());
@@ -173,7 +189,7 @@ public class CampaignService {
         if (!EDITABLE.contains(c.getStatus())) {
             throw new LaoadsException(ErrorCode.CAMPAIGN_LOCKED, "Chỉ sửa được chiến dịch Nháp hoặc Bị từ chối");
         }
-        Validated v = validate(ws, in, submit);
+        Validated v = validate(ws, in, submit, id);
         apply(c, in, v);
         c.setUpdatedAt(Instant.now());
         c.setUpdatedBy(actor);
@@ -200,7 +216,7 @@ public class CampaignService {
     public Campaign submit(long ws, long id, String actor) {
         Campaign c = get(ws, id);
         requireStatus(c, EDITABLE);
-        validate(ws, inputOf(c), true);
+        validate(ws, inputOf(c), true, id);
         c.setRejectReason(null);
         c.setSubmittedAt(Instant.now());
         return transition(c, Status.PENDING_APPROVAL, actor, "SUBMIT", null);
@@ -239,7 +255,7 @@ public class CampaignService {
         Campaign c = new Campaign();
         c.setWorkspaceId(ws);
         c.setCode("N" + System.nanoTime());
-        c.setName(truncate(src.getName() + " (bản sao)", 255));
+        c.setName(copyName(ws, src.getName()));
         c.setDescription(src.getDescription());
         c.setMode(src.getMode());
         c.setType(src.getType());
@@ -389,17 +405,28 @@ public class CampaignService {
 
     // ───────────── nội bộ ─────────────
 
-    private record Validated(Segment segment, List<String> testIsdns, int targetCount, String channels) {
+    private record Validated(Segment segment, List<String> testIsdns, int targetCount, String channels,
+                             CampaignDefinition definition) {
     }
 
-    private Validated validate(long ws, CampaignInput in, boolean strict) {
+    private Validated validate(long ws, CampaignInput in, boolean strict, Long exceptId) {
         List<FieldViolation> errors = new ArrayList<>();
         String name = Texts.trimToNull(in.name());
         if (name == null || name.length() > 255) {
             errors.add(new FieldViolation("name", "error.validation.invalidValue", "Giá trị không hợp lệ"));
         }
+        String description = Texts.trimToNull(in.description());
+        if (description != null && description.length() > DESCRIPTION_MAX) {
+            errors.add(new FieldViolation("description", "error.validation.maxLength",
+                    "Tối đa " + DESCRIPTION_MAX + " ký tự", DESCRIPTION_MAX));
+        }
         if (in.mode() == null || in.type() == null) {
             errors.add(new FieldViolation("mode", "error.validation.invalidValue", "Giá trị không hợp lệ"));
+        }
+        // SRS 3.2.1.4: chiến dịch thử nghiệm chỉ chạy theo danh sách cố định
+        if (in.mode() == Mode.TEST && in.type() == Type.EVENT) {
+            errors.add(new FieldViolation("type", "error.validation.testStaticOnly",
+                    "Chiến dịch thử nghiệm chỉ chạy theo danh sách cố định"));
         }
         if (in.language() != null && !LANGUAGES.contains(in.language())) {
             errors.add(new FieldViolation("language", "error.validation.invalidValue", "Giá trị không hợp lệ"));
@@ -416,18 +443,32 @@ public class CampaignService {
         }
         List<String> isdns = new ArrayList<>(new LinkedHashSet<>(normalizeIsdns(in.testIsdns(), errors)));
 
-        CampaignDefinition def = in.definition();
+        CampaignDefinition def = normalize(in);
         if (def == null || def.groups().isEmpty()) {
             errors.add(new FieldViolation("actionGroups", "error.validation.noAction", "Cần ít nhất một hành động"));
         } else {
             validateGroups(def, errors);
+            validateGoal(def.goal(), errors);
             if (strict) {
                 validateSenders(ws, def, errors);
                 validateParams(def, errors);
+                validateGoalStrict(def.goal(), errors);
             }
             if (in.type() != Type.EVENT) {
-                validateSchedule(def.schedule(), errors);
+                validateSchedule(def.schedule(), strict, Instant.now(), errors);
             }
+        }
+        if (def != null && in.type() == Type.EVENT) {
+            // SRS 3.2.1.6: bắt buộc chọn template sự kiện trong danh mục
+            if (def.eventTemplate() == null ? strict : !EventTemplates.exists(def.eventTemplate())) {
+                errors.add(new FieldViolation("eventTemplate", "error.validation.eventTemplateRequired",
+                        "Vui lòng chọn template sự kiện"));
+            }
+        }
+        if (def != null && in.mode() == Mode.TEST
+                && (def.testLimitOrDefault() < 1 || def.testLimitOrDefault() > CampaignDefinition.MAX_TEST_LIMIT)) {
+            errors.add(new FieldViolation("testLimit", "error.validation.range",
+                    "Giá trị phải từ 1 đến " + CampaignDefinition.MAX_TEST_LIMIT, 1, CampaignDefinition.MAX_TEST_LIMIT));
         }
         if (strict && in.type() == Type.STATIC) {
             if (in.mode() == Mode.OFFICIAL) {
@@ -446,8 +487,39 @@ public class CampaignService {
         if (!errors.isEmpty()) {
             throw LaoadsException.validation(errors);
         }
-        int target = targetCount(in, segment, isdns);
-        return new Validated(segment, isdns, target, channelsOf(def));
+        if (repo.countByName(ws, name.toLowerCase(Locale.ROOT), exceptId) > 0) {
+            throw new LaoadsException(ErrorCode.CAMPAIGN_NAME_DUPLICATE, "Tên chiến dịch đã tồn tại trong workspace");
+        }
+        int target = targetCount(in, def, segment, isdns);
+        return new Validated(segment, isdns, target, channelsOf(def), def);
+    }
+
+    /** Chuẩn hoá phần cấu hình: template sự kiện chỉ giữ cho EVENT, giới hạn chạy thử chỉ giữ cho TEST (mặc định 10). */
+    private static CampaignDefinition normalize(CampaignInput in) {
+        CampaignDefinition d = in.definition();
+        if (d == null) {
+            return null;
+        }
+        String template = in.type() == Type.EVENT ? EventTemplates.normalize(d.eventTemplate()) : null;
+        Integer limit = in.mode() == Mode.TEST ? Integer.valueOf(d.testLimitOrDefault()) : null;
+        return new CampaignDefinition(d.actionGroups(), d.schedule(), d.goal(), d.budget(), template, limit);
+    }
+
+    /** Template sự kiện của chiến dịch; dữ liệu cũ lưu trong mô tả dạng "EVT:CODE". */
+    public String eventTemplateOf(Campaign c) {
+        String t = c.getDefinitionJson() == null ? null : definitionOf(c).eventTemplate();
+        return t != null ? t : c.eventTemplate();
+    }
+
+    /** Tên bản sao không trùng: "X (bản sao)", "X (bản sao 2)"… */
+    private String copyName(long ws, String name) {
+        for (int i = 1; ; i++) {
+            String suffix = i == 1 ? " (bản sao)" : " (bản sao " + i + ")";
+            String candidate = truncate(name, 255 - suffix.length()) + suffix;
+            if (repo.countByName(ws, candidate.toLowerCase(Locale.ROOT), null) == 0) {
+                return candidate;
+            }
+        }
     }
 
     /**
@@ -514,6 +586,43 @@ public class CampaignService {
         }
     }
 
+    private static final Set<String> GOAL_MODES = Set.of("AUTO_OCS", "MANUAL_FILE", "NONE");
+
+    /** SRS 3.2.6: cửa sổ ghi nhận 1–90 ngày; điều kiện dừng: N lần không phản hồi 1–100, quay lại sau 1–365 ngày. */
+    static void validateGoal(CampaignDefinition.GoalDef g, List<FieldViolation> errors) {
+        if (g == null) {
+            return;
+        }
+        if (g.mode() == null || !GOAL_MODES.contains(g.mode())) {
+            errors.add(new FieldViolation("goal.mode", "error.validation.invalidValue", "Giá trị không hợp lệ"));
+        }
+        if (g.attributionWindowDays() < 1 || g.attributionWindowDays() > 90) {
+            errors.add(new FieldViolation("goal.attributionWindowDays", "error.validation.range", "Giá trị phải từ 1 đến 90", 1, 90));
+        }
+        if (g.maxNoResponse() != null && (g.maxNoResponse() < 1 || g.maxNoResponse() > 100)) {
+            errors.add(new FieldViolation("goal.maxNoResponse", "error.validation.range", "Giá trị phải từ 1 đến 100", 1, 100));
+        }
+        if (g.reentryDays() != null && (g.reentryDays() < 1 || g.reentryDays() > 365)) {
+            errors.add(new FieldViolation("goal.reentryDays", "error.validation.range", "Giá trị phải từ 1 đến 365", 1, 365));
+        }
+        if ("AUTO_OCS".equals(g.mode()) && !g.conditionList().isEmpty()) {
+            try {
+                SegmentQueryBuilder.build(g.conditionList());
+            } catch (LaoadsException e) {
+                errors.addAll(e.getErrors().stream().map(v -> new FieldViolation("goal." + v.field(), v.messageKey(),
+                        v.defaultMessage(), v.args())).toList());
+            }
+        }
+    }
+
+    /** SRS 3.2.6.1: gửi duyệt với mục tiêu từ nguồn dữ liệu ngoài phải có ít nhất một điều kiện. */
+    static void validateGoalStrict(CampaignDefinition.GoalDef g, List<FieldViolation> errors) {
+        if (g != null && "AUTO_OCS".equals(g.mode()) && g.conditionList().isEmpty()) {
+            errors.add(new FieldViolation("goal.conditions", "error.validation.goalConditionRequired",
+                    "Cần ít nhất một điều kiện xác định khách hàng đạt mục tiêu"));
+        }
+    }
+
     private static void validateGroups(CampaignDefinition def, List<FieldViolation> errors) {
         int total = 0;
         boolean anyAction = false;
@@ -539,10 +648,17 @@ public class CampaignService {
                     errors.add(new FieldViolation(path + ".delayMinutes", "error.validation.range",
                             "Giá trị phải từ 0 đến 43200", 0, 43200));
                 }
-                if (a.channel().isNotification() && Texts.trimToNull(a.content()) == null
-                        && Texts.trimToNull(a.templateId()) == null) {
+                // SRS 3.2.3.3–5: nội dung SMS / WhatsApp / Email bắt buộc, tối đa 360 ký tự; Email bắt buộc tiêu đề
+                if (a.channel().isNotification() && Texts.trimToNull(a.content()) == null) {
                     errors.add(new FieldViolation(path + ".content", "error.validation.contentRequired",
                             "Nội dung tin không được để trống"));
+                } else if (CONTENT_LIMITED.contains(a.channel()) && a.content().length() > CONTENT_MAX) {
+                    errors.add(new FieldViolation(path + ".content", "error.validation.maxLength",
+                            "Tối đa " + CONTENT_MAX + " ký tự", CONTENT_MAX));
+                }
+                if (a.channel() == Channel.EMAIL && Texts.trimToNull(a.subject()) == null) {
+                    errors.add(new FieldViolation(path + ".subject", "error.validation.subjectRequired",
+                            "Email cần có tiêu đề"));
                 }
             }
         }
@@ -556,13 +672,29 @@ public class CampaignService {
         }
     }
 
-    private static void validateSchedule(ScheduleDef s, List<FieldViolation> errors) {
+    /**
+     * SRS 3.2.5: ONCE / RECURRING bắt buộc thời gian bắt đầu (gửi duyệt: không được ở quá khứ); RECURRING bắt buộc
+     * khoảng chạy có cả thời gian kết thúc (3.2.5.3).
+     */
+    static void validateSchedule(ScheduleDef s, boolean strict, Instant now, List<FieldViolation> errors) {
         if (s == null || s.type() == null || !SCHEDULE_TYPES.contains(s.type())) {
             errors.add(new FieldViolation("schedule.type", "error.validation.invalidValue", "Giá trị không hợp lệ"));
             return;
         }
         if (!"NOW".equals(s.type()) && s.startAt() == null) {
             errors.add(new FieldViolation("schedule.startAt", "error.validation.startRequired", "Cần chọn thời gian bắt đầu"));
+        } else if (strict && !"NOW".equals(s.type()) && s.startAt().isBefore(now.minusSeconds(60))) {
+            errors.add(new FieldViolation("schedule.startAt", "error.validation.startInPast",
+                    "Thời gian bắt đầu không được ở quá khứ"));
+        }
+        if ("RECURRING".equals(s.type()) && s.endAt() == null) {
+            errors.add(new FieldViolation("schedule.endAt", "error.validation.endRequired", "Cần chọn thời gian kết thúc"));
+        }
+        if (s.monthDays() != null && s.monthDays().stream().anyMatch(d -> d == null || d < 1 || d > 31)) {
+            errors.add(new FieldViolation("schedule.monthDays", "error.validation.range", "Giá trị phải từ 1 đến 31", 1, 31));
+        }
+        if (s.maxOccurrences() != null && (s.maxOccurrences() < 1 || s.maxOccurrences() > 1000)) {
+            errors.add(new FieldViolation("schedule.maxOccurrences", "error.validation.range", "Giá trị phải từ 1 đến 1000", 1, 1000));
         }
         if (s.startAt() != null && s.endAt() != null && !s.endAt().isAfter(s.startAt())) {
             errors.add(new FieldViolation("schedule.endAt", "error.validation.endBeforeStart",
@@ -602,15 +734,16 @@ public class CampaignService {
         return out;
     }
 
-    private static int targetCount(CampaignInput in, Segment segment, List<String> isdns) {
+    private static int targetCount(CampaignInput in, CampaignDefinition def, Segment segment, List<String> isdns) {
         if (in.type() == Type.EVENT) {
             return 0;
         }
         if (in.mode() == Mode.TEST) {
+            int limit = def == null ? CampaignDefinition.DEFAULT_TEST_LIMIT : def.testLimitOrDefault();
             if (!isdns.isEmpty()) {
-                return isdns.size();
+                return Math.min(isdns.size(), limit);
             }
-            return segment == null ? 0 : Math.min(segment.getTotalUsers(), TEST_LIMIT);
+            return segment == null ? 0 : Math.min(segment.getTotalUsers(), limit);
         }
         return segment == null ? 0 : segment.getTotalUsers();
     }
@@ -630,9 +763,9 @@ public class CampaignService {
     }
 
     private void apply(Campaign c, CampaignInput in, Validated v) {
-        CampaignDefinition def = in.definition();
+        CampaignDefinition def = v.definition();
         c.setName(Texts.trimToNull(in.name()));
-        c.setDescription(truncate(Texts.trimToNull(in.description()), 2000));
+        c.setDescription(Texts.trimToNull(in.description()));
         c.setMode(in.mode());
         c.setType(in.type());
         c.setGroupId(in.groupId());

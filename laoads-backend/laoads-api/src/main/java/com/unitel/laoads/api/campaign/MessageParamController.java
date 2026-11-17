@@ -2,6 +2,7 @@ package com.unitel.laoads.api.campaign;
 
 import com.unitel.laoads.api.common.ApiPaths;
 import com.unitel.laoads.api.common.ApiResponse;
+import com.unitel.laoads.domain.campaign.EventTemplates;
 import com.unitel.laoads.domain.campaign.MessageParams;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,7 +12,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** Danh mục tham số cá nhân hoá dùng trong nội dung tin — dùng chung mọi workspace, chỉ cần đăng nhập. */
+/**
+ * Danh mục dùng khi soạn chiến dịch — dùng chung mọi workspace, chỉ cần đăng nhập: tham số cá nhân hoá nội dung tin,
+ * template sự kiện (SRS 3.2.1.6).
+ */
 @RestController
 @RequestMapping(ApiPaths.V1)
 @Tag(name = "campaign", description = "Chiến dịch")
@@ -33,5 +37,16 @@ public class MessageParamController {
         return ApiResponse.ok(MessageParams.PARAMS.stream()
                 .map(p -> new MessageParamDto(p.key(), "{{" + p.key() + "}}", p.source().name(), p.maxLength(), p.example()))
                 .toList());
+    }
+
+    public record EventTemplateDto(String code) {
+    }
+
+    @GetMapping("/event-templates")
+    @Operation(summary = "Danh mục template sự kiện",
+            description = "Chiến dịch chạy theo sự kiện chọn một template; hệ thống ngoài gọi POST /v1/events với "
+                    + "eventType = mã template. Nhãn hiển thị do FE dịch (campaign.event.<code>).")
+    public ApiResponse<List<EventTemplateDto>> eventTemplates() {
+        return ApiResponse.ok(EventTemplates.CODES.stream().map(EventTemplateDto::new).toList());
     }
 }

@@ -211,7 +211,8 @@ public class DevEngineDataSeeder {
 
         Instant now = Instant.now();
         List<String> testIsdns = vip.subList(0, Math.min(3, vip.size()));
-        GoalDef autoGoal = new GoalDef("AUTO_OCS", "Phát sinh lưu lượng data 4G trong 7 ngày", 7, true, null);
+        GoalDef autoGoal = new GoalDef("AUTO_OCS", "Phát sinh lưu lượng data 4G trong 7 ngày", 7, true, null, null,
+                List.of(new SegmentCondition("g_volume", "GT", "1000", null, "AND")));
         int n = 0;
 
         // 1) Đang chạy: A/B (SMS → tặng data / WhatsApp có link tracking) + nhóm đối chứng
@@ -223,7 +224,7 @@ public class DevEngineDataSeeder {
                         new ActionDef("a2", ActionType.ADD_DATA, 1, null, null, null, null, BigDecimal.valueOf(1024), "DATA1GB", false))),
                 new ActionGroupDef("gb", "Nhóm B – WhatsApp", 45, false, "SEQUENTIAL", List.of(
                         new ActionDef("b1", ActionType.NOTIFICATION_WHATSAPP, 0, null, null,
-                                "Kích hoạt 4G miễn phí 3 ngày: https://unitel.com.la/4g", "promo_4g", null, null, true))),
+                                "Kích hoạt 4G miễn phí 3 ngày: https://unitel.com.la/4g", null, null, null, true))),
                 new ActionGroupDef("gc", "Nhóm đối chứng", 10, true, "SEQUENTIAL", List.of())),
                 new ScheduleDef("NOW", now, null, null, null, null, null, new SilentHoursDef(false, "21:00", "07:00")),
                 autoGoal, new BudgetDef(null, null))), true, "admin_bsd");
@@ -264,12 +265,13 @@ public class DevEngineDataSeeder {
         n++;
 
         // 7) Theo sự kiện: kích hoạt SIM (chờ sự kiện qua API)
-        Campaign c7 = campaignService.create(ws, new CampaignInput("Chào mừng thuê bao mới (D0)", "EVT:SIM_ACTIVATION_D0",
+        Campaign c7 = campaignService.create(ws, new CampaignInput("Chào mừng thuê bao mới (D0)", "Chào mừng và tặng data cho thuê bao vừa kích hoạt SIM",
                 Mode.OFFICIAL, Type.EVENT, groups.get("Phát triển thuê bao"), null, "LO", List.of(), new CampaignDefinition(List.of(
                 new ActionGroupDef("e1", "Toàn bộ", 100, false, "SEQUENTIAL", List.of(
                         sms("e1a", "Chào mừng bạn đến với Unitel! Tặng 500MB data cho ngày đầu tiên.", 0, false),
                         new ActionDef("e1b", ActionType.ADD_DATA, 0, null, null, null, null, BigDecimal.valueOf(500), "DATA500", false)))),
-                null, new GoalDef("NONE", "", 1, false, null), new BudgetDef(null, null))), true, "admin_bsd");
+                null, new GoalDef("NONE", "", 1, false, null), new BudgetDef(null, null), "SIM_ACTIVATION_D0", null)),
+                true, "admin_bsd");
         campaignService.approve(ws, c7.getId(), "owner_bsd");
         n++;
 
@@ -280,7 +282,9 @@ public class DevEngineDataSeeder {
                         sms("m1a", "Mở ví U-Money hôm nay nhận ngay 10.000 Kip: https://umoney.la/open", 0, true))),
                 new ActionGroupDef("m2", "Nhóm đối chứng", 10, true, "SEQUENTIAL", List.of())),
                 new ScheduleDef("NOW", now, null, null, null, null, null, null),
-                new GoalDef("AUTO_OCS", "Mở ví U-Money (active_umoney = 1)", 14, true, null), new BudgetDef(null, null))),
+                new GoalDef("AUTO_OCS", "Mở ví U-Money (active_umoney = 1)", 14, true, null, null,
+                        List.of(new SegmentCondition("active_umoney", "EQ", "true", null, "AND"))),
+                new BudgetDef(null, null))),
                 true, "admin_bsd");
         campaignService.approve(ws, c8.getId(), "owner_bsd");
         n++;

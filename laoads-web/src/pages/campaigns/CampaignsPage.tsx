@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronDown, FlaskConical, FolderKanban, Megaphone, Plus, Rocket, Zap } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, FlaskConical, FolderKanban, Megaphone, Plus, Rocket, Zap } from 'lucide-react'
+import { errorMessage } from '@/api/client'
 import type { CampaignStatus, CampaignSummary } from '@/api/types'
 import { useCampaignGroups, useCampaigns } from '@/features/campaign/api'
 import { useCan } from '@/features/auth/permissions'
@@ -15,10 +16,27 @@ import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/misc'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { fmtCompact, fmtDate, fmtNumber, fmtPercent } from '@/lib/format'
+import { fmtCompact, fmtDate, fmtDateTime, fmtNumber, fmtPercent } from '@/lib/format'
 import { CampaignRowMenu } from './campaignActions'
 
 const STATUSES: CampaignStatus[] = ['DRAFT', 'PENDING_APPROVAL', 'SCHEDULED', 'RUNNING', 'PAUSED', 'COMPLETED', 'REJECTED', 'CANCELLED']
+
+/** Tiêu đề cột bấm để sắp xếp (SRS 3.2.7.1): lần 1 giảm dần, lần 2 tăng dần. */
+function SortHeader({ label, field, sort, dir, onSort }: { label: string; field: string; sort: string; dir: string; onSort: (field: string, dir: 'asc' | 'desc') => void }) {
+  const active = sort === field
+  const Icon = !active ? ArrowUpDown : dir === 'asc' ? ArrowUp : ArrowDown
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(field, active && dir === 'desc' ? 'asc' : 'desc')}
+      className="inline-flex cursor-pointer items-center gap-1 uppercase hover:text-foreground"
+      aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      {label}
+      <Icon className={`size-3 ${active ? 'text-foreground' : 'opacity-50'}`} />
+    </button>
+  )
+}
 
 export function CreateCampaignButton() {
   const { t } = useTranslation()
@@ -63,6 +81,16 @@ export default function CampaignsPage() {
   const status = sp.get('status') ?? ''
   const groupId = sp.get('group') ?? ''
   const tab = sp.get('tab') ?? 'campaigns'
+  const sort = sp.get('sort') ?? 'createdAt'
+  const dir = sp.get('dir') === 'asc' ? 'asc' : 'desc'
+  const onSort = (field: string, d: 'asc' | 'desc') => {
+    const next = new URLSearchParams(sp)
+    next.set('sort', field)
+    next.set('dir', d)
+    setSp(next, { replace: true })
+    setPage(0)
+  }
+  const sortHeader = (label: string, field: string) => <SortHeader label={label} field={field} sort={sort} dir={dir} onSort={onSort} />
 
   const setParam = (k: string, v: string) => {
     const next = new URLSearchParams(sp)
@@ -72,10 +100,11 @@ export default function CampaignsPage() {
     setPage(0)
   }
 
-  const list = useCampaigns({ page, size, query, status, groupId: groupId ? Number(groupId) : '' })
+  const list = useCampaigns({ page, size, query, status, groupId: groupId ? Number(groupId) : '', sort, dir })
   const groups = useCampaignGroups()
 
   const columns: Column<CampaignSummary>[] = [
+    { key: 'no', header: t('common.no'), width: '56px', align: 'right', cell: (_c, i) => <span className="text-muted-foreground tabular">{page * size + i + 1}</span> },
     {
       key: 'name',
       header: t('campaign.col.name'),
@@ -112,15 +141,9 @@ export default function CampaignsPage() {
     },
     { key: 'channels', header: t('campaign.col.channels'), cell: (c) => <ChannelChips channels={c.channels} /> },
     { key: 'status', header: t('common.status'), cell: (c) => <CampaignStatusBadge status={c.status} /> },
-    {
-      key: 'time',
-      header: t('campaign.col.time'),
-      cell: (c) => (
-        <span className="text-[13px] whitespace-nowrap tabular text-foreground/80">
-          {fmtDate(c.startAt)} <span className="text-muted-foreground">→</span> {fmtDate(c.endAt)}
-        </span>
-      ),
-    },
+    { key: 'startAt', header: sortHeader(t('campaign.col.startAt'), 'startAt'), cell: (c) => <span className="text-[13px] whitespace-nowrap tabular text-foreground/80">{fmtDateTime(c.startAt)}</span> },
+    { key: 'endAt', header: sortHeader(t('campaign.col.endAt'), 'endAt'), cell: (c) => <span className="text-[13px] whitespace-nowrap tabular text-foreground/80">{c.endAt ? fmtDateTime(c.endAt) : '—'}</span> },
+    { key: 'createdAt', header: sortHeader(t('common.createdAt'), 'createdAt'), cell: (c) => <span className="text-[13px] whitespace-nowrap tabular text-muted-foreground">{fmtDateTime(c.createdAt)}</span> },
     {
       key: 'perf',
       header: t('campaign.col.performance'),
@@ -135,7 +158,7 @@ export default function CampaignsPage() {
           <span className="text-xs text-muted-foreground">{t('campaign.estCost', { v: fmtCompact(c.expectedCost) })}</span>
         ),
     },
-    { key: 'menu', header: '', width: '48px', cell: (c) => <CampaignRowMenu c={c} /> },
+    { key: 'menu', header: '', width: '120px', align: 'right', cell: (c) => <CampaignRowMenu c={c} /> },
   ]
 
   return (
@@ -185,6 +208,7 @@ export default function CampaignsPage() {
             rows={list.data?.items}
             rowKey={(c) => c.id}
             loading={list.isLoading}
+            error={list.isError ? errorMessage(list.error) : undefined}
             meta={list.data?.meta}
             onPageChange={setPage}
             onPageSizeChange={(s) => {

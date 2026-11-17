@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, Building2, Lock, LogOut } from 'lucide-react'
+import { ArrowRight, Building2, Lock, LogOut, Settings2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useMe, logout } from '@/features/auth/api'
+import { useIsSuperAdmin } from '@/features/auth/permissions'
 import { useUiStore } from '@/stores/ui'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +18,7 @@ export default function SelectWorkspacePage() {
   const { data } = useMe()
   const setWs = useUiStore((s) => s.setWorkspaceId)
   const current = useUiStore((s) => s.workspaceId)
+  const isSa = useIsSuperAdmin()
 
   const choose = (id: number) => {
     setWs(id)
@@ -28,7 +30,14 @@ export default function SelectWorkspacePage() {
     <div className="min-h-screen bg-[radial-gradient(60rem_30rem_at_top,var(--brand-50),transparent)] dark:bg-none">
       <header className="flex h-16 items-center justify-between px-6">
         <Brand />
-        <Button
+        <div className="flex items-center gap-1">
+          {isSa && (
+            <Button variant="outline" size="sm" onClick={() => navigate('/admin/workspaces')}>
+              <Settings2 />
+              {t('selectWs.systemAdmin')}
+            </Button>
+          )}
+          <Button
           variant="ghost"
           size="sm"
           onClick={async () => {
@@ -38,7 +47,8 @@ export default function SelectWorkspacePage() {
         >
           <LogOut />
           {t('layout.logout')}
-        </Button>
+          </Button>
+        </div>
       </header>
       <main className="mx-auto max-w-3xl px-6 pt-10 pb-20">
         <h1 className="text-[28px] font-semibold tracking-tight">{t('selectWs.title', { name: data?.user.fullName ?? data?.user.username ?? '' })}</h1>
@@ -46,7 +56,21 @@ export default function SelectWorkspacePage() {
 
         {data && data.workspaces.length === 0 ? (
           <div className="mt-10 rounded-2xl border bg-card">
-            <EmptyState icon={<Building2 />} title={t('selectWs.emptyTitle')} description={t('selectWs.emptyDesc')} />
+            {isSa ? (
+              <EmptyState
+                icon={<Building2 />}
+                title={t('selectWs.emptyTitleAdmin')}
+                description={t('selectWs.emptyDescAdmin')}
+                action={
+                  <Button onClick={() => navigate('/admin/workspaces')}>
+                    <Settings2 />
+                    {t('nav.adminWorkspaces')}
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState icon={<Building2 />} title={t('selectWs.emptyTitle')} description={t('selectWs.emptyDesc')} />
+            )}
           </div>
         ) : (
           <ul className="mt-8 grid gap-3 sm:grid-cols-2">

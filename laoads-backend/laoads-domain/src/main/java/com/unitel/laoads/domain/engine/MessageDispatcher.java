@@ -122,6 +122,7 @@ public class MessageDispatcher {
         List<Object[]> throttled = new ArrayList<>();
         Map<Long, CampaignCtx> contexts = new HashMap<>();
         Map<String, Map<String, String>> subscriberValues = subscriberValues(due, contexts);
+        Map<Long, Set<String>> unresponsive = unresponsive(due, contexts, now);
         int processed = 0;
         for (Due m : due) {
             CampaignCtx ctx = contexts.computeIfAbsent(m.campaignId(), this::load);
@@ -136,6 +137,13 @@ public class MessageDispatcher {
             if (m.converted() && ctx.def().goal() != null && ctx.def().goal().stopOnGoal()) {
                 processed++;
                 skip(m.id(), "Khách hàng đã đạt mục tiêu");
+                continue;
+            }
+            // SRS 3.2.6.1: không phản hồi sau N lần nhận thông báo liên tiếp → bỏ các bước tiếp theo
+            if (unresponsive.getOrDefault(m.campaignId(), Set.of()).contains(m.isdn())) {
+                processed++;
+                skip(m.id(), "Khách hàng không phản hồi sau " + ctx.def().goal().maxNoResponse()
+                        + " lần nhận thông báo liên tiếp");
                 continue;
             }
             Campaign c = ctx.campaign();
@@ -208,6 +216,21 @@ public class MessageDispatcher {
             }
         }
         return isdns.isEmpty() ? Map.of() : paramValues.load(isdns);
+    }
+
+    /** ISDN không phản hồi theo từng chiến dịch có bật điều kiện dừng {@code maxNoResponse} (một truy vấn / chiến dịch). */
+    private Map<Long, Set<String>> unresponsive(List<Due> due, Map<Long, CampaignCtx> contexts, Instant now) {
+        Map<Long, List<String>> byCampaign = new HashMap<>();
+        for (Due m : due) {
+            CampaignCtx ctx = contexts.computeIfAbsent(m.campaignId(), this::load);
+            if (ctx != null && ctx.def().goal() != null && ctx.def().goal().tracksNoResponse()) {
+                byCampaign.computeIfAbsent(m.campaignId(), k -> new ArrayList<>()).add(m.isdn());
+            }
+        }
+        Map<Long, Set<String>> out = new HashMap<>();
+        byCampaign.forEach((cid, isdns) -> out.put(cid,
+                StopConditions.unresponsiveAmong(jdbc, contexts.get(cid).def().goal(), cid, isdns, now)));
+        return out;
     }
 
     /** @return true nếu gateway nhận tin (SENT / DELIVERED) */

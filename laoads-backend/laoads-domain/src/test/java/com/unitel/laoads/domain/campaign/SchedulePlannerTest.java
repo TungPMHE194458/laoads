@@ -79,4 +79,16 @@ class SchedulePlannerTest {
         assertThat(SchedulePlanner.applySilentHours(t, LocalTime.of(12, 0), LocalTime.of(13, 0))).isEqualTo(vte(2026, 11, 16, 13, 0));
         assertThat(SchedulePlanner.applySilentHours(t, LocalTime.of(9, 0), LocalTime.of(9, 0))).isEqualTo(t);
     }
+
+    @Test
+    void monthlyOnChosenDaysFallsBackToLastDayOfShortMonth() {
+        // SRS 3.2.5.3: chọn ngày 15 và 31 hằng tháng; tháng 2 không có ngày 31 → chạy ngày 28
+        ScheduleDef s = new ScheduleDef("RECURRING", vte(2027, 1, 20, 0, 0), vte(2027, 12, 31, 0, 0), 1, "MONTH", null,
+                "09:00", null, List.of(15, 31), null);
+        Instant first = SchedulePlanner.firstRun(s, vte(2027, 1, 20, 0, 0));
+        assertThat(first).isEqualTo(vte(2027, 1, 31, 9, 0));
+        Instant second = SchedulePlanner.nextAfter(s, first);
+        assertThat(second).isEqualTo(vte(2027, 2, 15, 9, 0));
+        assertThat(SchedulePlanner.nextAfter(s, second)).isEqualTo(vte(2027, 2, 28, 9, 0));
+    }
 }

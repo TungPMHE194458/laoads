@@ -1,9 +1,9 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Upload } from 'lucide-react'
+import { Download, Upload } from 'lucide-react'
 import { errorMessage } from '@/api/client'
-import { useImportConversions } from '@/features/campaign/api'
+import { downloadConversionTemplate, useImportConversions } from '@/features/campaign/api'
 import { Button } from '@/components/ui/button'
 
 /** Mục tiêu MANUAL_FILE (SRS 3.2.6.2): tải file danh sách số thuê bao đã chuyển đổi để ghi nhận kết quả. */
@@ -22,6 +22,10 @@ export function ConversionImport({ campaignId }: { campaignId: number }) {
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed px-3 py-2.5">
       <p className="flex-1 text-[13px] text-muted-foreground">{t('campaign.detail.conversionsHint')}</p>
+      <Button size="sm" variant="ghost" onClick={() => downloadConversionTemplate().catch((e) => toast.error(errorMessage(e)))}>
+        <Download />
+        {t('campaign.wizard.downloadTemplate')}
+      </Button>
       <Button size="sm" variant="outline" loading={upload.isPending} onClick={() => input.current?.click()}>
         <Upload />
         {t('campaign.detail.importConversions')}

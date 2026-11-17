@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { MoreHorizontal, ShieldCheck, Trash2, UserCog, UserPlus } from 'lucide-react'
+import { Eye, Pencil, Trash2, UserCog, UserPlus } from 'lucide-react'
 import { errorMessage } from '@/api/client'
 import type { Member, WorkspaceRole } from '@/api/types'
 import { useMe } from '@/features/auth/api'
@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Tooltip } from '@/components/ui/misc'
 import { initials } from '@/lib/utils'
 import { MemberDetailSheet } from './MemberDetailSheet'
 import { fmtDate } from '@/lib/format'
@@ -31,10 +31,13 @@ export default function MembersPage() {
   const ws = useCurrentWorkspace()
   const wsId = ws?.id ?? 0
   const [page, setPage] = React.useState(0)
+  const [size, setSize] = React.useState(10)
   const [query, setQuery] = React.useState('')
   const [role, setRole] = React.useState<WorkspaceRole | ''>('')
+  // SRS 3.4.1: lọc trạng thái, mặc định "Tất cả"
+  const [status, setStatus] = React.useState<'' | 'ACTIVE' | 'REVOKED'>('')
   const [detail, setDetail] = React.useState<Member | null>(null)
-  const list = useMembers(ws?.id ?? null, { page, size: 10, query, role })
+  const list = useMembers(ws?.id ?? null, { page, size, query, role, status })
   const add = useAddMember(wsId)
   const changeRole = useChangeMemberRole(wsId)
   const remove = useRemoveMember(wsId)
@@ -49,8 +52,43 @@ export default function MembersPage() {
   // SRS 3.4: chỉ Owner được gán vai trò Chủ sở hữu
   const assignable = ROLES.filter((r) => r !== 'OWNER' || iAmOwner)
   const onErr = (e: unknown) => toast.error(errorMessage(e))
+  // Quy tắc SRS 3.4.3–3.4.4: không tự sửa / gỡ chính mình; chỉ Owner đổi vai trò Owner; không gỡ Owner
+  const rules = (m: Member) => {
+    const self = m.userId === me?.user.id
+    const active = m.status === 'ACTIVE'
+    return {
+      self,
+      canRole: active && manage && !self && (m.role !== 'OWNER' || iAmOwner),
+      canRemove: active && manage && !self && m.role !== 'OWNER',
+    }
+  }
+  const openEdit = (m: Member) => {
+    setRoleTarget(m)
+    setNewRole(m.role)
+  }
+  const iconBtn = (label: string, icon: React.ReactNode, onClick: () => void, enabled: boolean, danger = false) => (
+    <Tooltip content={enabled ? label : t('members.notAllowed')}>
+      {/* span bọc để tooltip vẫn hiện khi nút bị vô hiệu */}
+      <span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={label}
+          disabled={!enabled}
+          className={danger ? 'text-muted-foreground hover:text-danger' : undefined}
+          onClick={(e) => {
+            e.stopPropagation()
+            onClick()
+          }}
+        >
+          {icon}
+        </Button>
+      </span>
+    </Tooltip>
+  )
 
   const columns: Column<Member>[] = [
+    { key: 'id', header: 'ID', width: '64px', cell: (m) => <span className="text-muted-foreground tabular">{m.id}</span> },
     {
       key: 'user',
       header: t('members.member'),
@@ -72,46 +110,17 @@ export default function MembersPage() {
     { key: 'status', header: t('common.status'), cell: (m) => <ActiveBadge status={m.status} /> },
     { key: 'joined', header: t('members.joined'), cell: (m) => <span className="text-[13px] tabular">{fmtDate(m.joinedAt)}</span> },
     {
-      key: 'menu',
+      key: 'actions',
       header: '',
-      width: '48px',
+      width: '120px',
+      align: 'right',
       cell: (m) => {
-        const self = m.userId === me?.user.id
-        // Thành viên đã gỡ (REVOKED) vẫn hiện trong danh sách; thêm lại = kích hoạt lại cùng bản ghi
-        const active = m.status === 'ACTIVE'
-        const canRole = active && manage && !self && (m.role !== 'OWNER' || iAmOwner)
-        const canRemove = active && manage && !self && m.role !== 'OWNER'
-        if (!canRole && !canRemove) return null
+        const r = rules(m)
         return (
-          // không để click menu lan lên dòng (mở chi tiết)
-          <div onClick={(e) => e.stopPropagation()}>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label={t('common.actions')}>
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {canRole && (
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setRoleTarget(m)
-                    setNewRole(m.role)
-                  }}
-                >
-                  <ShieldCheck />
-                  {t('members.changeRole')}
-                </DropdownMenuItem>
-              )}
-              {canRole && canRemove && <DropdownMenuSeparator />}
-              {canRemove && (
-                <DropdownMenuItem variant="destructive" onSelect={() => setRemoveTarget(m)}>
-                  <Trash2 />
-                  {t('members.remove')}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+            {iconBtn(t('common.view'), <Eye />, () => setDetail(m), true)}
+            {manage && iconBtn(t('members.editMember'), <Pencil />, () => openEdit(m), r.canRole)}
+            {manage && iconBtn(t('members.remove'), <Trash2 />, () => setRemoveTarget(m), r.canRemove, true)}
           </div>
         )
       },
@@ -138,7 +147,10 @@ export default function MembersPage() {
         toolbar={
           <>
             <SearchInput value={query} onChange={(v) => { setQuery(v); setPage(0) }} placeholder={t('members.searchPh')} />
-            <Select className="ml-auto w-44" value={role} onValueChange={(v) => { setRole(v as WorkspaceRole | ''); setPage(0) }} allLabel={t('members.allRoles')} options={ROLES.map((r) => ({ value: r, label: t(`role.${r}`) }))} />
+            <div className="ml-auto flex flex-wrap gap-2">
+              <Select className="w-44" value={role} onValueChange={(v) => { setRole(v as WorkspaceRole | ''); setPage(0) }} allLabel={t('members.allRoles')} options={ROLES.map((r) => ({ value: r, label: t(`role.${r}`) }))} />
+              <Select className="w-44" value={status} onValueChange={(v) => { setStatus(v as '' | 'ACTIVE' | 'REVOKED'); setPage(0) }} allLabel={t('common.allStatus')} options={(['ACTIVE', 'REVOKED'] as const).map((s) => ({ value: s, label: t(`memberStatus.${s}`) }))} />
+            </div>
           </>
         }
         columns={columns}
@@ -149,6 +161,10 @@ export default function MembersPage() {
         error={list.isError ? errorMessage(list.error) : undefined}
         meta={list.data?.meta}
         onPageChange={setPage}
+        onPageSizeChange={(n) => {
+          setSize(n)
+          setPage(0)
+        }}
       />
 
       <FormDialog
@@ -180,8 +196,8 @@ export default function MembersPage() {
       <FormDialog
         open={!!roleTarget}
         onOpenChange={(o) => !o && setRoleTarget(null)}
-        title={t('members.changeRole')}
-        description={roleTarget?.fullName ?? roleTarget?.username}
+        title={t('members.editMember')}
+        description={t('members.editDesc')}
         loading={changeRole.isPending}
         onSubmit={() =>
           roleTarget &&
@@ -197,7 +213,26 @@ export default function MembersPage() {
           )
         }
       >
-        <Field label={t('members.role')}>
+        {roleTarget && (
+          <div className="grid gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-medium">{roleTarget.fullName ?? roleTarget.username}</span>
+              <ActiveBadge status={roleTarget.status} />
+            </div>
+            <Field label={t('members.fullName')}>
+              <Input value={roleTarget.fullName ?? ''} readOnly disabled />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label={t('members.phone')}>
+                <Input value={roleTarget.phone ?? ''} readOnly disabled />
+              </Field>
+              <Field label={t('members.email')}>
+                <Input value={roleTarget.email ?? ''} readOnly disabled />
+              </Field>
+            </div>
+          </div>
+        )}
+        <Field label={t('members.role')} required>
           <Select value={newRole} onValueChange={(v) => setNewRole(v as WorkspaceRole)} options={assignable.map((r) => ({ value: r, label: t(`role.${r}`) }))} />
         </Field>
       </FormDialog>
@@ -221,7 +256,12 @@ export default function MembersPage() {
           })
         }
       />
-      <MemberDetailSheet member={detail} onClose={() => setDetail(null)} />
+      <MemberDetailSheet
+        member={detail}
+        onClose={() => setDetail(null)}
+        onEdit={detail && rules(detail).canRole ? () => { openEdit(detail); setDetail(null) } : undefined}
+        onRemove={detail && rules(detail).canRemove ? () => { setRemoveTarget(detail); setDetail(null) } : undefined}
+      />
     </>
   )
 }

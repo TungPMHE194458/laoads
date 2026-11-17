@@ -29,7 +29,10 @@
     "view": "View details",
     "viewAll": "View all",
     "done": "Done",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "no": "No.",
+    "retry": "Retry",
+    "noData": "No data yet"
   },
   "errors": {
     "network": "Cannot reach the server. Check your network or the backend.",
@@ -45,7 +48,10 @@
     "selectAll": "Select all",
     "selectRow": "Select row",
     "selected": "{{n}} selected",
-    "showing": "Showing {{from}}–{{to}} of {{total}}"
+    "showing": "Showing {{from}}–{{to}} of {{total}}",
+    "goTo": "Go to page",
+    "first": "First page",
+    "last": "Last page"
   },
   "bulk": {
     "done": "Deleted {{n}} records",
@@ -199,7 +205,8 @@
     "deliveryRate": "Delivery rate",
     "openRate": "Open rate",
     "failedN": "{{n}} failed",
-    "spent": "Spent"
+    "spent": "Spent",
+    "opensN": "{{n}} opens"
   },
   "langName": {
     "LO": "ພາສາລາວ (Lao)",
@@ -224,7 +231,8 @@
     "LTE": "≤",
     "BETWEEN": "between",
     "IN": "in",
-    "IS_NULL": "is empty"
+    "IS_NULL": "is empty",
+    "CONTAINS": "contains"
   },
   "attr": {
     "province_code_active": "Activation province",
@@ -277,7 +285,10 @@
     "subtitle": "Choose a workspace to get started.",
     "permCount": "{{n}} permissions",
     "emptyTitle": "You don't belong to any workspace yet",
-    "emptyDesc": "Contact a system admin to be added to a workspace."
+    "emptyDesc": "Contact a system admin to be added to a workspace.",
+    "systemAdmin": "System administration",
+    "emptyTitleAdmin": "There are no workspaces yet",
+    "emptyDescAdmin": "Create the first workspace and assign its owner on the Workspaces page."
   },
   "status": {
     "forbiddenTitle": "You don't have access",
@@ -343,14 +354,15 @@
       "name": "Campaign",
       "segment": "Audience",
       "channels": "Channels",
-      "time": "Schedule",
-      "performance": "Performance"
+      "performance": "Performance",
+      "startAt": "Starts",
+      "endAt": "Ends"
     },
     "mode": {
       "OFFICIAL": "Official",
       "TEST": "Test",
       "OFFICIAL_desc": "Runs on the whole audience after approval.",
-      "TEST_desc": "Runs on at most 1,000 customers to test content."
+      "TEST_desc": "Runs on a limited number of customers (10 by default) to test the content."
     },
     "type": {
       "STATIC": "Fixed list",
@@ -399,7 +411,6 @@
       "notStarted": "Campaign hasn't started",
       "notStartedDesc": "Metrics appear once the campaign starts sending.",
       "ofBudget": "of {{v}} budget",
-      "trend": "Over time",
       "bucket": {
         "DAY": "Day",
         "WEEK": "Week",
@@ -407,7 +418,6 @@
       },
       "funnel": "Conversion funnel",
       "funnelDesc": "% of target customers",
-      "byChannel": "Performance by channel",
       "byGroup": "Action group comparison",
       "byGroupDesc": "Uplift = group conversion rate minus control group",
       "group": "Group",
@@ -417,7 +427,47 @@
       "pendingNote": "This campaign is pending approval — it can't be edited right now.",
       "importConversions": "Upload conversions",
       "conversionsHint": "Manual goal: upload an .xlsx / .csv file of subscribers who reached the goal.",
-      "conversionsImported": "Recorded {{matched}} conversions ({{rows}} numbers in the file)"
+      "conversionsImported": "Recorded {{matched}} conversions ({{rows}} numbers in the file)",
+      "noReportPermission": "You don't have permission to view reports in this workspace.",
+      "reportError": "Could not load the report",
+      "bucketLabel": "Time unit",
+      "rangeFrom": "From",
+      "rangeTo": "To",
+      "perfTitle": "Channel performance",
+      "perfInfo": "Messages sent, opens, clicks and converted customers by the time each happened (Laos time). Click a legend item to hide or show a metric.",
+      "allChannels": "All channels",
+      "deliveryInfo": "Delivery success rate = messages sent ÷ (messages sent + failed messages), per channel.",
+      "deliveryTip": "{{sent}} succeeded · {{failed}} failed",
+      "interactionTitle": "Interaction rate by channel",
+      "interactionInfo": "Open rate = opens ÷ messages received; Response rate = clicks ÷ messages received; Signup rate = converted customers ÷ messages sent. SMS opens cannot be measured.",
+      "metricCol": "Metric",
+      "rate": {
+        "open": "Open rate",
+        "click": "Response rate (clicks)",
+        "clickShort": "Click rate",
+        "signup": "Signup rate"
+      },
+      "donutChannel": "Channel",
+      "donutOpen": "Open rate {{channel}}",
+      "donutOpenInfo": "Opens ÷ messages received on the channel. The centre shows total messages sent.",
+      "donutClick": "Click rate {{channel}}",
+      "donutClickInfo": "Tracking-link clicks ÷ messages received on the channel. The centre shows total clicks.",
+      "donutSignup": "Signup rate {{channel}}",
+      "donutSignupInfo": "Customers who reached the goal ÷ messages sent on the channel. The centre shows total signups.",
+      "totalSent": "Total sent",
+      "totalClicks": "Total clicks",
+      "totalReg": "Total signups",
+      "noGoal": "This campaign has no conversion goal.",
+      "byGroupInfo": "Delivery rate = customers who received at least one message ÷ customers in the group; Open rate = customers who opened ÷ customers who received; Conversion rate = converted customers ÷ customers in the group.",
+      "ruleEvent": "Sends when the «{{event}}» event arrives",
+      "ruleNow": "Runs as soon as it is approved",
+      "ruleOnce": "Runs once at {{at}}",
+      "ruleRecurring": "Every {{every}} {{unit}}{{days}} at {{time}}",
+      "approxCustomers": "≈ {{n}} customers",
+      "customersN": "{{n}} customers",
+      "testList": "Test number list ({{n}} numbers)",
+      "onDays": "on day {{days}}",
+      "ruleMax": "up to {{n}} times"
     },
     "wizard": {
       "newTitle": "New campaign",
@@ -447,8 +497,7 @@
       "language": "Content language",
       "description": "Description",
       "subs": "subscribers",
-      "noSegment": "No suitable audience?",
-      "testLimit": "Test campaigns send to the first 1,000 customers of the audience only.",
+      "testLimit": "A test campaign only sends to the first {{n}} customers of the test list or the segment.",
       "allocationHint": "Group allocations must add up to 100%.",
       "allocationTotal": "Total: {{n}}%",
       "groupName": "Group name",
@@ -470,11 +519,9 @@
       "sender": "Sender",
       "senderPh": "Choose short code / brandname",
       "subject": "Email subject",
-      "waTemplate": "WhatsApp template",
-      "waHint": "Templates must be approved by Meta first.",
       "content": "Content",
       "contentPh": "Type the message, insert dynamic parameters below…",
-      "smsCounter": "{{n}} chars · {{seg}} SMS",
+      "smsCounter": "{{n}}/{{max}} chars · {{seg}} SMS",
       "amount": "Amount",
       "packageCode": "Package code",
       "schedule": {
@@ -498,20 +545,19 @@
       "silent": "Quiet hours",
       "silentDesc": "Hold messages during night hours (system default {{from}}–{{to}}).",
       "goal": {
-        "AUTO_OCS": "Automatic from OCS/BI",
-        "MANUAL_FILE": "Import result file",
+        "AUTO_OCS": "Set up from external data sources",
+        "MANUAL_FILE": "Upload a manual list (Excel file)",
         "NONE": "Don't track conversions",
-        "AUTO_OCS_desc": "Compare subscriber data before/after sending.",
-        "MANUAL_FILE_desc": "Upload the list of converted customers.",
+        "AUTO_OCS_desc": "A customer reaches the goal when BI data meets the conditions.",
+        "MANUAL_FILE_desc": "Upload the list of customers who reached the goal once the campaign runs.",
         "NONE_desc": "Only track sends/opens/clicks."
       },
-      "goalDesc": "Goal description",
+      "goalDesc": "Goal note",
       "goalDescPh": "e.g. Subscriber registers the M50 monthly package within 7 days",
-      "attribution": "Attribution window (days)",
-      "attributionHint": "Only conversions within this window after delivery count.",
-      "maxNoResponse": "Stop after N unanswered messages",
-      "maxNoResponseHint": "Leave empty for no limit.",
-      "stopOnGoal": "Stop messaging customers who reached the goal",
+      "attribution": "Conversion tracking window",
+      "attributionHint": "from when the campaign runs",
+      "maxNoResponse": "Consecutive notifications received",
+      "stopOnGoal": "The customer reached the campaign goal above",
       "window": "{{n}}-day window",
       "budget": "Budget",
       "expectedCost": "Estimated cost",
@@ -526,19 +572,25 @@
       "saved": "Campaign draft saved",
       "submitted": "Campaign submitted for approval",
       "err": {
-        "name": "Campaign name needs at least 3 characters.",
+        "name": "Please enter a campaign name.",
         "segment": "Please choose an audience.",
         "allocation": "Group allocations must add up to 100%.",
         "noAction": "Add at least one action to a non-control group.",
         "content": "A messaging action has no content.",
-        "smsLong": "SMS content exceeds 459 characters (3 messages), counting parameters at their maximum length.",
         "subject": "Email needs a subject.",
         "amount": "Offer actions need an amount greater than 0.",
         "start": "Please choose a start time.",
         "endBeforeStart": "End time must be after start time.",
         "budget": "Maximum budget is below the estimated cost.",
         "sender": "An SMS action has no sender selected.",
-        "unknownParam": "The content uses unsupported parameters."
+        "unknownParam": "The content uses unsupported parameters.",
+        "eventTemplate": "Please choose an event template.",
+        "description": "The description can be at most 360 characters.",
+        "testLimit": "The test customer limit must be between 1 and 1,000.",
+        "startInPast": "The start time cannot be in the past.",
+        "endRequired": "A recurring campaign needs an end time.",
+        "contentLong": "The content exceeds 360 characters (counting parameters at their maximum length).",
+        "goalConditions": "A goal from an external data source needs at least one complete condition."
       },
       "trackLinks": "Track link clicks (replace links in the message with tracking links)",
       "newGroup": "New campaign group",
@@ -548,12 +600,48 @@
       "senderUnavailable": "no longer available",
       "senderUnavailableHint": "This sender is disabled, deleted or no longer allowed for this workspace — pick another one.",
       "noSender": "This workspace has no sender for this channel yet — contact a Super Admin.",
-      "smsCounterParams": "Up to {{n}} chars after parameters are filled · {{seg}} SMS",
+      "smsCounterParams": "Up to {{n}}/{{max}} chars after parameters are filled · {{seg}} SMS",
       "unknownParams": "Unsupported parameters: {{list}}. Remove or fix them before submitting.",
       "preview": "Preview",
       "paramExample": "Example: {{v}}",
       "paramHint": "Parameters are filled per subscriber when sending. A subscriber with no data gets the default you set, e.g. {{example}}; otherwise it is left blank.",
-      "paramDefaultSample": "new plan"
+      "paramDefaultSample": "new plan",
+      "contentCounter": "{{n}}/{{max}} chars",
+      "contentCounterParams": "Up to {{n}}/{{max}} chars after parameters are filled",
+      "charCounter": "{{n}}/{{max}} chars",
+      "changeType": "Change action type",
+      "trackLinkUrl": "Link to track",
+      "insertTrackLink": "Insert tracking link",
+      "eventTemplateHint": "An external system sends this event through the events API to enrol a subscriber in the campaign.",
+      "testLimitLabel": "Test customer limit",
+      "testLimitHint": "From 1 to {{max}} customers.",
+      "testIsdns": "Test subscriber numbers (optional)",
+      "testIsdnsHint": "One number per line or comma-separated. When set, the campaign sends to these numbers (up to {{n}}) instead of the segment.",
+      "eventAudience": "An event campaign needs no segment: subscribers join when an external system sends the «{{event}}» event.",
+      "attributionDesc": "Record customers who reach the goal above within",
+      "nDays": "{{n}} days",
+      "stopTitle": "Stop conditions",
+      "stopDesc": "The system removes a customer from the recipients of the next cycles / steps if:",
+      "noResponseBefore": "The customer did not respond after",
+      "noResponseAfter": "consecutive notifications",
+      "reentryBefore": "Allow customers to re-enter this campaign after",
+      "reentryDays": "Days before re-entry",
+      "daysUnit": "days",
+      "manualGoalNote": "You can upload an Excel list of customers who reached the goal on the campaign overview page once the campaign starts running.",
+      "downloadTemplate": "Download template",
+      "segmentBuilding": "Loading data — submit once the segment is ready.",
+      "noReadySegment": "No segment is ready yet. Create a new one to continue.",
+      "monthDays": "Days of the month",
+      "monthDaysHint": "Leave empty to run on the day of the start time. Months without a chosen day (e.g. 31) run on their last day.",
+      "maxOccurrences": "Maximum occurrences",
+      "maxOccurrencesHint": "The campaign completes after this many occurrences or at the end time, whichever comes first.",
+      "finishAfter": "Finish after",
+      "occurrences": "occurrences",
+      "goalSource": "Data source",
+      "goalSourceOcs": "OCS — BI data",
+      "goalTable": "Table",
+      "goalConditions": "Goal conditions",
+      "goalConditionsHint": "A customer reaches the goal when their latest BI data meets these conditions within the tracking window. Use the \"is empty\" operator to check for Null."
     },
     "param": {
       "isdn": "Subscriber number",
@@ -672,7 +760,12 @@
         "operator": "This operator doesn't apply to the column's data type",
         "value": "The value doesn't match the column's data type"
       }
-    }
+    },
+    "emptyWarning": "No customer matches these conditions. Click \"Create anyway\" to save an empty segment.",
+    "createAnyway": "Create anyway",
+    "inUseNoDelete": "The segment is used by a campaign and cannot be deleted",
+    "deleteOneTitle": "Delete segment?",
+    "deleteOneDesc": "The segment \"{{name}}\" and its customer list will be deleted."
   },
   "workspace": {
     "name": "Workspace name",
@@ -686,7 +779,12 @@
     "contactPhone": "Phone",
     "myPermissions": "Your permissions",
     "myPermissionsDesc": "Based on your role in this workspace.",
-    "editTitle": "Edit workspace info"
+    "editTitle": "Edit workspace info",
+    "notUpdated": "Not updated",
+    "general": "General information",
+    "updatedAt": "Last updated",
+    "contact": "Contact",
+    "membersError": "Could not load the member list."
   },
   "members": {
     "desc": "Members of workspace {{ws}} and their roles.",
@@ -703,13 +801,16 @@
     "added": "Member added",
     "identifier": "Username, email or phone",
     "identifierHint": "Enter any one of the three to identify the account.",
-    "changeRole": "Change role",
     "remove": "Remove from workspace",
     "removeTitle": "Remove member?",
-    "removeDesc": "{{name}} will lose access to this workspace. This can't be undone.",
+    "removeDesc": "{{name}} will lose access to the workspace. You can add them again later; the account is then reactivated with the new role.",
     "removed": "Member removed",
     "email": "Email",
-    "phone": "Phone"
+    "phone": "Phone",
+    "editMember": "Edit member",
+    "editDesc": "Only the role can be changed; name, phone and email come from the account.",
+    "fullName": "Full name",
+    "notAllowed": "This member cannot be changed (yourself, the owner, or already removed)"
   },
   "price": {
     "desc": "Unit prices per action type — used to estimate and charge campaign costs.",
@@ -745,7 +846,14 @@
     "summary": "Details",
     "actorPh": "Filter by actor…",
     "allActions": "All actions",
-    "allEntities": "All objects"
+    "allEntities": "All objects",
+    "result": "Status",
+    "errorCode": "Error code",
+    "allResults": "All statuses",
+    "view": "View details",
+    "detailTitle": "Log details",
+    "detailDesc": "Full information about the action (read-only).",
+    "detailJson": "Detail data"
   },
   "auditAction": {
     "LOGIN": "Sign in",
@@ -970,7 +1078,11 @@
     "export": "Export Excel",
     "workspace": "Workspace",
     "campaigns": "Campaigns",
-    "running": "Running"
+    "running": "Running",
+    "auditTitle": "System log",
+    "auditDesc": "Latest actions across the system — click a row for details",
+    "loadError": "Could not load system-wide figures: {{message}}",
+    "topEmpty": "No workspace has a campaign yet."
   },
   "apiKey": {
     "title": "Event API key",
@@ -1009,5 +1121,13 @@
     "GREATER_EQUAL_THAN": "greater or equal (≥)",
     "LESS_THAN": "less than (<)",
     "LESS_EQUAL_THAN": "less or equal (≤)"
+  },
+  "auditResult": {
+    "SUCCESS": "Succeeded",
+    "FAILURE": "Failed"
+  },
+  "memberStatus": {
+    "ACTIVE": "Active",
+    "REVOKED": "Removed"
   }
 }

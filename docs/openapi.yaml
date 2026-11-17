@@ -1515,6 +1515,18 @@ paths:
         schema:
           type: integer
           format: int64
+      - name: sort
+        in: query
+        description: createdAt | startAt | endAt | name (mặc định createdAt)
+        required: false
+        schema:
+          type: string
+      - name: dir
+        in: query
+        description: asc | desc (mặc định desc)
+        required: false
+        schema:
+          type: string
       - name: X-Workspace-Id
         in: header
         description: Workspace hiện hành (bắt buộc)
@@ -2862,6 +2874,32 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseMeResponse"
+  /v1/event-templates:
+    get:
+      tags:
+      - campaign
+      summary: Danh mục template sự kiện
+      description: Chiến dịch chạy theo sự kiện chọn một template; hệ thống ngoài
+        gọi POST /v1/events với eventType = mã template. Nhãn hiển thị do FE dịch
+        (campaign.event.<code>).
+      operationId: eventTemplates
+      parameters:
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListEventTemplateDto"
   /v1/dashboard/trend:
     get:
       tags:
@@ -2993,6 +3031,26 @@ paths:
         required: false
         schema:
           type: string
+      - name: from
+        in: query
+        description: "Ngày bắt đầu (yyyy-MM-dd, giờ Lào) — chỉ lọc chuỗi thời gian"
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        description: Ngày kết thúc (gồm cả ngày này)
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: channel
+        in: query
+        description: SMS | EMAIL | WHATSAPP | USSD — lọc chuỗi thời gian theo kênh
+        required: false
+        schema:
+          type: string
       - name: X-Workspace-Id
         in: header
         description: Workspace hiện hành (bắt buộc)
@@ -3016,6 +3074,39 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseCampaignReport"
+  /v1/campaigns/conversions/template:
+    get:
+      tags:
+      - campaign
+      summary: Tải file mẫu danh sách khách hàng đạt mục tiêu (.xlsx) — SRS 3.2.6.2
+      description: Sheet 1 chỉ có tiêu đề isdn (cột định dạng Text); sheet 2 là hướng
+        dẫn theo Accept-Language.
+      operationId: conversionTemplate
+      parameters:
+      - name: X-Workspace-Id
+        in: header
+        description: Workspace hiện hành (bắt buộc)
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: Accept-Language
+        in: header
+        required: false
+        schema:
+          type: string
+          enum:
+          - vi
+          - en
+          - lo
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
   /v1/campaign-approvals:
     get:
       tags:
@@ -3148,6 +3239,12 @@ paths:
         schema:
           type: integer
           format: int64
+      - name: result
+        in: query
+        description: SUCCESS | FAILURE
+        required: false
+        schema:
+          type: string
       - name: X-Workspace-Id
         in: header
         description: Workspace hiện hành (bắt buộc với user không phải SUPER_ADMIN)
@@ -3211,6 +3308,11 @@ paths:
         schema:
           type: integer
           format: int64
+      - name: result
+        in: query
+        required: false
+        schema:
+          type: string
       - name: X-Workspace-Id
         in: header
         description: Workspace hiện hành (bắt buộc với user không phải SUPER_ADMIN)
@@ -3951,6 +4053,13 @@ components:
         maxNoResponse:
           type: integer
           format: int32
+        reentryDays:
+          type: integer
+          format: int32
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SegmentCondition"
     Request:
       type: object
       properties:
@@ -3994,6 +4103,11 @@ components:
           $ref: "#/components/schemas/GoalDef"
         budget:
           $ref: "#/components/schemas/BudgetDef"
+        eventTemplate:
+          type: string
+        testLimit:
+          type: integer
+          format: int32
       required:
       - mode
       - name
@@ -4023,6 +4137,27 @@ components:
           type: string
         silentHours:
           $ref: "#/components/schemas/SilentHoursDef"
+        monthDays:
+          type: array
+          items:
+            type: integer
+            format: int32
+        maxOccurrences:
+          type: integer
+          format: int32
+    SegmentCondition:
+      type: object
+      properties:
+        field:
+          type: string
+        operator:
+          type: string
+        value:
+          type: string
+        valueTo:
+          type: string
+        join:
+          type: string
     SilentHoursDef:
       type: object
       properties:
@@ -4141,6 +4276,11 @@ components:
           $ref: "#/components/schemas/GoalDef"
         budget:
           $ref: "#/components/schemas/BudgetDef"
+        eventTemplate:
+          type: string
+        testLimit:
+          type: integer
+          format: int32
         rejectReason:
           type: string
         history:
@@ -4405,19 +4545,6 @@ components:
             $ref: "#/components/schemas/SegmentCondition"
       required:
       - name
-    SegmentCondition:
-      type: object
-      properties:
-        field:
-          type: string
-        operator:
-          type: string
-        value:
-          type: string
-        valueTo:
-          type: string
-        join:
-          type: string
     ApiResponseSegmentDto:
       type: object
       properties:
@@ -5322,6 +5449,32 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MyWorkspace"
+    ApiResponseListEventTemplateDto:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventTemplateDto"
+        message:
+          type: string
+        statusCode:
+          type: string
+        metaData:
+          $ref: "#/components/schemas/PageMeta"
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    EventTemplateDto:
+      type: object
+      properties:
+        code:
+          type: string
     ApiResponseListTimePoint:
       type: object
       properties:
@@ -5432,6 +5585,9 @@ components:
         channel:
           type: string
         sent:
+          type: integer
+          format: int64
+        failed:
           type: integer
           format: int64
         delivered:
@@ -5585,12 +5741,21 @@ components:
         target:
           type: integer
           format: int64
+        delivered:
+          type: integer
+          format: int64
         sentRate:
           type: number
           format: double
+        opens:
+          type: integer
+          format: int64
         openRate:
           type: number
           format: double
+        conversions:
+          type: integer
+          format: int64
         conversionRate:
           type: number
           format: double
@@ -5717,6 +5882,10 @@ components:
         createdAt:
           type: string
           format: date-time
+        result:
+          type: string
+        errorCode:
+          type: string
     ApiResponseListWorkspaceDto:
       type: object
       properties:

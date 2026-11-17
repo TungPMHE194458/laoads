@@ -1,5 +1,6 @@
 package com.unitel.laoads.infra.simulation;
 
+import com.unitel.laoads.domain.campaign.CampaignDefinition.GoalDef;
 import com.unitel.laoads.domain.engine.ConversionSource;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -20,7 +21,7 @@ public class SimulatedConversionSource implements ConversionSource {
     static final int CONTROL_PER_MILLE = 40;
 
     @Override
-    public Set<Long> converted(long campaignId, String goalDescription, Collection<Candidate> candidates) {
+    public Set<Long> converted(long campaignId, GoalDef goal, Collection<Candidate> candidates) {
         Set<Long> out = new HashSet<>();
         for (Candidate c : candidates) {
             int bucket = Math.floorMod((c.isdn() + ":" + campaignId + ":conv").hashCode(), 1000);
